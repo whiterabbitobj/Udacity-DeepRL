@@ -5,7 +5,7 @@ from collections import defaultdict
 
 class Agent:
 
-    def __init__(self, nA=6):
+    def __init__(self, nA=6, e_start=1, e_decay=.9999, e_min=0.075, gamma=1.0, lr=1):
         """ Initialize agent.
 
         Params
@@ -14,6 +14,11 @@ class Agent:
         """
         self.nA = nA
         self.Q = defaultdict(lambda: np.zeros(self.nA))
+        self.epsilon = e_start
+        self.epsilon_decay = e_decay
+        self.epsilon_min = e_min
+        self.gamma = gamma
+        self.alpha = lr
 
     def select_action(self, state):
         """ Given the state, select an action.
@@ -40,3 +45,6 @@ class Agent:
         - done: whether the episode is complete (True or False)
         """
         self.Q[state][action] += 1
+
+
+print("Hello world")
