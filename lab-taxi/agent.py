@@ -5,8 +5,8 @@ from collections import defaultdict
 
 class Agent:
 
-    def __init__(self, nA=6, gamma=1.0, alpha=1,
-                 epsilon_start=1, epsilon_decay=.999999, epsilon_min=0.075):
+    def __init__(self, nA=6, gamma=.9, alpha=.9,
+                 epsilon_start=1, epsilon_decay=.999, epsilon_min=0.25):
         """ Initialize agent.
 
         Params
@@ -26,6 +26,7 @@ class Agent:
         self.epsilon_min = epsilon_min
         self.gamma = gamma
         self.alpha = alpha
+        print("Epsilon: {}, E Decay: {}, E Min: {}, Gamma: {}, Alpha: {}".format(self.epsilon, self.epsilon_decay, self.epsilon_min, self.gamma, self.alpha))
 
     def get_probs(self, state_values):
         self.epsilon = self.epsilon * self.epsilon_decay
