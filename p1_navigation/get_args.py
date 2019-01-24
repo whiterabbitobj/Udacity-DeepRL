@@ -5,17 +5,46 @@ def get_args():
     parser = argparse.ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment",
             usage="EXAMPLE COMMAND:\npython banana_agent.py --train --batch_size 64 -lr 5e-4")
 
-    parser.add_argument("-a", "--train",
-            help="Set the agent into training mode.",
-            action="store_true")
+    # parser.add_argument("-a", "--train",
+    #         help="Set the agent into training mode.",
+    #         action="store_true")
+    parser.add_argument("-m", "--mode",
+            help="In which mode should the Agent run? (train, demo)")
+    parser.add_argument("-a", "--agent_type",
+            help="Which type of Agent to use. (DQN, DDQN)")
     parser.add_argument("--gpu",
             help="Use GPU if available.",
             action="store_true")
+    parser.add_argument("-ec", "--episode_count",
+            help="How many episodes to train?",
+            type=int,
+            default=200)
+    parser.add_argument("-e", "--epsilon",
+            help="Starting value of Epsilon.",
+            type=float,
+            default=1.0)
+    parser.add_argument("-ed", "--epsilon_decay",
+            help="Epsilon decay value.",
+            type=float,
+            default=0.9999)
+    parser.add_argument("-em", "--epsilon_min",
+            help="Minimum value for epsilon.",
+            type=float,
+            default=0.1)
+    parser.add_argument("-d", "--discount",
+            help="Discount rate.",
+            type=float,
+            default=1.0)
+    parser.add_argument("-lr", "--learn_rate",
+            help="Alpha (Learning Rate).",
+            type=float,
+            default=1.0)
 
 
 
-
-
+#########################
+#   OLD CODE BELOW, DELETE ME BEFORE PRODUCTION!
+#########################
     parser.add_argument("-a", "--arch",
             help="The name of the pre-trained model to use. Currently supported: densenet121, densenet169, vgg16. Default: 'densenet169'.",
             type=str,
