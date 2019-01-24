@@ -20,7 +20,7 @@ def get_args():
             type=float,
             default=64)
     parser.add_argument("-buffer", "--buffersize",
-            help="Alpha (Learning Rate).",
+            help="How many past timesteps to keep in memory.",
             type=int,
             default=int(1e5))
     # parser.add_argument("-d", "--discount",

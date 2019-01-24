@@ -13,7 +13,7 @@ class DQN_Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
 
     def __init__(self, nS, nA, device, args, seed):
-        super(DQN_Agent, self).__init()
+        #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
         self.nS = nS
