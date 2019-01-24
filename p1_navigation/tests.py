@@ -1,10 +1,7 @@
-import numpy as np
-s = []
-l = 10
-for i in range(1,50+1):
-    s.append(i)
-    if i % l == 0:
-        print(i)
-        print(np.mean(s[-l:]))
-    #print(i)
-#print(np.mean(s))
+t = 0
+b = 10
+e = 1
+for i in range(50):
+    print(i)
+    if i % e == 0 and i > b:
+        print("batch")

@@ -1,5 +1,8 @@
-from unityagents import UnityEnvironment
 import numpy as np
+import torch
+
+from unityagents import UnityEnvironment
+
 from get_args import get_args
 from agent import DQN_Agent
 
@@ -7,10 +10,15 @@ from agent import DQN_Agent
 def main():
     args = get_args()
 
+    #REPLACE BELOW AFTER BUG TESTING!!!
+    args.mode = "train"
+    ###################################
+
+
     #if the user has not chosen a mode, quit early and print an error
-    if not args.train and not args.run:
-        print("ERROR: Please choose a mode in which to run the agent.")
-        return
+    # if not args.train and not args.run:
+    #     print("ERROR: Please choose a mode in which to run the agent.")
+    #     return
 
     #send all the training to the GPU, if available
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
@@ -33,13 +41,13 @@ def main():
     # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
     # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
 
-    agent = DQN_Agent(state_size, action_size, seed=0, device, args)
+    agent = DQN_Agent(state_size, action_size, device, args, seed=0)
 
     #train the agent after initializing all of the info above
     if args.mode == "train":
         num_episodes = args.episode_count
 
-        avg_len = 50
+        avg_len = 1
         scores = []
         for i_episode in range(1, num_episodes+1):
             score = 0
@@ -64,7 +72,8 @@ def main():
                 score += reward
                 if done:
                     break
-            #after episode completes, append the score to the list of all scores in the current training session
+            #after episode completes, append the score to the list of all scores
+            #in the current training session
             scores.append(score)
             #update value for  EPSILON
             epsilon = max(epsilon*epsilon_decay, epsilon_min)
@@ -72,7 +81,7 @@ def main():
             #print status info every so often
             if i_episode % avg_len == 0:
                 print("Episode {}/{}, avg score for last {} episodes: {}".format(
-                            i_episode, num_episodes, avg_len, np.mean(scores[-avg_len:]))
+                        i_episode, num_episodes, avg_len, np.mean(scores[-avg_len:]))
         #env.close()
 
 
