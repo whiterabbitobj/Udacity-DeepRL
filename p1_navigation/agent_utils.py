@@ -81,10 +81,8 @@ def train(unity_env, agent, args, brain_name):
 
 def save_checkpoint(agent, save_name):
     '''
-        Pass in a model with the appropriate sub attributes and a filepath for saving.
-        Requires these to be defined in the model:
-        model.optimizer_sate
-        model.classifier.epochs
+    Saves the current Agent's learning dict as well as important parameters
+    involved in the latest training.
     '''
     checkpoint = {'agent_type': agent.name,
                   'drop_rate': agent.dropout,
@@ -94,23 +92,29 @@ def save_checkpoint(agent, save_name):
                   'gamma': agent.gamma,
                   'batchsize': agent.batchsize,
                   'buffersize': agent.buffersize,
-                  'epsilon': agent.epsilon
+                  'epsilon': agent.epsilon,
+                  'state_size': agent.nS,
+                  'action_size': agent.nA,
+                  'dropout': agent.dropout,
+                  'optimizer': agent.optimizer.state_dict()
                   }
-
     # checkpoint = {'agent_type': agent.name,
-    #               'input_size': agent.qnet_local.hidden_sizes[0].in_features,
-    #               'output_size': agent.qnet_local.output.out_features,
-    #               'hidden_layers': [layer.out_features for layer in model.classifier.hidden_sizes],
     #               'drop_rate': agent.dropout,
     #               'state_dict': agent.qnet_local.state_dict(),
-    #               'optimizer': agent.optimizer_state,
     #               'lr': agent.lr,
     #               'tau': agent.tau,
-    #               'gamma': agent.gamma
+    #               'gamma': agent.gamma,
+    #               'batchsize': agent.batchsize,
+    #               'buffersize': agent.buffersize,
+    #               'epsilon': agent.epsilon,
+    #               'input_size': agent.qnet_local.hidden_layers[0].in_features,
+    #               'output_size': agent.qnet_local.output.out_features,
+    #               'dropout': agent.dropout,
+    #               'optimizer': agent.optimizer.state_dict()
     #               }
     agent.qnet_local.to('cpu')
+    agent.qnet_target.to('cpu')
     torch.save(checkpoint, save_name)
-
     return True
 
 
@@ -124,6 +128,11 @@ def load_checkpoint(filepath):
     '''
 
     checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
+
+    if checkpoint['agent_type'] == 'DQN':
+        agent = DQN_Agent(state_size, action_size, device, args)
+    agent.qnet_local.load_state_dict(checkpoint['state_dict'])
+    agent.optimizer.load_state_dict(checkpoint['optimizer'])
 
     if checkpoint['arch'] == 'densenet121':
         model = models.densenet121(pretrained=True)

@@ -12,7 +12,7 @@ import torch.optim as optim
 class DQN_Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
 
-    def __init__(self, nS, nA, device, args, seed):
+    def __init__(self, nS, nA, device, args, seed=0):
         #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
@@ -24,18 +24,18 @@ class DQN_Agent():
         #initialize params from the command line args
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
+        self.dropout = args.dropout
         self.epsilon = args.epsilon
+        self.epsilon_decay = args.epsilon_decay
+        self.epsilon_min = args.epsilon_min
         self.gamma = args.gamma
         self.lr = args.learn_rate
         self.tau = args.tau
         self.update_every = args.update_every
-        self.epsilon_decay = args.epsilon_decay
-        self.epsilon_min = args.epsilon_min
-        self.dropout = args.dropout
 
         #Initialize a Q-Network
         self.qnet_local = QNetwork(nS, nA, seed, self.dropout).to(device)
-        self.qnet_target = QNetwork(nS, nA, seed).to(device)
+        self.qnet_target = QNetwork(nS, nA, seed, self.dropout).to(device)
 
         #set optimizer
         #SET THIS TO CALL "get_optimizer()" FUNCTION THAT STILL NEEDS TO BE

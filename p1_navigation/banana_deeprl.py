@@ -59,7 +59,7 @@ def main():
 
     # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
     # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
-    agent = DQN_Agent(state_size, action_size, device, args, seed=0)
+    agent = DQN_Agent(state_size, action_size, device, args)
 
 
     #TRAIN the agent
