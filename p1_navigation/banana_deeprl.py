@@ -28,9 +28,13 @@ def main():
 
     #send all the training to the GPU, if available
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
-    #device = "cuda"
+
     #initialize the environment
     unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe")
+
+    #Use this code if training without visuals:
+    # unity_env = UnityEnvironment(file_name="[...]/Banana.x86_64", no_graphics=True)
+
     # get the default brain (In this environment there is only one agent/brain)
     brain_name = unity_env.brain_names[0]
     brain = unity_env.brains[brain_name]
@@ -39,28 +43,26 @@ def main():
     action_size = brain.vector_action_space_size
     state_size = len(env.vector_observations[0])
 
+    num_episodes = args.episode_count
+
 
     #PRINT DEBUG INFO
     for arg in vars(args):
         print("{}: {}".format(arg, getattr(args, arg)))
     print("Device: {}".format(device))
     print("Action Size: {}\nState Size: {}".format(action_size, state_size))
-
-    #print some info about the agent about to be initialized
     print('Number of agents:', len(env.agents))
-    print("Observing state size: {} with {} available actions.".format(state_size, action_size))
+    print("Number of Episodes: {}".format(num_episodes))
 
     # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
     # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
     agent = DQN_Agent(state_size, action_size, device, args, seed=0)
 
-    num_episodes = args.episode_count
-    print("Number of Episodes: {}".format(num_episodes))
 
     #train the agent after initializing all of the info above
     if args.mode == "train":
 
-        avg_len = 2
+        avg_len = 100
         scores = []
         for i_episode in range(1, num_episodes+1):
             score = 0
@@ -70,8 +72,8 @@ def main():
             state = env.vector_observations[0]
             while True:
                 #choose an action based on agent QTable
-                ###action = agent.act(state, epsilon)
-                action = np.random.randint(action_size)
+                action = agent.act(state, epsilon)
+                #action = np.random.randint(action_size)
                 #use action to get updated environment state
                 env = unity_env.step(action)[brain_name]
                 #collect info about new state
@@ -79,7 +81,7 @@ def main():
                 reward = env.rewards[0]
                 done = env.local_done[0]
                 #update the agent with new environment info
-                ###agent.step(state, action, reward, next_state, done)
+                agent.step(state, action, reward, next_state, done)
                 #update current state value to choose action in next time step
                 state = next_state
                 #add reward from current timestep to cumulative score

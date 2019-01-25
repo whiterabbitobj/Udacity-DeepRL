@@ -23,13 +23,14 @@ class DQN_Agent():
         #initialize params from the command line args
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
+        self.epsilon = args.epsilon
         self.gamma = args.gamma
         self.lr = args.learn_rate
         self.tau = args.tau
         self.update_every = args.update_every
 
+
         #Initialize a Q-Network
-        print("DEVICE PASSED TO DQN_AGENT: {}".format(device))
         self.qnet_local = QNetwork(nS, nA, seed).to(device)
         self.qnet_target = QNetwork(nS, nA, seed).to(device)
 
@@ -65,8 +66,8 @@ class DQN_Agent():
         self.qnet_local.train()
 
         #select an action using epsilon-greedy π
-        probs = np.ones(self.nA) / self.nA
-        probs[np.argmax(action_values)] = 1 - self.epsilon + (self.epsilon / self.nA)
+        probs = np.ones(self.nA) * epsilon / self.nA
+        probs[np.argmax(action_values)] = 1 - epsilon + (epsilon / self.nA)
         return np.random.choice(np.arange(self.nA), p = probs)
 
 
