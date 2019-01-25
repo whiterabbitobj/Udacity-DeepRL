@@ -21,10 +21,6 @@ def get_args():
             help="How many past timesteps to keep in memory.",
             type=int,
             default=int(1e5))
-    parser.add_argument("-ec", "--episode_count",
-            help="How many episodes to train?",
-            type=int,
-            default=1500)
     parser.add_argument("-e", "--epsilon",
             help="Starting value of Epsilon.",
             type=float,
@@ -48,7 +44,11 @@ def get_args():
     parser.add_argument("--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
-    parser.add_argument("--prints",
+    parser.add_argument("-num", "--num_episodes",
+            help="How many episodes to train?",
+            type=int,
+            default=1500)            
+    parser.add_argument("--print_count",
             help="How many times to print status updates during training. The \
                   number of episodes is divided by this, unless it would result\
                    in printing less than every 100 episodes, in which case \
