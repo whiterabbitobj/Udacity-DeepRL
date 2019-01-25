@@ -10,7 +10,7 @@ class ReplayBuffer:
         self.nA = nA
         self.memory = deque(maxlen=buffersize)
         self.batchsize = batchsize
-        self.item = namedtuple("Item", fieldnames=['state','action','reward','next_state','done'])
+        self.item = namedtuple("Item", field_names=['state','action','reward','next_state','done'])
         self.seed = random.seed(seed)
         self.device = device
 

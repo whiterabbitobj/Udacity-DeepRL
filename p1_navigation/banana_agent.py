@@ -18,8 +18,6 @@ def main():
     epsilon_decay = args.epsilon_decay
     epsilon_min = args.epsilon_min
 
-    for arg in vars(args):
-        print("{}: {}".format(arg, getattr(args, arg)))
     ###################################
 
 
@@ -30,7 +28,7 @@ def main():
 
     #send all the training to the GPU, if available
     device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
-
+    #device = "cuda"
     #initialize the environment
     unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe")
     # get the default brain (In this environment there is only one agent/brain)
@@ -42,13 +40,19 @@ def main():
     state_size = len(env.vector_observations[0])
 
 
+    #PRINT DEBUG INFO
+    for arg in vars(args):
+        print("{}: {}".format(arg, getattr(args, arg)))
+    print("Device: {}".format(device))
+    print("Action Size: {}\nState Size: {}".format(action_size, state_size))
+
     #print some info about the agent about to be initialized
     print('Number of agents:', len(env.agents))
     print("Observing state size: {} with {} available actions.".format(state_size, action_size))
 
     # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
     # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
-    \agent = DQN_Agent(state_size, action_size, device, args, seed=0)
+    agent = DQN_Agent(state_size, action_size, device, args, seed=0)
 
     num_episodes = args.episode_count
     print("Number of Episodes: {}".format(num_episodes))

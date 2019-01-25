@@ -29,6 +29,7 @@ class DQN_Agent():
         self.update_every = args.update_every
 
         #Initialize a Q-Network
+        print("DEVICE PASSED TO DQN_AGENT: {}".format(device))
         self.qnet_local = QNetwork(nS, nA, seed).to(device)
         self.qnet_target = QNetwork(nS, nA, seed).to(device)
 
@@ -36,6 +37,7 @@ class DQN_Agent():
         #SET THIS TO CALL "get_optimizer()" FUNCTION THAT STILL NEEDS TO BE
         #WRITTEN IN THE FUTURE, BUT SO THAT DIFFERENCE AGENT TYPES CAN ALL CALL
         #A FUNCTION THAT WILL SET DIFFERENT TYPES OF OPTIMS FROM THE CMD LINE
+
         self.optimizer = optim.Adam(self.qnet_local.parameters(), lr=self.lr)
 
         #initialize REPLAY memory

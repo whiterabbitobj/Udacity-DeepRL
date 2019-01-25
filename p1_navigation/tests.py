@@ -1,7 +1,7 @@
-t = 0
-b = 10
-e = 1
-for i in range(50):
-    print(i)
-    if i % e == 0 and i > b:
-        print("batch")
+import torch
+#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#print(device)
+
+print(torch.cuda.is_available())
+
+print(torch.cuda.current_device())
