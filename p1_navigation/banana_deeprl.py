@@ -24,6 +24,10 @@ def main():
     python banana_deeprl.py -mode train -a DDQN --epsilon .9 --epsilon_decay .978
     """
 
+    #Get start time
+    start_time = time.time()
+
+
     args = get_args()
 
     #if the user has not chosen a mode, quit early and print an error
@@ -45,51 +49,55 @@ def main():
     action_size = brain.vector_action_space_size
     state_size = len(env.vector_observations[0])
 
-    #num_episodes = args.episode_count
-
     #choose how often to average the score & print training data. This value is
     #bounded between 2 and 100.
     args.print_count = min(max(int(args.num_episodes/args.print_count),2), 100)
 
-    #PRINT DEBUG INFO
-    print("#"*50)
-    for arg in vars(args):
-        print("{}: {}".format(arg, getattr(args, arg)))
-    print("#"*50)
-    print("Device: {}".format(device))
-    print("Action Size: {}\nState Size: {}".format(action_size, state_size))
-    print('Number of agents:', len(env.agents))
-    print("Number of Episodes: {}".format(args.num_episodes))
+    if args.debug:
+        print_debug_info(device, action_size, state_size, env, args)
+
 
     # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
     # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
     agent = DQN_Agent(state_size, action_size, device, args, seed=0)
 
-    #Get start time
-    start_time = time.time()
 
     #TRAIN the agent
     if args.mode == "train":
+        print("Printing training data every {} episodes.\n{}".format(args.print_count,"#"*50))
         scores = train(unity_env, agent, args, brain_name)
+        plot_scores(scores)
 
+
+    #TEST the agent
+    # save_name = "checkpoint_" + model.name + time.strftime("_%Y_%m_%d_%Hh%Mm%Ss", time.gmtime()) + ".pth"
+    # if os.path.isdir(in_args.save_dir):
+    #     save_name = os.path.join(in_args.save_dir, save_name)
+    #
+    # print("Saving to: ", save_name)
+    # save_checkpoint(model, save_name)
+
+    # if np.mean(scores_window)>=200.0:
+    #     print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
+    #     torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
+    #     break
+
+
+    print("TOTAL RUNTIME: {:.1f} seconds".format(time.time()-start_time))
+    unity_env.close()
+
+
+
+    return
+
+def plot_scores(scores):
     fig = plt.figure()
     ax = fig.add_subplot(111)
     plt.plot(np.arange(len(scores)), scores)
     plt.ylabel('Score')
     plt.xlabel('Episode #')
     plt.show()
-
-
-    #TEST the agent
-
-
-
-
-    print("TOTAL RUNTIME: {:.2f} seconds".format(time.time()-start_time))
-    unity_env.close()
     return
-
-
 
 if __name__ == "__main__":
     main()

@@ -20,6 +20,7 @@ class DQN_Agent():
         self.nA = nA
         self.seed = random.seed(seed)
         self.device = device
+        self.name = 'DQN'
         #initialize params from the command line args
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
@@ -28,10 +29,12 @@ class DQN_Agent():
         self.lr = args.learn_rate
         self.tau = args.tau
         self.update_every = args.update_every
-
+        self.epsilon_decay = args.epsilon_decay
+        self.epsilon_min = args.epsilon_min
+        self.dropout = args.dropout
 
         #Initialize a Q-Network
-        self.qnet_local = QNetwork(nS, nA, seed).to(device)
+        self.qnet_local = QNetwork(nS, nA, seed, self.dropout).to(device)
         self.qnet_target = QNetwork(nS, nA, seed).to(device)
 
         #set optimizer
@@ -47,6 +50,9 @@ class DQN_Agent():
         #initialize time step (for use with the update_every parameter)
         self.t_step = 0
 
+    def update_epsilon(self):
+        self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
+
     def step(self, state, action, reward, next_state, done):
         #save the current SARSA status in the replay memory
         self.memory.add(state, action, reward, next_state, done)
@@ -57,7 +63,7 @@ class DQN_Agent():
             batch = self.memory.sample()
             self.learn(batch)
 
-    def act(self, state, epsilon):
+    def act(self, state):
         #π
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.qnet_local.eval()
@@ -66,8 +72,8 @@ class DQN_Agent():
         self.qnet_local.train()
 
         #select an action using epsilon-greedy π
-        probs = np.ones(self.nA) * epsilon / self.nA
-        probs[np.argmax(action_values)] = 1 - epsilon + (epsilon / self.nA)
+        probs = np.ones(self.nA) * self.epsilon / self.nA
+        probs[np.argmax(action_values)] = 1 - self.epsilon + (self.epsilon / self.nA)
         return np.random.choice(np.arange(self.nA), p = probs)
 
 

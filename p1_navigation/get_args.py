@@ -9,18 +9,28 @@ def get_args():
             help="In which mode should the Agent run? (train, demo)",
             default="train")
     parser.add_argument("-a", "--agent_type",
-            help="Which type of Agent to use. (DQN, DDQN)")
+            help="Which type of Agent to use. (DQN, double_DQN, dueling_DQN)")
+    parser.add_argument("-PER", "--prioritized_replay",
+            help="Use Prioritized Experience Replay. This is independent of Agent type.",
+            action="store_true")
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
             type=float,
             default=64)
-    parser.add_argument("--cpu",
-            help="Use this flag to run the code on the CPU instead of the default GPU.",
-            action="store_true")
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
             default=int(1e5))
+    parser.add_argument("--cpu",
+            help="Use this flag to run the code on the CPU instead of the default GPU.",
+            action="store_true")
+    parser.add_argument("--debug",
+            help="Print extra info for debugging purposes.",
+            action="store_true")
+    parser.add_argument("-drop", "--dropout",
+            help="Dropout rate for deep network.",
+            type=float,
+            default=0.2)
     parser.add_argument("-e", "--epsilon",
             help="Starting value of Epsilon.",
             type=float,
@@ -47,7 +57,7 @@ def get_args():
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=1500)            
+            default=1500)
     parser.add_argument("--print_count",
             help="How many times to print status updates during training. The \
                   number of episodes is divided by this, unless it would result\

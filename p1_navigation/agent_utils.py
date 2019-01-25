@@ -1,8 +1,10 @@
-import numpy as np
+import time
 import random
+from collections import namedtuple, deque
+
+import numpy as np
 import torch
 
-from collections import namedtuple, deque
 
 
 class ReplayBuffer:
@@ -38,8 +40,6 @@ def train(unity_env, agent, args, brain_name):
     """Trains selected agent in the environment."""
 
     scores = []
-    epsilon = args.epsilon
-    print("Printing training data every {} episodes.\n{}".format(args.print_count,"#"*50))
 
     for i_episode in range(1, args.num_episodes+1):
         score = 0
@@ -48,30 +48,123 @@ def train(unity_env, agent, args, brain_name):
         # get the initial environment state
         state = env.vector_observations[0]
         while True:
-            #choose an action based on agent QTable
-            action = agent.act(state, epsilon)
-            #action = np.random.randint(action_size)
-            #use action to get updated environment state
+            #choose an action use current policy and take a timestep using this action
+            #action = agent.act(state, epsilon)
+            action = agent.act(state)
+
             env = unity_env.step(action)[brain_name]
+
             #collect info about new state
             next_state = env.vector_observations[0]
             reward = env.rewards[0]
             done = env.local_done[0]
-            #update the agent with new environment info
-            agent.step(state, action, reward, next_state, done)
-            #update current state value to choose action in next time step
-            state = next_state
-            #add reward from current timestep to cumulative score
             score += reward
+
+            #initiate next timestep
+            agent.step(state, action, reward, next_state, done)
+            state = next_state
+
             if done:
                 break
-        #append current score to the scores list
-        scores.append(score)
-        #update value for  EPSILON
-        epsilon = max(epsilon*args.epsilon_decay, args.epsilon_min)
 
-        #print status info every so often
-        if i_episode % args.print_count == 0:
-            print("Episode {}/{}, avg score for last {} episodes: {}".format(
-                    i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
+        agent.update_epsilon()
+
+        #prepare for next episode
+        scores.append(score)
+        print_status(i_episode, scores, args)
+    save_name = "checkpoint_" + agent.name + time.strftime("_%Y_%m_%d_%Hh%Mm%Ss", time.gmtime()) + ".pth"
+    save_checkpoint(agent,save_name)
     return scores
+
+#     torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
+
+
+def save_checkpoint(agent, save_name):
+    '''
+        Pass in a model with the appropriate sub attributes and a filepath for saving.
+        Requires these to be defined in the model:
+        model.optimizer_sate
+        model.classifier.epochs
+    '''
+    checkpoint = {'agent_type': agent.name,
+                  'drop_rate': agent.dropout,
+                  'state_dict': agent.qnet_local.state_dict(),
+                  'lr': agent.lr,
+                  'tau': agent.tau,
+                  'gamma': agent.gamma,
+                  'batchsize': agent.batchsize,
+                  'buffersize': agent.buffersize,
+                  'epsilon': agent.epsilon
+                  }
+
+    # checkpoint = {'agent_type': agent.name,
+    #               'input_size': agent.qnet_local.hidden_sizes[0].in_features,
+    #               'output_size': agent.qnet_local.output.out_features,
+    #               'hidden_layers': [layer.out_features for layer in model.classifier.hidden_sizes],
+    #               'drop_rate': agent.dropout,
+    #               'state_dict': agent.qnet_local.state_dict(),
+    #               'optimizer': agent.optimizer_state,
+    #               'lr': agent.lr,
+    #               'tau': agent.tau,
+    #               'gamma': agent.gamma
+    #               }
+    agent.qnet_local.to('cpu')
+    torch.save(checkpoint, save_name)
+
+    return True
+
+
+
+def load_checkpoint(filepath):
+    '''Loads a checkpoint from an earlier trained model.
+        Requires these custom sub-attributes to be present in the save file:
+        arch
+        optimizer
+        epochs
+    '''
+
+    checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
+
+    if checkpoint['arch'] == 'densenet121':
+        model = models.densenet121(pretrained=True)
+        model.name = checkpoint['arch']
+    elif checkpoint['arch'] == 'densenet169':
+        model = models.densenet169(pretrained=True)
+        model.name = checkpoint['arch']
+    elif checkpoint['arch']  == 'vgg16':
+        model = models.vgg16(pretrained=True)
+    else:
+        print("Sorry, this checkpoint asks for a model that isn't supported! ({})".format(checkpoint['arch']))
+
+    model.classifier = Network(checkpoint['input_size'],
+                               checkpoint['output_size'],
+                               checkpoint['hidden_layers'],
+                               checkpoint['drop_rate']
+                               )
+    model.load_state_dict(checkpoint['state_dict'])
+    model.class_to_idx = checkpoint['class_to_idx']
+    model.lr = checkpoint['lr']
+    model.epochs = checkpoint['epochs']
+
+    optimizer = optim.Adam(model.classifier.parameters(), lr=model.lr)
+    optimizer.load_state_dict(checkpoint['optimizer'])
+
+    return model
+
+
+
+def print_debug_info(device, action_size, state_size, env, args):
+    print("#"*50)
+    for arg in vars(args):
+        print("{}: {}".format(arg, getattr(args, arg)))
+    print("#"*50)
+    print("Device: {}".format(device))
+    print("Action Size: {}\nState Size: {}".format(action_size, state_size))
+    print('Number of agents:', len(env.agents))
+    print("Number of Episodes: {}".format(args.num_episodes))
+
+
+def print_status(i_episode, scores, args):
+    if i_episode % args.print_count == 0:
+        print("Episode {}/{}, avg score for last {} episodes: {}".format(
+                i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
