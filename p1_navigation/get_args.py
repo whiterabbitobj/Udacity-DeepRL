@@ -6,13 +6,17 @@ def get_args():
             usage="EXAMPLE COMMAND:\npython banana_agent.py --train --batch_size 64 -lr 5e-4")
 
     parser.add_argument("-m", "--mode",
-            help="In which mode should the Agent run? (train, demo)")
+            help="In which mode should the Agent run? (train, demo)",
+            default="train")
     parser.add_argument("-a", "--agent_type",
             help="Which type of Agent to use. (DQN, DDQN)")
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
             type=float,
             default=64)
+    parser.add_argument("--cpu",
+            help="Use this flag to run the code on the CPU instead of the default GPU.",
+            action="store_true")
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
@@ -41,6 +45,16 @@ def get_args():
             help="Alpha (Learning Rate).",
             type=float,
             default=5e-4)
+    parser.add_argument("--nographics",
+            help="Run Unity environment without graphics displayed.",
+            action="store_true")
+    parser.add_argument("--prints",
+            help="How many times to print status updates during training. The \
+                  number of episodes is divided by this, unless it would result\
+                   in printing less than every 100 episodes, in which case \
+                  training will print info every 100 episodes.",
+            type=int,
+            default=15)
     parser.add_argument("-tau",
             help="Tau",
             type=float,

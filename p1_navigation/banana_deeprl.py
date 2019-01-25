@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import torch
 
@@ -8,32 +9,31 @@ from agent import DQN_Agent
 
 
 def main():
+    """
+    Primary code for training or testing an agent using one of several
+    optional network types. Deep Q-Network, Double DQN, etcself.
+
+    This is a project designed for Udacity's Deep Reinforcement Learning Nanodegree
+    and uses a special version of Unity's Banana learning environment. This
+    environment should be available via the github repository at:
+    https://github.com/whiterabbitobj/udacity-deep-reinforcement-learning/tree/master/p1_navigation
+
+    Example command:
+    python banana_deeprl.py -mode train -a DDQN --epsilon .9 --epsilon_decay .978
+    """
+
     args = get_args()
 
-    #REPLACE BELOW AFTER BUG TESTING!!!
-    args.mode = "train"
-    args.gpu = True
-
-    epsilon = args.epsilon
-    epsilon_decay = args.epsilon_decay
-    epsilon_min = args.epsilon_min
-
-    ###################################
-
-
     #if the user has not chosen a mode, quit early and print an error
-    # if not args.train and not args.run:
-    #     print("ERROR: Please choose a mode in which to run the agent.")
-    #     return
+    if args.mode is None:
+        print("ERROR: Please choose a mode in which to run the agent.")
+        return
 
     #send all the training to the GPU, if available
-    device = torch.device("cuda:0" if torch.cuda.is_available() and args.gpu else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu")
 
     #initialize the environment
-    unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe")
-
-    #Use this code if training without visuals:
-    # unity_env = UnityEnvironment(file_name="[...]/Banana.x86_64", no_graphics=True)
+    unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe", no_graphics=args.nographics)
 
     # get the default brain (In this environment there is only one agent/brain)
     brain_name = unity_env.brain_names[0]
@@ -45,10 +45,14 @@ def main():
 
     num_episodes = args.episode_count
 
+    #choose how often to average the score & print training data. This value is
+    #bounded between 2 and 100.
+    avg_len = min(max(int(num_episodes/args.prints),2), 100)
 
     #PRINT DEBUG INFO
     for arg in vars(args):
         print("{}: {}".format(arg, getattr(args, arg)))
+    print("#"*50)
     print("Device: {}".format(device))
     print("Action Size: {}\nState Size: {}".format(action_size, state_size))
     print('Number of agents:', len(env.agents))
@@ -58,12 +62,16 @@ def main():
     # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
     agent = DQN_Agent(state_size, action_size, device, args, seed=0)
 
+    #Get start time
+    start_time = time.time()
 
-    #train the agent after initializing all of the info above
+    #train the agent
     if args.mode == "train":
+        print("Printing training data every {} episodes.\n{}".format(avg_len,"#"*50))
 
-        avg_len = 100
         scores = []
+        epsilon = args.epsilon
+
         for i_episode in range(1, num_episodes+1):
             score = 0
             #reset the environment for a new episode runthrough
@@ -88,46 +96,20 @@ def main():
                 score += reward
                 if done:
                     break
-            #after episode completes, append the score to the list of all scores
-            #in the current training session
+            #append current score to the scores list
             scores.append(score)
             #update value for  EPSILON
-            epsilon = max(epsilon*epsilon_decay, epsilon_min)
+            epsilon = max(epsilon*args.epsilon_decay, args.epsilon_min)
 
             #print status info every so often
             if i_episode % avg_len == 0:
-                print("Episode {}/{}, avg score for last {} episodes: {}".format(i_episode, num_episodes, avg_len, np.mean(scores[-avg_len:])))
+                print("Episode {}/{}, avg score for last {} episodes: {}".format(
+                        i_episode, num_episodes, avg_len, np.mean(scores[-avg_len:])))
+
+
+    print("TOTAL RUNTIME: {:.2f} seconds".format(time.time()-start_time))
     unity_env.close()
     return
 
 if __name__ == "__main__":
     main()
-
-
-
-
-
-
-
-# # examine the state space
-# state = env_info.vector_observations[0]
-# print('States look like:', state)
-# state_size = len(state)
-# print('States have length:', state_size)
-#
-# env_info = env.reset(train_mode=False)[brain_name] # reset the environment
-# state = env_info.vector_observations[0]            # get the current state
-# score = 0                                          # initialize the score
-# while True:
-#     action = np.random.randint(action_size)        # select an action
-#     env_info = env.step(action)[brain_name]        # send the action to the environment
-#     next_state = env_info.vector_observations[0]   # get the next state
-#     reward = env_info.rewards[0]                   # get the reward
-#     done = env_info.local_done[0]                  # see if episode has finished
-#     score += reward                                # update the score
-#     state = next_state                             # roll over the state to next time step
-#     if done:                                       # exit loop if episode finished
-#         break
-#
-# print("Score: {}".format(score))
-#
