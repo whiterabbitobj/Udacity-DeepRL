@@ -43,10 +43,20 @@ def get_args():
             help="Minimum value for epsilon.",
             type=float,
             default=0.1)
+    # parser.add_argument("-f", "--filepath",
+    #         help="Filepath to trained Agent data. If mode is DEMO and no Filepath \
+    #               is provided, then the latest .pth file in the current directory \
+    #               will be used.",
+    #         type=string,
+    #         default=None)
     parser.add_argument("-gamma",
             help="Gamma (Discount rate).",
             type=float,
             default=0.99)
+    parser.add_argument("--latest",
+            help="Use this flag to automatically use the latest save file to \
+                  run in DEMO mode (instead of choosing from a prompt).",
+            action="store_true")
     parser.add_argument("-lr", "--learn_rate",
             help="Alpha (Learning Rate).",
             type=float,

@@ -1,9 +1,11 @@
 import time
 import random
+import os.path
 from collections import namedtuple, deque
 
 import numpy as np
 import torch
+from agent import DQN_Agent
 
 
 
@@ -76,7 +78,6 @@ def train(unity_env, agent, args, brain_name):
     save_checkpoint(agent,save_name)
     return scores
 
-#     torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
 
 
 def save_checkpoint(agent, save_name):
@@ -84,18 +85,11 @@ def save_checkpoint(agent, save_name):
     Saves the current Agent's learning dict as well as important parameters
     involved in the latest training.
     '''
+    agent.qnet_local.to('cpu')
     checkpoint = {'agent_type': agent.name,
-                  'drop_rate': agent.dropout,
-                  'state_dict': agent.qnet_local.state_dict(),
-                  'lr': agent.lr,
-                  'tau': agent.tau,
-                  'gamma': agent.gamma,
-                  'batchsize': agent.batchsize,
-                  'buffersize': agent.buffersize,
-                  'epsilon': agent.epsilon,
                   'state_size': agent.nS,
                   'action_size': agent.nA,
-                  'dropout': agent.dropout,
+                  'state_dict': agent.qnet_local.state_dict(),
                   'optimizer': agent.optimizer.state_dict()
                   }
     # checkpoint = {'agent_type': agent.name,
@@ -107,26 +101,19 @@ def save_checkpoint(agent, save_name):
     #               'batchsize': agent.batchsize,
     #               'buffersize': agent.buffersize,
     #               'epsilon': agent.epsilon,
-    #               'input_size': agent.qnet_local.hidden_layers[0].in_features,
-    #               'output_size': agent.qnet_local.output.out_features,
+    #               'state_size': agent.nS,
+    #               'action_size': agent.nA,
     #               'dropout': agent.dropout,
     #               'optimizer': agent.optimizer.state_dict()
     #               }
-    agent.qnet_local.to('cpu')
-    agent.qnet_target.to('cpu')
     torch.save(checkpoint, save_name)
     return True
 
 
 
 def load_checkpoint(filepath):
-    '''Loads a checkpoint from an earlier trained model.
-        Requires these custom sub-attributes to be present in the save file:
-        arch
-        optimizer
-        epochs
+    '''Loads a checkpoint from an earlier trained agent.
     '''
-
     checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
 
     if checkpoint['agent_type'] == 'DQN':
@@ -134,31 +121,34 @@ def load_checkpoint(filepath):
     agent.qnet_local.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
 
-    if checkpoint['arch'] == 'densenet121':
-        model = models.densenet121(pretrained=True)
-        model.name = checkpoint['arch']
-    elif checkpoint['arch'] == 'densenet169':
-        model = models.densenet169(pretrained=True)
-        model.name = checkpoint['arch']
-    elif checkpoint['arch']  == 'vgg16':
-        model = models.vgg16(pretrained=True)
+    return agent
+
+
+
+def load_filepath(use_latest):
+    files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
+    files = sorted(files, key=lambda x: os.path.getmtime(x))
+    if use_latest:
+        save_file = files[0]
     else:
-        print("Sorry, this checkpoint asks for a model that isn't supported! ({})".format(checkpoint['arch']))
+        message = '\n'.join(["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]) + " (LATEST)\nPlease choose a saved Agent training file: "
+        save_file = input(message)
+        try:
+            file_index = len(files) - int(save_file)
+            if file_index < 0:
+                raise Exception()
+            save_file = files[len(files) - int(save_file)]
+        except:
+            print("Invalid choice.")
+            load_filepath(use_latest)
 
-    model.classifier = Network(checkpoint['input_size'],
-                               checkpoint['output_size'],
-                               checkpoint['hidden_layers'],
-                               checkpoint['drop_rate']
-                               )
-    model.load_state_dict(checkpoint['state_dict'])
-    model.class_to_idx = checkpoint['class_to_idx']
-    model.lr = checkpoint['lr']
-    model.epochs = checkpoint['epochs']
+    print("\nProceeding with file: {}".format(save_file))
+    return save_file
 
-    optimizer = optim.Adam(model.classifier.parameters(), lr=model.lr)
-    optimizer.load_state_dict(checkpoint['optimizer'])
 
-    return model
+
+def get_latest_file():
+    return
 
 
 
@@ -171,6 +161,7 @@ def print_debug_info(device, action_size, state_size, env, args):
     print("Action Size: {}\nState Size: {}".format(action_size, state_size))
     print('Number of agents:', len(env.agents))
     print("Number of Episodes: {}".format(args.num_episodes))
+
 
 
 def print_status(i_episode, scores, args):

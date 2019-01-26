@@ -7,7 +7,7 @@ from unityagents import UnityEnvironment
 
 from get_args import get_args
 from agent import DQN_Agent
-from agent_utils import train
+from agent_utils import train, load_filepath, load_checkpoint, print_debug_info, print_status
 
 
 def main():
@@ -49,24 +49,29 @@ def main():
     action_size = brain.vector_action_space_size
     state_size = len(env.vector_observations[0])
 
-    #choose how often to average the score & print training data. This value is
-    #bounded between 2 and 100.
+    #calculate period of status printing, min 2, max 100.
     args.print_count = min(max(int(args.num_episodes/args.print_count),2), 100)
 
     if args.debug:
         print_debug_info(device, action_size, state_size, env, args)
 
 
-    # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
-    # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
-    agent = DQN_Agent(state_size, action_size, device, args)
-
 
     #TRAIN the agent
     if args.mode == "train":
+
+        # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
+        # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
+        agent = DQN_Agent(state_size, action_size, device, args)
+
         print("Printing training data every {} episodes.\n{}".format(args.print_count,"#"*50))
         scores = train(unity_env, agent, args, brain_name)
         plot_scores(scores)
+
+    if args.mode == "demo":
+        filepath = load_filepath(args.latest)
+        agent = load_checkpoint(filepath)
+        env = unity_env.reset(train_mode=False)[brain_name]
 
 
     #TEST the agent
@@ -77,17 +82,8 @@ def main():
     # print("Saving to: ", save_name)
     # save_checkpoint(model, save_name)
 
-    # if np.mean(scores_window)>=200.0:
-    #     print('\nEnvironment solved in {:d} episodes!\tAverage Score: {:.2f}'.format(i_episode-100, np.mean(scores_window)))
-    #     torch.save(agent.qnetwork_local.state_dict(), 'checkpoint.pth')
-    #     break
-
-
     print("TOTAL RUNTIME: {:.1f} seconds".format(time.time()-start_time))
     unity_env.close()
-
-
-
     return
 
 def plot_scores(scores):
