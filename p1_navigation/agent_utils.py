@@ -74,12 +74,12 @@ def train(unity_env, agent, args, brain_name):
         scores.append(score)
         print_status(i_episode, scores, args)
     save_name = "checkpoint_" + agent.name + time.strftime("_%Y_%m_%d_%Hh%Mm%Ss", time.gmtime()) + ".pth"
-    save_checkpoint(agent,save_name)
+    save_checkpoint(agent, scores, save_name)
     return scores
 
 
 
-def save_checkpoint(agent, save_name):
+def save_checkpoint(agent, scores, save_name):
     '''
     Saves the current Agent's learning dict as well as important parameters
     involved in the latest training.
@@ -89,45 +89,8 @@ def save_checkpoint(agent, save_name):
                   'state_size': agent.nS,
                   'action_size': agent.nA,
                   'state_dict': agent.qnet_local.state_dict(),
-                  'optimizer': agent.optimizer.state_dict()
+                  'optimizer': agent.optimizer.state_dict(),
+                  'scores': scores
                   }
-    # checkpoint = {'agent_type': agent.name,
-    #               'drop_rate': agent.dropout,
-    #               'state_dict': agent.qnet_local.state_dict(),
-    #               'lr': agent.lr,
-    #               'tau': agent.tau,
-    #               'gamma': agent.gamma,
-    #               'batchsize': agent.batchsize,
-    #               'buffersize': agent.buffersize,
-    #               'epsilon': agent.epsilon,
-    #               'state_size': agent.nS,
-    #               'action_size': agent.nA,
-    #               'dropout': agent.dropout,
-    #               'optimizer': agent.optimizer.state_dict()
-    #               }
     torch.save(checkpoint, save_name)
     return True
-
-
-
-def get_latest_file():
-    return
-
-
-
-def print_debug_info(device, action_size, state_size, env, args):
-    print("#"*50)
-    for arg in vars(args):
-        print("{}: {}".format(arg, getattr(args, arg)))
-    print("#"*50)
-    print("Device: {}".format(device))
-    print("Action Size: {}\nState Size: {}".format(action_size, state_size))
-    print('Number of agents:', len(env.agents))
-    print("Number of Episodes: {}".format(args.num_episodes))
-
-
-
-def print_status(i_episode, scores, args):
-    if i_episode % args.print_count == 0:
-        print("Episode {}/{}, avg score for last {} episodes: {}".format(
-                i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
