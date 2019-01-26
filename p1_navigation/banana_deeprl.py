@@ -1,13 +1,14 @@
 import time
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 
 from unityagents import UnityEnvironment
 
 from get_args import get_args
 from agent import DQN_Agent
-from agent_utils import train, load_filepath, load_checkpoint, print_debug_info, print_status
+from agent_utils import train, print_debug_info, print_status
+from utils import load_filepath, load_checkpoint, plot_scores
+
 
 
 def main():
@@ -55,8 +56,6 @@ def main():
     if args.debug:
         print_debug_info(device, action_size, state_size, env, args)
 
-
-
     #TRAIN the agent
     if args.mode == "train":
 
@@ -70,30 +69,14 @@ def main():
 
     if args.mode == "demo":
         filepath = load_filepath(args.latest)
-        agent = load_checkpoint(filepath)
+        agent = load_checkpoint(filepath, device, args)
         env = unity_env.reset(train_mode=False)[brain_name]
 
-
-    #TEST the agent
-    # save_name = "checkpoint_" + model.name + time.strftime("_%Y_%m_%d_%Hh%Mm%Ss", time.gmtime()) + ".pth"
-    # if os.path.isdir(in_args.save_dir):
-    #     save_name = os.path.join(in_args.save_dir, save_name)
-    #
-    # print("Saving to: ", save_name)
-    # save_checkpoint(model, save_name)
 
     print("TOTAL RUNTIME: {:.1f} seconds".format(time.time()-start_time))
     unity_env.close()
     return
 
-def plot_scores(scores):
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    plt.plot(np.arange(len(scores)), scores)
-    plt.ylabel('Score')
-    plt.xlabel('Episode #')
-    plt.show()
-    return
 
 if __name__ == "__main__":
     main()

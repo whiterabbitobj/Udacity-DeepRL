@@ -5,7 +5,6 @@ from collections import namedtuple, deque
 
 import numpy as np
 import torch
-from agent import DQN_Agent
 
 
 
@@ -108,42 +107,6 @@ def save_checkpoint(agent, save_name):
     #               }
     torch.save(checkpoint, save_name)
     return True
-
-
-
-def load_checkpoint(filepath):
-    '''Loads a checkpoint from an earlier trained agent.
-    '''
-    checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
-
-    if checkpoint['agent_type'] == 'DQN':
-        agent = DQN_Agent(state_size, action_size, device, args)
-    agent.qnet_local.load_state_dict(checkpoint['state_dict'])
-    agent.optimizer.load_state_dict(checkpoint['optimizer'])
-
-    return agent
-
-
-
-def load_filepath(use_latest):
-    files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
-    files = sorted(files, key=lambda x: os.path.getmtime(x))
-    if use_latest:
-        save_file = files[0]
-    else:
-        message = '\n'.join(["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]) + " (LATEST)\nPlease choose a saved Agent training file: "
-        save_file = input(message)
-        try:
-            file_index = len(files) - int(save_file)
-            if file_index < 0:
-                raise Exception()
-            save_file = files[len(files) - int(save_file)]
-        except:
-            print("Invalid choice.")
-            load_filepath(use_latest)
-
-    print("\nProceeding with file: {}".format(save_file))
-    return save_file
 
 
 
