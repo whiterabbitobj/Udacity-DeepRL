@@ -51,3 +51,15 @@ def plot_scores(scores):
     plt.xlabel('Episode #')
     plt.show()
     return
+
+
+
+def print_debug_info(device, nA, nS, env, args):
+    print("#"*50)
+    for arg in vars(args):
+        print("{}: {}".format(arg, getattr(args, arg)))
+    print("#"*50)
+    print("Device: {}".format(device))
+    print("Action Size: {}\nState Size: {}".format(nA, nS))
+    print('Number of agents:', len(env.agents))
+    print("Number of Episodes: {}".format(args.num_episodes))

@@ -12,3 +12,8 @@ try:
     print("\nProceeding with file: {}".format(save_file))
 except:
     print("Invalid choice.")
+
+
+
+files = [os.path.splitext(str(f))[0] for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
+print(files)

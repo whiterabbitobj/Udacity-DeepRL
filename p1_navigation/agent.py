@@ -32,17 +32,17 @@ class DQN_Agent():
         self.lr = args.learn_rate
         self.tau = args.tau
         self.update_every = args.update_every
+        self.momentum = args.momentum
 
         #Initialize a Q-Network
         self.qnet_local = QNetwork(nS, nA, seed, self.dropout).to(device)
         self.qnet_target = QNetwork(nS, nA, seed, self.dropout).to(device)
 
         #set optimizer
-        #SET THIS TO CALL "get_optimizer()" FUNCTION THAT STILL NEEDS TO BE
-        #WRITTEN IN THE FUTURE, BUT SO THAT DIFFERENCE AGENT TYPES CAN ALL CALL
-        #A FUNCTION THAT WILL SET DIFFERENT TYPES OF OPTIMS FROM THE CMD LINE
-
-        self.optimizer = optim.Adam(self.qnet_local.parameters(), lr=self.lr)
+        if args.optimizer == "Adam":
+            self.optimizer = optim.Adam(self.qnet_local.parameters(), lr=self.lr)
+        else:
+            self.optimizer = optim.SGD(self.qnet_local.parameters(), lr=self.lr, momentum=self.momentum)
 
         #initialize REPLAY memory
         self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
