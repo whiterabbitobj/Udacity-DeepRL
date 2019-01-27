@@ -34,6 +34,9 @@ class DQN_Agent():
         self.update_every = args.update_every
         self.momentum = args.momentum
 
+        #initialize REPLAY memory
+        self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
+
         #Initialize a Q-Network
         self.qnet_local = QNetwork(nS, nA, seed, self.dropout).to(device)
         self.qnet_target = QNetwork(nS, nA, seed, self.dropout).to(device)
@@ -44,8 +47,7 @@ class DQN_Agent():
         else:
             self.optimizer = optim.SGD(self.qnet_local.parameters(), lr=self.lr, momentum=self.momentum)
 
-        #initialize REPLAY memory
-        self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
+
 
         #initialize time step (for use with the update_every parameter)
         self.t_step = 0
@@ -65,6 +67,7 @@ class DQN_Agent():
 
     def act(self, state):
         #π
+        #send the state to a tensor object on the gpu
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.qnet_local.eval()
         with torch.no_grad():

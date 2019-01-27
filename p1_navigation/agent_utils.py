@@ -53,8 +53,8 @@ def run_agent(unity_env, agent, args, brain_name):
             env = unity_env.step(action)[brain_name]
 
             #collect info about new state
-            next_state = env.vector_observations[0]
             reward = env.rewards[0]
+            next_state = env.vector_observations[0]
             done = env.local_done[0]
             score += reward
 
@@ -70,11 +70,10 @@ def run_agent(unity_env, agent, args, brain_name):
 
         #prepare for next episode
         scores.append(score)
-        print_status(i_episode, scores, args)
+        print_status(i_episode, scores, args, agent)
     if args.train:
         save_name = generate_savename(agent.name)
         save_checkpoint(agent, scores, save_name)
-        print("Saved agent data to: {}".format(save_name))
     return scores
 
 
@@ -99,14 +98,19 @@ def save_checkpoint(agent, scores, save_name):
                   'action_size': agent.nA,
                   'state_dict': agent.qnet_local.state_dict(),
                   'optimizer': agent.optimizer.state_dict(),
-                  'scores': scores
+                  'scores': scores,
+                  'hidden_layers': [layer.out_features for layer in agent.qnet_local.hidden_layers]
                   }
     torch.save(checkpoint, save_name)
+    print("{}\nSaved agent data to: {}".format("#"*50, save_name))
+
     return True
 
 
 
-def print_status(i_episode, scores, args):
+def print_status(i_episode, scores, args, agent):
     if i_episode % args.print_count == 0:
         print("Episode {}/{}, avg score for last {} episodes: {}".format(
                 i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
+        if args.verbose:
+            print("Epsilon: {}".format(agent.epsilon))

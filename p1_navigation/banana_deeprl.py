@@ -36,7 +36,9 @@ def main():
 
     if not args.train:
         filepath = load_filepath(args.latest) #prompt user before loading the env to avoid pop-over
-
+        if filepath == None:
+            print("Quit before loading a file.")
+            return
     #initialize the environment
     unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe", no_graphics=args.nographics)
     # get the default brain (In this environment there is only one agent/brain)
@@ -61,7 +63,9 @@ def main():
 
 
     if args.debug:
-        print_debug_info(device, nA, nS, env, args)
+        print_debug_info(device, nA, nS, env, args) #print info about params
+    if args.verbose:
+        print(agent.qnet_local) #print info about the active network
 
     #Run the agent
     scores = run_agent(unity_env, agent, args, brain_name)

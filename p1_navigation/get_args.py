@@ -28,7 +28,7 @@ def get_args():
     parser.add_argument("-drop", "--dropout",
             help="Dropout rate for deep network.",
             type=float,
-            default=0.2)
+            default=0.25)
     parser.add_argument("-e", "--epsilon",
             help="Starting value of Epsilon.",
             type=float,
@@ -86,5 +86,8 @@ def get_args():
             help="Timesteps between acting on new environment states.",
             type=int,
             default=4)
+    parser.add_argument("-v", "--verbose",
+            help="Print additional information while running the agent.",
+            action="store_true")
 
     return parser.parse_args()
