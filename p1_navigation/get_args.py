@@ -5,13 +5,16 @@ def get_args():
     parser = argparse.ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment",
             usage="EXAMPLE COMMAND:\npython banana_agent.py --train --batch_size 64 -lr 5e-4")
 
-
-    parser.add_argument("-a", "--agent_type",
+    parser.add_argument("-f", "--framework",
             help="Which type of Agent to use. (DQN, double_DQN, dueling_DQN)",
             default="DQN")
     parser.add_argument("-per", "--prioritized_replay",
             help="Use Prioritized Experience Replay. This is independent of Agent type.",
             action="store_true")
+    # parser.add_argument("-a", "--alpha",
+    #         help="Alpha, or learning rate of the Q-Network",
+    #         type=int,
+    #         default=1.0)
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
             type=float,

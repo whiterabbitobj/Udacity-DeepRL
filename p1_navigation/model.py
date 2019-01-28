@@ -5,7 +5,7 @@ import torch.nn.functional as F
 class QNetwork(nn.Module):
     """Actor (Policy) Model."""
 
-    def __init__(self, state_size, action_size, seed, dropout=0.25, layer_sizes=[100, 250]):
+    def __init__(self, state_size, action_size, seed, dropout=0.25, layer_sizes=[64, 64]):
         """Initialize parameters and build model.
         Params
         ======
@@ -22,6 +22,7 @@ class QNetwork(nn.Module):
         # self.fc2 = nn.Linear(fc1_units, fc2_units)
         # self.fc3 = nn.Linear(fc2_units, action_size)
 
+        self.seed = torch.manual_seed(seed)
         self.hidden_layers = nn.ModuleList([nn.Linear(state_size, layer_sizes[0])])
         self.output = nn.Linear(layer_sizes[-1], action_size)
 
@@ -38,12 +39,7 @@ class QNetwork(nn.Module):
 
         x = F.relu(self.hidden_layers[0](state))
         x = self.dropout(x)
-
         for layer in self.hidden_layers[1:]:
             x = F.relu(layer(x))
             x = self.dropout(x)
-
-        #x = self.output(x)
-        #return F.log_softmax(x, dim=1)
-
         return self.output(x)

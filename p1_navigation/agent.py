@@ -38,16 +38,17 @@ class DQN_Agent():
         self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
 
         #Initialize a Q-Network
-        self.qnet_local = QNetwork(nS, nA, seed, self.dropout).to(device)
-        self.qnet_target = QNetwork(nS, nA, seed, self.dropout).to(device)
+        self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
+        self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
+        self.qhat.load_state_dict(self.q.state_dict())
 
         #set optimizer
         if args.optimizer == "RMSprop":
-            self.optimizer = optim.RMSprop(self.qnet_local.parameters(), lr=self.lr, momentum=self.momentum)
+            self.optimizer = optim.RMSprop(self.q.parameters(), lr=self.lr, momentum=self.momentum)
         elif args.optimizer == "Adam":
-            self.optimizer = optim.Adam(self.qnet_local.parameters(), lr=self.lr)
+            self.optimizer = optim.Adam(self.q.parameters(), lr=self.lr)
         else:
-            self.optimizer = optim.SGD(self.qnet_local.parameters(), lr=self.lr, momentum=self.momentum)
+            self.optimizer = optim.SGD(self.q.parameters(), lr=self.lr, momentum=self.momentum)
 
 
 
@@ -58,23 +59,22 @@ class DQN_Agent():
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
 
     def step(self, state, action, reward, next_state, done):
-        #save the current SARSA status in the replay memory
+        #save the current SARS′  status in the replay memory
         self.memory.add(state, action, reward, next_state, done)
 
         #once the replay memory accumulates enough samples, then learn every "update_every" timesteps
-        self.t_step = (self.t_step + 1) % self.update_every
-        if self.t_step == 0 and len(self.memory) > self.batchsize:
+        #self.t_step = (self.t_step + 1) % self.update_every
+        if self.t_step % self.update_every == 0 and len(self.memory) > self.batchsize:
             batch = self.memory.sample()
             self.learn(batch)
 
     def act(self, state):
-        #π
         #send the state to a tensor object on the gpu
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        self.qnet_local.eval()
+        self.q.eval() #put network into eval mode
         with torch.no_grad():
-            action_values = self.qnet_local(state).cpu().data.numpy()
-        self.qnet_local.train()
+            action_values = self.q(state).cpu().data.numpy()
+        self.q.train() #put network back into training mode
 
         #select an action using epsilon-greedy π
         probs = np.ones(self.nA) * self.epsilon / self.nA
@@ -86,20 +86,22 @@ class DQN_Agent():
         states, actions, rewards, next_states, dones = batch
 
         #get max predicted Q values for the next states from the target model
-        target_qnet_nV = self.qnet_target(next_states).detach().max(1)[0].unsqueeze(1)
+        qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
 
-        #compute Q targets for the current states
-        q_targets = rewards + (self.gamma * target_qnet_nV * (1 - dones))
+        #compute Q targets for the current states using current Q and Q^ of S′
+        expected_state_action_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
 
-        #get the expected Q values from the local model
-        q_expected = self.qnet_local(states).gather(1, actions)
+        #get the expected values from the current model Q
+        state_action_values = self.q(states).gather(1, actions)
 
         #compute the loss values over the network
-        loss = F.mse_loss(q_expected, q_targets)
+        loss = F.mse_loss(state_action_values, expected_state_action_values)
 
         #minimize the loss (backpropogation)
         self.optimizer.zero_grad()
         loss.backward()
+        for param in q.parameters():
+            param.grad.data.clamp(-1,1)
         self.optimizer.step()
 
         #update the target network
@@ -107,5 +109,5 @@ class DQN_Agent():
 
     def qnet_update(self):
         #Copy the params from the target network to the local network at rate TAU
-        for target_param, local_param in zip(self.qnet_target.parameters(), self.qnet_local.parameters()):
+        for target_param, local_param in zip(self.qhat.parameters(), self.q.parameters()):
             target_param.data.copy_(self.tau*local_param.data + (1-self.tau)*target_param.data)
