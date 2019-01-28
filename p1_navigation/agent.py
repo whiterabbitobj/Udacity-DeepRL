@@ -42,7 +42,9 @@ class DQN_Agent():
         self.qnet_target = QNetwork(nS, nA, seed, self.dropout).to(device)
 
         #set optimizer
-        if args.optimizer == "Adam":
+        if args.optimizer == "RMSprop":
+            self.optimizer = optim.RMSprop(self.qnet_local.parameters(), lr=self.lr, momentum=self.momentum)
+        elif args.optimizer == "Adam":
             self.optimizer = optim.Adam(self.qnet_local.parameters(), lr=self.lr)
         else:
             self.optimizer = optim.SGD(self.qnet_local.parameters(), lr=self.lr, momentum=self.momentum)

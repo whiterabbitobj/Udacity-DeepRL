@@ -43,7 +43,7 @@ class QNetwork(nn.Module):
             x = F.relu(layer(x))
             x = self.dropout(x)
 
-        # x = self.output(x)
-        # return F.log_softmax(x, dim=1)
+        #x = self.output(x)
+        #return F.log_softmax(x, dim=1)
 
         return self.output(x)

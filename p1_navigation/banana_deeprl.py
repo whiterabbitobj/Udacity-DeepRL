@@ -27,6 +27,7 @@ def main():
 
     #Get start time
     start_time = time.time()
+    sep = "#"*50
     #gather parameters
     args = get_args()
 
@@ -51,8 +52,13 @@ def main():
     #calculate how often to print status updates, min 2, max 100.
     args.print_count = min(max(int(args.num_episodes/args.print_count),2), 100)
 
+
+    if args.debug:
+        print_debug_info(sep, device, nA, nS, env, args) #print info about params
+
+
     if args.train:
-        print("Printing training data every {} episodes.\n{}".format(args.print_count,"#"*50))
+        print("Printing training data every {} episodes.\n{}".format(args.print_count,sep))
         # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
         # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
         agent = DQN_Agent(nS, nA, device, args)
@@ -61,11 +67,9 @@ def main():
         args.num_episodes = 3
         agent.epsilon = 0
 
-
-    if args.debug:
-        print_debug_info(device, nA, nS, env, args) #print info about params
     if args.verbose:
-        print(agent.qnet_local) #print info about the active network
+        print("{}\n{}".format(agent.qnet_local, sep)) #print info about the active network
+
 
     #Run the agent
     scores = run_agent(unity_env, agent, args, brain_name)
