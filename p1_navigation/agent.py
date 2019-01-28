@@ -64,9 +64,14 @@ class DQN_Agent():
 
         #once the replay memory accumulates enough samples, then learn every "update_every" timesteps
         #self.t_step = (self.t_step + 1) % self.update_every
-        if self.t_step % self.update_every == 0 and len(self.memory) > self.batchsize:
+        if len(self.memory) > self.batchsize:
             batch = self.memory.sample()
             self.learn(batch)
+        # if self.t_step % self.update_every == 0 and len(self.memory) > self.batchsize:
+        #     batch = self.memory.sample()
+        #     self.learn(batch)
+
+        self.t_step += 1
 
     def act(self, state):
         #send the state to a tensor object on the gpu
@@ -100,12 +105,18 @@ class DQN_Agent():
         #minimize the loss (backpropogation)
         self.optimizer.zero_grad()
         loss.backward()
-        for param in q.parameters():
-            param.grad.data.clamp(-1,1)
+        # for param in self.q.parameters():
+        #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
-
         #update the target network
-        self.qnet_update()
+        if self.t_step % self.update_every == 0:
+            self.qhat.load_state_dict(self.q.state_dict())
+            #self.qnet_update()
+        self.t_step += 1
+        #self.qnet_update()
+        #self.qhat.load_state_dict(self.q.state_dict())
+
+
 
     def qnet_update(self):
         #Copy the params from the target network to the local network at rate TAU

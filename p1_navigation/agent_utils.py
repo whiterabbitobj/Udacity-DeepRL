@@ -61,7 +61,8 @@ def run_agent(unity_env, agent, args, brain_name):
             #initiate next timestep
             if args.train:
                 agent.step(state, action, reward, next_state, done)
-
+                # if args.verbose:
+                #     print(len(agent.memory))
             state = next_state
 
             if done:
@@ -92,14 +93,14 @@ def save_checkpoint(agent, scores, save_name):
     Saves the current Agent's learning dict as well as important parameters
     involved in the latest training.
     '''
-    agent.qnet_local.to('cpu')
+    agent.q.to('cpu')
     checkpoint = {'agent_type': agent.name,
                   'state_size': agent.nS,
                   'action_size': agent.nA,
-                  'state_dict': agent.qnet_local.state_dict(),
+                  'state_dict': agent.q.state_dict(),
                   'optimizer': agent.optimizer.state_dict(),
                   'scores': scores,
-                  'hidden_layers': [layer.out_features for layer in agent.qnet_local.hidden_layers]
+                  'hidden_layers': [layer.out_features for layer in agent.q.hidden_layers]
                   }
     torch.save(checkpoint, save_name)
     print("{}\nSaved agent data to: {}".format("#"*50, save_name))

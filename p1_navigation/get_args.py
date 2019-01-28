@@ -22,7 +22,7 @@ def get_args():
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=int(1e5))
+            default=50000)
     parser.add_argument("--continue",
             help="Continue training from a loaded file (can use in conjunction with --latest).",
             action="store_true")
@@ -59,7 +59,7 @@ def get_args():
     parser.add_argument("-lr", "--learn_rate",
             help="Alpha (Learning Rate).",
             type=float,
-            default=0.001)
+            default=float(1e-6))
     parser.add_argument("-m", "--momentum",
             help="Momentum for use in specific optimizers like SGD",
             type=float,

@@ -14,7 +14,7 @@ def load_checkpoint(filepath, device, args):
 
     if checkpoint['agent_type'] == 'DQN':
         agent = DQN_Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
-    agent.qnet_local.load_state_dict(checkpoint['state_dict'])
+    agent.q.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
 
     return agent
@@ -26,7 +26,7 @@ def load_filepath(use_latest):
     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
     files = sorted(files, key=lambda x: os.path.getmtime(x))
     if use_latest:
-        print("{0}Proceeding with file: {1}\n{0}".format(separator, save_file))
+        print("{0}Proceeding with file: {1}\n{0}".format(separator, files[-1]))
         return files[-1]
     else:
         message = separator + '\n'.join(["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]) + " (LATEST)\n\nPlease choose a saved Agent training file: "

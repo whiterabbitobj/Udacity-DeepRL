@@ -68,7 +68,7 @@ def main():
         agent.epsilon = 0
 
     if args.verbose:
-        print("{}\n{}".format(agent.qnet_local, sep)) #print info about the active network
+        print("{}\n{}".format(agent.q, sep)) #print info about the active network
 
 
     #Run the agent
