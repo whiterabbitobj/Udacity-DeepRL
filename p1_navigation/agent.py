@@ -20,8 +20,9 @@ class DQN_Agent():
         self.nA = nA
         self.seed = random.seed(seed)
         self.device = device
-        self.name = 'DQN'
+
         #initialize params from the command line args
+        self.framework = args.framework
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
         self.dropout = args.dropout
@@ -63,14 +64,9 @@ class DQN_Agent():
         self.memory.add(state, action, reward, next_state, done)
 
         #once the replay memory accumulates enough samples, then learn every "update_every" timesteps
-        #self.t_step = (self.t_step + 1) % self.update_every
-        if len(self.memory) > self.batchsize:
+        if len(self.memory) > self.batchsize and self.t_step % self.update_every == 0:
             batch = self.memory.sample()
             self.learn(batch)
-        # if self.t_step % self.update_every == 0 and len(self.memory) > self.batchsize:
-        #     batch = self.memory.sample()
-        #     self.learn(batch)
-
         self.t_step += 1
 
     def act(self, state):
@@ -90,8 +86,16 @@ class DQN_Agent():
     def learn(self, batch):
         states, actions, rewards, next_states, dones = batch
 
-        #get max predicted Q values for the next states from the target model
-        qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
+        if self.framework == 'DQN':
+            #VANILLA DQN: get max predicted Q values for the next states from the target model
+            qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
+
+        if self.framework == 'DDQN':
+            #DOUBLE DQN: get max q-value for max action in Q, evaluate under QHAT
+            q_next_values = self.q(next_states).detach().max(1)[0].unsqueeze(1)
+            #qhat_nextvalues = self.qhat(next_states).detach()[q_next_values].unsqueeze(1)
+            qhat_nextvalues = self.qhat(next_states).gather(1, q_next_values)
+
 
         #compute Q targets for the current states using current Q and Q^ of S′
         expected_state_action_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
@@ -109,12 +113,9 @@ class DQN_Agent():
         #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
         #update the target network
-        if self.t_step % self.update_every == 0:
+        if self.t_step % (self.update_every * self.update_every) == 0:
             self.qhat.load_state_dict(self.q.state_dict())
             #self.qnet_update()
-        self.t_step += 1
-        #self.qnet_update()
-        #self.qhat.load_state_dict(self.q.state_dict())
 
 
 

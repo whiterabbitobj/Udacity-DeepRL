@@ -59,7 +59,7 @@ def get_args():
     parser.add_argument("-lr", "--learn_rate",
             help="Alpha (Learning Rate).",
             type=float,
-            default=float(1e-6))
+            default=0.00025)
     parser.add_argument("-m", "--momentum",
             help="Momentum for use in specific optimizers like SGD",
             type=float,

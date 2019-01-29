@@ -73,7 +73,7 @@ def run_agent(unity_env, agent, args, brain_name):
         scores.append(score)
         print_status(i_episode, scores, args, agent)
     if args.train:
-        save_name = generate_savename(agent.name)
+        save_name = generate_savename(agent.framework)
         save_checkpoint(agent, scores, save_name)
     return scores
 
@@ -94,7 +94,7 @@ def save_checkpoint(agent, scores, save_name):
     involved in the latest training.
     '''
     agent.q.to('cpu')
-    checkpoint = {'agent_type': agent.name,
+    checkpoint = {'agent_type': agent.framework,
                   'state_size': agent.nS,
                   'action_size': agent.nA,
                   'state_dict': agent.q.state_dict(),
