@@ -16,7 +16,6 @@ def load_checkpoint(filepath, device, args):
         agent = DQN_Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
     agent.q.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
-
     return agent
 
 
@@ -25,11 +24,14 @@ def load_filepath(use_latest):
     separator = "#"*50 + "\n"
     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
     files = sorted(files, key=lambda x: os.path.getmtime(x))
+    if len(files) == 0:
+        print("Oops! Couldn't find any save files in the current directory.")
+        return None
     if use_latest:
         print("{0}Proceeding with file: {1}\n{0}".format(separator, files[-1]))
         return files[-1]
     else:
-        message = separator + '\n'.join(["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]) + " (LATEST)\n\nPlease choose a saved Agent training file: "
+        message = separator + '\n'.join(["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]) + " (LATEST)\n\nPlease choose a saved Agent training file or (q/quit): "
         save_file = input(message)
         if save_file.lower() == "q" or save_file.lower() == "quit":
             return None

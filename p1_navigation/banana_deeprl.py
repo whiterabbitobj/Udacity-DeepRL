@@ -73,13 +73,12 @@ def main():
 
     #Run the agent
     scores = run_agent(unity_env, agent, args, brain_name)
+
+    m, s = divmod(time.time() - start_time, 60)
+    h, m = divmod(m, 60)
+    print("TOTAL RUNTIME: {}h{}m{}s.".format(int(h), int(m), int(s)))
     plot_scores(scores)
 
-    runtime = time.time() - start_time
-    m, s = divmod(runtime, 60)
-    h, m = divmod(m, 60)
-    #print("TOTAL RUNTIME: {:.1f} seconds".format(time.time()-start_time))
-    print("TOTAL RUNTIME: {}h{}m{}s.".format(int(h), int(m), int(s)))
     unity_env.close()
     return
 

@@ -113,7 +113,7 @@ class DQN_Agent():
         #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
         #update the target network
-        if self.t_step % (self.update_every * self.update_every) == 0:
+        if self.t_step % (self.update_every ** 3 ) == 0:
             self.qhat.load_state_dict(self.q.state_dict())
             #self.qnet_update()
 

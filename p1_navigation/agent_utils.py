@@ -2,7 +2,8 @@ import time
 import random
 import os.path
 from collections import namedtuple, deque
-
+#from tqdm import tqdm, trange
+import progressbar
 import numpy as np
 import torch
 
@@ -38,57 +39,58 @@ class ReplayBuffer:
 
 def run_agent(unity_env, agent, args, brain_name):
     """Trains selected agent in the environment."""
-
     scores = []
-    for i_episode in range(1, args.num_episodes+1):
-        score = 0
-        #reset the environment for a new episode runthrough
-        env = unity_env.reset(train_mode=args.train)[brain_name]
-        # get the initial environment state
-        state = env.vector_observations[0]
+    with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
+        for i_episode in range(1, args.num_episodes+1):
+            score = 0
+            #reset the environment for a new episode runthrough
+            env = unity_env.reset(train_mode=args.train)[brain_name]
+            # get the initial environment state
+            state = env.vector_observations[0]
 
-        while True:
-            #choose an action use current policy and take a timestep using this action
-            action = agent.act(state)
-            env = unity_env.step(action)[brain_name]
+            while True:
+                #choose an action use current policy and take a timestep using this action
+                action = agent.act(state)
+                env = unity_env.step(action)[brain_name]
 
-            #collect info about new state
-            reward = env.rewards[0]
-            next_state = env.vector_observations[0]
-            done = env.local_done[0]
-            score += reward
+                #collect info about new state
+                reward = env.rewards[0]
+                next_state = env.vector_observations[0]
+                done = env.local_done[0]
+                score += reward
 
-            #initiate next timestep
-            if args.train:
-                agent.step(state, action, reward, next_state, done)
-                # if args.verbose:
-                #     print(len(agent.memory))
-            state = next_state
+                #initiate next timestep
+                if args.train:
+                    agent.step(state, action, reward, next_state, done)
+                    # if args.verbose:
+                    #     print(len(agent.memory))
+                state = next_state
 
-            if done:
-                break
-        agent.update_epsilon() #epsilon is 0 in evaluation mode
+                if done:
+                    break
+            agent.update_epsilon() #epsilon is 0 in evaluation mode
+            #prepare for next episode
+            scores.append(score)
+            print_status(i_episode, scores, args, agent)
+            progress_bar.update(i_episode%args.print_count+1)
 
-        #prepare for next episode
-        scores.append(score)
-        print_status(i_episode, scores, args, agent)
     if args.train:
-        save_name = generate_savename(agent.framework)
-        save_checkpoint(agent, scores, save_name)
+        save_checkpoint(agent, scores, args.print_count)
     return scores
 
 
 
-def generate_savename(agent_name):
+def generate_savename(agent_name, scores, print_count):
     files = [os.path.splitext(str(f))[0] for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
-    savename = agent_name + time.strftime("%Y%m%d", time.gmtime()) + "_v1"
+    files = ['_'.join(f.split('_')[:2]) for f in files]
+    savename = "{}_{}_{}".format(agent_name, time.strftime("%Y%m%d", time.gmtime()), "v1")
     while savename in files:
         savename = savename[:-1] + str(int(savename[-1])+1)
-    return savename + ".pth"
+    return "{}_{}eps_{:.2f}score{}".format(savename, len(scores), np.mean(scores[-print_count:]), ".pth")
 
 
 
-def save_checkpoint(agent, scores, save_name):
+def save_checkpoint(agent, scores, print_count):
     '''
     Saves the current Agent's learning dict as well as important parameters
     involved in the latest training.
@@ -102,6 +104,7 @@ def save_checkpoint(agent, scores, save_name):
                   'scores': scores,
                   'hidden_layers': [layer.out_features for layer in agent.q.hidden_layers]
                   }
+    save_name = generate_savename(agent.framework, scores, print_count)
     torch.save(checkpoint, save_name)
     print("{}\nSaved agent data to: {}".format("#"*50, save_name))
 
@@ -111,7 +114,7 @@ def save_checkpoint(agent, scores, save_name):
 
 def print_status(i_episode, scores, args, agent):
     if i_episode % args.print_count == 0:
-        print("Episode {}/{}, avg score for last {} episodes: {}".format(
+        print("\nEpisode {}/{}, avg score for last {} episodes: {}".format(
                 i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
         if args.verbose:
-            print("Epsilon: {}".format(agent.epsilon))
+            print("Epsilon: {}\n".format(agent.epsilon))
