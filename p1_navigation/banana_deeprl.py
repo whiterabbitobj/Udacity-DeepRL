@@ -5,9 +5,9 @@ import torch
 from unityagents import UnityEnvironment
 
 from get_args import get_args
-from agent import DQN_Agent
-from agent_utils import run_agent
-from utils import load_filepath, load_checkpoint, plot_scores, print_debug_info
+from agent import Agent
+from utils import load_filepath, load_checkpoint, plot_scores, print_debug_info, print_status, save_checkpoint
+import progressbar
 
 
 
@@ -61,7 +61,7 @@ def main():
         print("Printing training data every {} episodes.\n{}".format(args.print_count,sep))
         # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
         # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
-        agent = DQN_Agent(nS, nA, device, args)
+        agent = Agent(nS, nA, device, args)
     else:
         agent = load_checkpoint(filepath, device, args)
         args.num_episodes = 3
@@ -81,6 +81,50 @@ def main():
 
     unity_env.close()
     return
+
+
+
+def run_agent(unity_env, agent, args, brain_name):
+    """Trains selected agent in the environment."""
+    scores = []
+    with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
+        for i_episode in range(1, args.num_episodes+1):
+            score = 0
+            #reset the environment for a new episode runthrough
+            env = unity_env.reset(train_mode=args.train)[brain_name]
+            # get the initial environment state
+            state = env.vector_observations[0]
+
+            while True:
+                #choose an action use current policy and take a timestep using this action
+                action = agent.act(state)
+                env = unity_env.step(action)[brain_name]
+
+                #collect info about new state
+                reward = env.rewards[0]
+                next_state = env.vector_observations[0]
+                done = env.local_done[0]
+                score += reward
+
+                #initiate next timestep
+                if args.train:
+                    agent.step(state, action, reward, next_state, done)
+                    # if args.verbose:
+                    #     print(len(agent.memory))
+                state = next_state
+
+                if done:
+                    break
+            agent.update_epsilon() #epsilon is 0 in evaluation mode
+            #prepare for next episode
+            scores.append(score)
+            print_status(i_episode, scores, args, agent)
+            progress_bar.update(i_episode%args.print_count+1)
+
+    if args.train:
+        save_checkpoint(agent, scores, args.print_count)
+    return scores
+
 
 
 if __name__ == "__main__":

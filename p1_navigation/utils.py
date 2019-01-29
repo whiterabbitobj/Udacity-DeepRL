@@ -1,19 +1,52 @@
 import os.path
 import matplotlib.pyplot as plt
 import numpy as np
-
+import time
 import torch
-from agent import DQN_Agent
+from agent import Agent
+#import progressbar
 
 
+
+def generate_savename(agent_name, scores, print_count):
+    """Generates an automatic savename for training files, will version-up as
+       needed.
+    """
+    files = [os.path.splitext(str(f))[0] for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
+    files = ['_'.join(f.split('_')[:3]) for f in files]
+    savename = "{}_{}_{}".format(agent_name, time.strftime("%Y%m%d", time.gmtime()), "v1")
+    while savename in files:
+        savename = savename[:-1] + str(int(savename[-1])+1)
+    return "{}_{}eps_{:.2f}score{}".format(savename, len(scores), np.mean(scores[-print_count:]), ".pth")
+
+
+
+def save_checkpoint(agent, scores, print_count):
+    """Saves the current Agent's learning dict as well as important parameters
+       involved in the latest training.
+    """
+    agent.q.to('cpu')
+    checkpoint = {'agent_type': agent.framework,
+                  'state_size': agent.nS,
+                  'action_size': agent.nA,
+                  'state_dict': agent.q.state_dict(),
+                  'optimizer': agent.optimizer.state_dict(),
+                  'scores': scores,
+                  'hidden_layers': [layer.out_features for layer in agent.q.hidden_layers]
+                  }
+    save_name = generate_savename(agent.framework, scores, print_count)
+    torch.save(checkpoint, save_name)
+    print("{}\nSaved agent data to: {}".format("#"*50, save_name))
+
+    return True
 
 def load_checkpoint(filepath, device, args):
-    '''Loads a checkpoint from an earlier trained agent.
-    '''
+    """Loads a checkpoint from an earlier trained agent.
+    """
     checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
 
     if checkpoint['agent_type'] == 'DQN':
-        agent = DQN_Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
+        agent = Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
     agent.q.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
     return agent
@@ -21,6 +54,8 @@ def load_checkpoint(filepath, device, args):
 
 
 def load_filepath(use_latest):
+    """Prompts the user about what save to load, or uses the last modified save.
+    """
     separator = "#"*50 + "\n"
     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
     files = sorted(files, key=lambda x: os.path.getmtime(x))
@@ -50,6 +85,8 @@ def load_filepath(use_latest):
 
 
 def plot_scores(scores):
+    """Simple graph of training data, score per episode across all episodes.
+    """
     fig = plt.figure()
     ax = fig.add_subplot(111)
     plt.plot(np.arange(len(scores)), scores)
@@ -61,6 +98,8 @@ def plot_scores(scores):
 
 
 def print_debug_info(sep, device, nA, nS, env, args):
+    """Prints extra data if --debug flag is set.
+    """
     print(sep)
     for arg in vars(args):
         print("{}: {}".format(arg, getattr(args, arg)))
@@ -70,3 +109,12 @@ def print_debug_info(sep, device, nA, nS, env, args):
     print('Number of agents:', len(env.agents))
     print("Number of Episodes: {}".format(args.num_episodes))
     print(sep)
+
+
+
+def print_status(i_episode, scores, args, agent):
+    if i_episode % args.print_count == 0:
+        print("\nEpisode {}/{}, avg score for last {} episodes: {:3f}".format(
+                i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
+        if args.verbose:
+            print("Epsilon: {}\n".format(agent.epsilon))

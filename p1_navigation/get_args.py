@@ -6,7 +6,8 @@ def get_args():
             usage="EXAMPLE COMMAND:\npython banana_agent.py --train --batch_size 64 -lr 5e-4")
 
     parser.add_argument("-f", "--framework",
-            help="Which type of Agent to use. (DQN, double_DQN, dueling_DQN)",
+            help="Which type of Agent to use. (DQN, DDQN, dueling_DQN)",
+            type=str,
             default="DQN")
     parser.add_argument("-per", "--prioritized_replay",
             help="Use Prioritized Experience Replay. This is independent of Agent type.",
