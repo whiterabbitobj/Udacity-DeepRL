@@ -1,10 +1,11 @@
 import os.path
+import time
+import re
+
+import torch
 import matplotlib.pyplot as plt
 import numpy as np
-import time
-import torch
 from agent import Agent
-#import progressbar
 
 
 
@@ -12,12 +13,10 @@ def generate_savename(agent_name, scores, print_count):
     """Generates an automatic savename for training files, will version-up as
        needed.
     """
-    files = [os.path.splitext(str(f))[0] for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
-    files = ['_'.join(f.split('_')[:3]) for f in files]
-    savename = "{}_{}_{}".format(agent_name, time.strftime("%Y%m%d", time.gmtime()), "v1")
-    while savename in files:
-        savename = savename[:-1] + str(int(savename[-1])+1)
-    return "{}_{}eps_{:.2f}score{}".format(savename, len(scores), np.mean(scores[-print_count:]), ".pth")
+    files = [f for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
+    savename = "{}_{}_v".format(agent_name, time.strftime("%Y%m%d", time.gmtime()))
+    max_ver = max([int(re.search("_v(\d+)", file).group(1)) for file in files])
+    return "{}{}_{}eps_{:.2f}score{}".format(savename, max_ver + 1, len(scores), np.mean(scores[-print_count:]), ".pth")
 
 
 
