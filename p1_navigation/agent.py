@@ -1,7 +1,7 @@
 import numpy as np
 import random
 from collections import namedtuple, deque
-# 
+#
 # from model import QNetwork
 # from agent_utils import ReplayBuffer
 
@@ -35,6 +35,7 @@ class Agent():
         self.tau = args.tau
         self.update_every = args.update_every
         self.momentum = args.momentum
+        self.PER = args.prioritized_replay
 
         #initialize REPLAY memory
         self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
@@ -60,16 +61,6 @@ class Agent():
     def update_epsilon(self):
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
 
-    def step(self, state, action, reward, next_state, done):
-        #save the current SARS′  status in the replay memory
-        self.memory.add(state, action, reward, next_state, done)
-
-        #once the replay memory accumulates enough samples, then learn every "update_every" timesteps
-        if len(self.memory) > self.batchsize and self.t_step % self.update_every == 0:
-            batch = self.memory.sample()
-            self.learn(batch)
-        self.t_step += 1
-
     def act(self, state):
         #send the state to a tensor object on the gpu
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -81,17 +72,42 @@ class Agent():
         #select an action using epsilon-greedy π
         probs = np.ones(self.nA) * self.epsilon / self.nA
         probs[np.argmax(action_values)] = 1 - self.epsilon + (self.epsilon / self.nA)
+
         return np.random.choice(np.arange(self.nA), p = probs)
 
+    def step(self, state, action, reward, next_state, done):
+        """Moves the agent to the next timestep.
+           Learns every UPDATE_EVERY steps.
+        """
+        #save the current SARS′  status in the replay memory
+        self.memory.add(state, action, reward, next_state, done)
+
+        if len(self.memory) > self.batchsize and self.t_step % self.update_every == 0:
+            batch = self.memory.sample(self.PER)
+            self.learn(batch)
+        self.t_step += 1
+
+    def teststep(self, state, action, reward, next_state, done):
+        """Moves the agent to the next timestep.
+           Learns every UPDATE_EVERY steps.
+        """
+        #save the current SARS′  status in the replay memory
+        self.memory.add(state, action, reward, next_state, done)
+
+        # batch = self.memory.sample()
+        # self.learn(batch)
 
     def learn(self, batch):
+        """Trains the Deep QNetwork and returns action values.
+           Can use multiple frameworks.
+        """
         states, actions, rewards, next_states, dones = batch
 
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
             qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
 
-        if self.framework == 'DDQN':
+        if self.framework == 'D2QN':
             #DOUBLE DQN: get q-value for max action in Q, evaluate under qHAT
             q_next_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
             qhat_nextvalues = self.qhat(next_states).gather(1, q_next_actions)
@@ -117,9 +133,10 @@ class Agent():
             self.qhat.load_state_dict(self.q.state_dict())
             #self.qnet_update()
 
-
-
     def qnet_update(self):
+        """Copies the Q network parameters to the qHAT network every C timesteps.
+           Uses a value TAU to only copy at a specific percentage of the training.
+        """
         #Copy the params from the target network to the local network at rate TAU
         for target_param, local_param in zip(self.qhat.parameters(), self.q.parameters()):
             target_param.data.copy_(self.tau*local_param.data + (1-self.tau)*target_param.data)
@@ -139,7 +156,7 @@ class ReplayBuffer:
         t = self.item(state, action, reward, next_state, done)
         self.memory.append(t)
 
-    def sample(self):
+    def sample(self, per):
         batch = random.sample(self.memory, k=self.batchsize)
 
         states = torch.from_numpy(np.vstack([item.state for item in batch if item is not None])).float().to(self.device)

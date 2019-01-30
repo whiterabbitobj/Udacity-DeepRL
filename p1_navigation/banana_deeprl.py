@@ -109,8 +109,7 @@ def run_agent(unity_env, agent, args, brain_name):
                 #initiate next timestep
                 if args.train:
                     agent.step(state, action, reward, next_state, done)
-                    # if args.verbose:
-                    #     print(len(agent.memory))
+
                 state = next_state
 
                 if done:

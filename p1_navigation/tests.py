@@ -34,11 +34,12 @@ print("This is my main message")
 #         print("some text", i)
 #     time.sleep(0.1)
 #
+with progressbar.ProgressBar(max_value=x) as bar1:
+    with progressbar.ProgressBar(max_value=every) as bar:
+        for i in range(1,x+1):
+            if i % every == 0:
+                print("\nNew iteration!")
+            time.sleep(0.1)
 
-with progressbar.ProgressBar(max_value=every) as bar:
-    for i in range(1,x+1):
-        if i % every == 0:
-            print("\nNew iteration!")
-        time.sleep(0.1)
-
-        bar.update(i%every+1)
+            bar.update(i%every+1)
+            bar1.update(1)
