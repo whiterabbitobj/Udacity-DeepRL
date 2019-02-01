@@ -1,9 +1,6 @@
 import numpy as np
 import random
 from collections import namedtuple, deque
-#
-# from model import QNetwork
-# from agent_utils import ReplayBuffer
 
 import torch
 import torch.nn as nn
@@ -21,11 +18,13 @@ class Agent():
         self.nA = nA
         self.seed = random.seed(seed)
         self.device = device
+        self.t_step = 0
 
         #initialize params from the command line args
         self.framework = args.framework
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
+        self.c = args.c
         self.dropout = args.dropout
         self.epsilon = args.epsilon
         self.epsilon_decay = args.epsilon_decay
@@ -37,8 +36,8 @@ class Agent():
         self.momentum = args.momentum
         self.PER = args.prioritized_replay
 
-        #initialize REPLAY memory
-        self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
+        #initialize REPLAY buffer
+        self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
 
         #Initialize a Q-Network
         self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
@@ -53,11 +52,6 @@ class Agent():
         else:
             self.optimizer = optim.SGD(self.q.parameters(), lr=self.lr, momentum=self.momentum)
 
-
-
-        #initialize time step (for use with the update_every parameter)
-        self.t_step = 0
-
     def update_epsilon(self):
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
 
@@ -66,35 +60,33 @@ class Agent():
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
         self.q.eval() #put network into eval mode
         with torch.no_grad():
-            action_values = self.q(state).cpu().data.numpy()
+            action_values = self.q(state)
         self.q.train() #put network back into training mode
-
         #select an action using epsilon-greedy π
-        probs = np.ones(self.nA) * self.epsilon / self.nA
-        probs[np.argmax(action_values)] = 1 - self.epsilon + (self.epsilon / self.nA)
-
-        return np.random.choice(np.arange(self.nA), p = probs)
+        if random.random() > self.epsilon:
+            return np.argmax(action_values.cpu().data.numpy()).astype(int)
+        else:
+            return random.choice(np.arange(self.nA))
 
     def step(self, state, action, reward, next_state, done):
         """Moves the agent to the next timestep.
            Learns every UPDATE_EVERY steps.
         """
-        #save the current SARS′  status in the replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        #save the current SARS′  status in the replay buffer
+        self.buffer.add(state, action, reward, next_state, done)
 
-        if len(self.memory) > self.batchsize and self.t_step % self.update_every == 0:
-            batch = self.memory.sample(self.PER)
+        if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
+            batch = self.buffer.sample(self.PER)
             self.learn(batch)
         self.t_step += 1
 
     def teststep(self, state, action, reward, next_state, done):
-        """Moves the agent to the next timestep.
-           Learns every UPDATE_EVERY steps.
+        """For testing in Jupyter Notebook
         """
-        #save the current SARS′  status in the replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        #save the current SARS′  status in the replay buffer
+        self.buffer.add(state, action, reward, next_state, done)
 
-        # batch = self.memory.sample()
+        # batch = self.buffer.sample()
         # self.learn(batch)
 
     def learn(self, batch):
@@ -107,20 +99,15 @@ class Agent():
             #VANILLA DQN: get max predicted Q values for the next states from the target model
             qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
 
-        if self.framework == 'D2QN':
-            #DOUBLE DQN: get q-value for max action in Q, evaluate under qHAT
+        if self.framework == 'D2DQN':
+            #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
             q_next_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
             qhat_nextvalues = self.qhat(next_states).gather(1, q_next_actions)
 
+        expected_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
+        values = self.q(states).gather(1, actions)
 
-        #compute Q targets for the current states using current Q and Q^ of S′
-        expected_state_action_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
-
-        #get the expected values from the current model Q
-        state_action_values = self.q(states).gather(1, actions)
-
-        #compute the loss values over the network
-        loss = F.mse_loss(state_action_values, expected_state_action_values)
+        loss = F.mse_loss(values, expected_values)
 
         #minimize the loss (backpropogation)
         self.optimizer.zero_grad()
@@ -128,47 +115,38 @@ class Agent():
         # for param in self.q.parameters():
         #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
-        #update the target network
-        if self.t_step % (self.update_every ** 3 ) == 0:
+        #update the target network every C steps
+        if self.t_step % (self.c ) == 0:
             self.qhat.load_state_dict(self.q.state_dict())
-            #self.qnet_update()
-
-    def qnet_update(self):
-        """Copies the Q network parameters to the qHAT network every C timesteps.
-           Uses a value TAU to only copy at a specific percentage of the training.
-        """
-        #Copy the params from the target network to the local network at rate TAU
-        for target_param, local_param in zip(self.qhat.parameters(), self.q.parameters()):
-            target_param.data.copy_(self.tau*local_param.data + (1-self.tau)*target_param.data)
 
 
 
 class ReplayBuffer:
     def __init__(self, nA, buffersize, batchsize, seed, device):
         self.nA = nA
-        self.memory = deque(maxlen=buffersize)
+        self.buffer = deque(maxlen=buffersize)
         self.batchsize = batchsize
-        self.item = namedtuple("Item", field_names=['state','action','reward','next_state','done'])
+        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state','done'])
         self.seed = random.seed(seed)
         self.device = device
 
     def add(self, state, action, reward, next_state, done):
-        t = self.item(state, action, reward, next_state, done)
-        self.memory.append(t)
+        t = self.memory(state, action, reward, next_state, done)
+        self.buffer.append(t)
 
     def sample(self, per):
-        batch = random.sample(self.memory, k=self.batchsize)
+        batch = random.sample(self.buffer, k=self.batchsize)
 
-        states = torch.from_numpy(np.vstack([item.state for item in batch if item is not None])).float().to(self.device)
-        actions = torch.from_numpy(np.vstack([item.action for item in batch if item is not None])).long().to(self.device)
-        rewards = torch.from_numpy(np.vstack([item.reward for item in batch if item is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([item.next_state for item in batch if item is not None])).float().to(self.device)
-        dones = torch.from_numpy(np.vstack([item.done for item in batch if item is not None]).astype(np.uint8)).float().to(self.device)
+        states = torch.from_numpy(np.vstack([memory.state for memory in batch if memory is not None])).float().to(self.device)
+        actions = torch.from_numpy(np.vstack([memory.action for memory in batch if memory is not None])).long().to(self.device)
+        rewards = torch.from_numpy(np.vstack([memory.reward for memory in batch if memory is not None])).float().to(self.device)
+        next_states = torch.from_numpy(np.vstack([memory.next_state for memory in batch if memory is not None])).float().to(self.device)
+        dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
 
         return (states, actions, rewards, next_states, dones)
 
     def __len__(self):
-        return len(self.memory)
+        return len(self.buffer)
 
 
 

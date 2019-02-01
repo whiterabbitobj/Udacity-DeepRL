@@ -12,10 +12,10 @@ def get_args():
     parser.add_argument("-per", "--prioritized_replay",
             help="Use Prioritized Experience Replay. This is independent of Agent type.",
             action="store_true")
-    # parser.add_argument("-a", "--alpha",
-    #         help="Alpha, or learning rate of the Q-Network",
-    #         type=int,
-    #         default=1.0)
+    parser.add_argument("-a", "--alpha",
+            help="Alpha parameter of the Prioritized Experience Replay.",
+            type=float,
+            default=0.4)
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
             type=float,
@@ -24,12 +24,16 @@ def get_args():
             help="How many past timesteps to keep in memory.",
             type=int,
             default=50000)
+    parser.add_argument("-c",
+            help="How many timesteps between updating Q' to match Q",
+            type=int,
+            default=1000)
     parser.add_argument("--continue",
             help="Continue training from a loaded file (can use in conjunction with --latest).",
             action="store_true")
-    parser.add_argument("--cpu",
-            help="Use this flag to run the code on the CPU instead of the default GPU.",
-            action="store_true")
+    # parser.add_argument("--cpu",
+    #         help="Use this flag to run the code on the CPU instead of the default GPU.",
+    #         action="store_true")
     parser.add_argument("--debug",
             help="Print extra info for debugging purposes.",
             action="store_true")

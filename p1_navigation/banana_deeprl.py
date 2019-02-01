@@ -1,13 +1,12 @@
 import time
 import numpy as np
 import torch
+import progressbar
 
 from unityagents import UnityEnvironment
-
 from get_args import get_args
 from agent import Agent
-from utils import load_filepath, load_checkpoint, plot_scores, print_debug_info, print_status, save_checkpoint
-import progressbar
+import utils
 
 
 
@@ -33,16 +32,16 @@ def main():
 
 
     #send all the training to the GPU, if available
-    device = torch.device("cuda:0" if torch.cuda.is_available() and not args.cpu else "cpu")
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     if not args.train:
-        filepath = load_filepath(args.latest) #prompt user before loading the env to avoid pop-over
+        filepath = utils.load_filepath(args.latest) #prompt user before loading the env to avoid pop-over
         if filepath == None:
             print("Quit before loading a file.")
             return
+
     #initialize the environment
     unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe", no_graphics=args.nographics)
-    # get the default brain (In this environment there is only one agent/brain)
     brain_name = unity_env.brain_names[0]
     brain = unity_env.brains[brain_name]
     env = unity_env.reset(train_mode=True)[brain_name]
@@ -54,16 +53,14 @@ def main():
 
 
     if args.debug:
-        print_debug_info(sep, device, nA, nS, env, args) #print info about params
+        utils.print_debug_info(sep, device, nA, nS, env, args) #print info about params
 
 
     if args.train:
         print("Printing training data every {} episodes.\n{}".format(args.print_count,sep))
-        # THIS IS WHERE WE NEED TO IMPLEMENT DIFFERENT AGENT TYPES, THE CODE TO
-        # *RUN* THE AGENT IS UNIFORM ACROSS AGENT TYPES!
         agent = Agent(nS, nA, device, args)
     else:
-        agent = load_checkpoint(filepath, device, args)
+        agent = utils.load_checkpoint(filepath, device, args)
         args.num_episodes = 3
         agent.epsilon = 0
 
@@ -73,13 +70,11 @@ def main():
 
     #Run the agent
     scores = run_agent(unity_env, agent, args, brain_name)
-
-    m, s = divmod(time.time() - start_time, 60)
-    h, m = divmod(m, 60)
-    print("TOTAL RUNTIME: {}h{}m{}s.".format(int(h), int(m), int(s)))
-    plot_scores(scores)
-
     unity_env.close()
+
+    print("TOTAL RUNTIME: {}.".format(utils.get_runtime(start_time)))
+    utils.plot_scores(scores)
+
     return
 
 
@@ -91,7 +86,9 @@ def run_agent(unity_env, agent, args, brain_name):
         for i_episode in range(1, args.num_episodes+1):
             score = 0
             #reset the environment for a new episode runthrough
-            env = unity_env.reset(train_mode=args.train)[brain_name]
+            #env = unity_env.reset(train_mode=args.train)[brain_name]
+            env = unity_env.reset(train_mode=True)[brain_name]
+
             # get the initial environment state
             state = env.vector_observations[0]
 
@@ -111,17 +108,17 @@ def run_agent(unity_env, agent, args, brain_name):
                     agent.step(state, action, reward, next_state, done)
 
                 state = next_state
-
                 if done:
                     break
             agent.update_epsilon() #epsilon is 0 in evaluation mode
             #prepare for next episode
             scores.append(score)
-            print_status(i_episode, scores, args, agent)
+            utils.print_status(i_episode, scores, args, agent)
             progress_bar.update(i_episode%args.print_count+1)
 
     if args.train:
-        save_checkpoint(agent, scores, args.print_count)
+        print(agent.t_step)
+        utils.save_checkpoint(agent, scores, args.print_count)
     return scores
 
 

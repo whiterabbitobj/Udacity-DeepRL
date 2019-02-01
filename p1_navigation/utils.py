@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from agent import Agent
 
-
+def anneal_parameter(param, anneal_rate, param_min):
+    return min(param * anneal_rate, param_min)
 
 def generate_savename(agent_name, scores, print_count):
     """Generates an automatic savename for training files, will version-up as
@@ -99,10 +100,10 @@ def plot_scores(scores):
 def print_debug_info(sep, device, nA, nS, env, args):
     """Prints extra data if --debug flag is set.
     """
-    print(sep)
+    print("{}\nARGS:".format(sep))
     for arg in vars(args):
-        print("{}: {}".format(arg, getattr(args, arg)))
-    print(sep)
+        print("{}: {}".format(arg.upper(), getattr(args, arg)))
+    print("{}\nVARS:".format(sep))
     print("Device: {}".format(device))
     print("Action Size: {}\nState Size: {}".format(nA, nS))
     print('Number of agents:', len(env.agents))
@@ -117,3 +118,9 @@ def print_status(i_episode, scores, args, agent):
                 i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
         if args.verbose:
             print("Epsilon: {}\n".format(agent.epsilon))
+
+
+def get_runtime(start_time):
+    m, s = divmod(time.time() - start_time, 60)
+    h, m = divmod(m, 60)
+    return  "{}h{}m{}s".format(int(h), int(m), int(s))
