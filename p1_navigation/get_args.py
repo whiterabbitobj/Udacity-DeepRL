@@ -3,7 +3,8 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment",
-            usage="EXAMPLE COMMAND:\npython banana_agent.py --train --batch_size 64 -lr 5e-4")
+            usage="EXAMPLE COMMAND:\n\
+                   python banana_deeprl.py --train --pixels --nographics --framework D2DQN --verbose -lr 0.001 -num 10")
 
     parser.add_argument("-f", "--framework",
             help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
@@ -12,31 +13,35 @@ def get_args():
     parser.add_argument("-per", "--prioritized_replay",
             help="Use Prioritized Experience Replay. This is independent of Agent type.",
             action="store_true")
-    # parser.add_argument("-a", "--alpha",
-    #         help="Alpha, or learning rate of the Q-Network",
-    #         type=int,
-    #         default=1.0)
+    parser.add_argument("-a", "--alpha",
+            help="Alpha parameter of the Prioritized Experience Replay.",
+            type=float,
+            default=0.4)
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
-            type=float,
+            type=int,
             default=64)
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=50000)
+            default=100000)
+    parser.add_argument("-c",
+            help="How many timesteps between updating Q' to match Q",
+            type=int,
+            default=1024)
     parser.add_argument("--continue",
             help="Continue training from a loaded file (can use in conjunction with --latest).",
             action="store_true")
-    parser.add_argument("--cpu",
-            help="Use this flag to run the code on the CPU instead of the default GPU.",
-            action="store_true")
-    parser.add_argument("--debug",
-            help="Print extra info for debugging purposes.",
-            action="store_true")
+    # parser.add_argument("--cpu",
+    #         help="Use this flag to run the code on the CPU instead of the default GPU.",
+    #         action="store_true")
+    # parser.add_argument("--debug",
+    #         help="Print extra info for debugging purposes.",
+    #         action="store_true")
     parser.add_argument("-drop", "--dropout",
             help="Dropout rate for deep network.",
             type=float,
-            default=0.05)
+            default=0.0)
     parser.add_argument("-e", "--epsilon",
             help="Starting value of Epsilon.",
             type=float,
@@ -44,11 +49,11 @@ def get_args():
     parser.add_argument("-ed", "--epsilon_decay",
             help="Epsilon decay value.",
             type=float,
-            default=0.999)
+            default=0.99)
     parser.add_argument("-em", "--epsilon_min",
             help="Minimum value for epsilon.",
             type=float,
-            default=0.075)
+            default=0.01)
     parser.add_argument("-gamma",
             help="Gamma (Discount rate).",
             type=float,
@@ -76,6 +81,9 @@ def get_args():
             help="Choose an optimizer for the network. (RMSprop/Adam/SGD)",
             type=str,
             default="Adam")
+    parser.add_argument("--pixels",
+            help="Train the network using visual data instead of states from the engine.",
+            action="store_true")
     parser.add_argument("--print_count",
             help="How many times to print status updates during training. The \
                   number of episodes is divided by this, unless it would result\

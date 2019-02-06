@@ -1,9 +1,6 @@
 import numpy as np
 import random
 from collections import namedtuple, deque
-#
-# from model import QNetwork
-# from agent_utils import ReplayBuffer
 
 import torch
 import torch.nn as nn
@@ -21,11 +18,13 @@ class Agent():
         self.nA = nA
         self.seed = random.seed(seed)
         self.device = device
+        self.t_step = 0
 
         #initialize params from the command line args
         self.framework = args.framework
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
+        self.c = args.c
         self.dropout = args.dropout
         self.epsilon = args.epsilon
         self.epsilon_decay = args.epsilon_decay
@@ -37,26 +36,29 @@ class Agent():
         self.momentum = args.momentum
         self.PER = args.prioritized_replay
 
-        #initialize REPLAY memory
-        self.memory = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
+        #initialize REPLAY buffer
+        self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
 
-        #Initialize a Q-Network
-        self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
-        self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
+        #Initialize Q-Network
+        if args.pixels:
+            print("Using Pixel-based training.")
+            self.q = QCNNetwork(nS, nA, seed).to(device)
+            self.qhat = QCNNetwork(nS, nA, seed).to(device)
+        else:
+            print("Using state data provided by the engine for training.")
+            self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
+            self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
+
+
         self.qhat.load_state_dict(self.q.state_dict())
 
-        #set optimizer
+        #optimizer
         if args.optimizer == "RMSprop":
             self.optimizer = optim.RMSprop(self.q.parameters(), lr=self.lr, momentum=self.momentum)
-        elif args.optimizer == "Adam":
-            self.optimizer = optim.Adam(self.q.parameters(), lr=self.lr)
-        else:
+        elif args.optimizer == "SGD":
             self.optimizer = optim.SGD(self.q.parameters(), lr=self.lr, momentum=self.momentum)
-
-
-
-        #initialize time step (for use with the update_every parameter)
-        self.t_step = 0
+        else:
+            self.optimizer = optim.Adam(self.q.parameters(), lr=self.lr)
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
@@ -64,111 +66,165 @@ class Agent():
     def act(self, state):
         #send the state to a tensor object on the gpu
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        #state = torch.from_numpy(state).float().transpose(3,1).to(self.device)
+
         self.q.eval() #put network into eval mode
         with torch.no_grad():
-            action_values = self.q(state).cpu().data.numpy()
+            action_values = self.q(state)
         self.q.train() #put network back into training mode
-
         #select an action using epsilon-greedy π
-        probs = np.ones(self.nA) * self.epsilon / self.nA
-        probs[np.argmax(action_values)] = 1 - self.epsilon + (self.epsilon / self.nA)
-
-        return np.random.choice(np.arange(self.nA), p = probs)
+        if random.random() > self.epsilon:
+            return np.argmax(action_values.cpu().data.numpy()).astype(int)
+        else:
+            return random.choice(np.arange(self.nA))
 
     def step(self, state, action, reward, next_state, done):
         """Moves the agent to the next timestep.
            Learns every UPDATE_EVERY steps.
         """
-        #save the current SARS′  status in the replay memory
-        self.memory.add(state, action, reward, next_state, done)
+        #save the current SARS′  status in the replay buffer
+        self.buffer.add(state, action, reward, next_state, done)
+        print("State shape: {} NextState: {}, buffer length: {}".format(state.shape, next_state.shape, len(self.buffer)))
 
-        if len(self.memory) > self.batchsize and self.t_step % self.update_every == 0:
-            batch = self.memory.sample(self.PER)
+        if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
+            batch = self.buffer.sample()
             self.learn(batch)
+        #update the target network every C steps
+        if self.t_step % self.c == 0:
+            self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    def teststep(self, state, action, reward, next_state, done):
-        """Moves the agent to the next timestep.
-           Learns every UPDATE_EVERY steps.
-        """
-        #save the current SARS′  status in the replay memory
-        self.memory.add(state, action, reward, next_state, done)
-
-        # batch = self.memory.sample()
-        # self.learn(batch)
+    # def teststep(self, state, action, reward, next_state, done):
+    #     """Moves the agent to the next timestep.
+    #        Learns every UPDATE_EVERY steps.
+    #     """
+    #     batch = state, action, reward, next_state, done
+    #     #self.learn(batch)
+    #     #update the target network every C steps
+    #     if self.t_step % self.c == 0:
+    #         self.qhat.load_state_dict(self.q.state_dict())
+    #     self.t_step += 1
 
     def learn(self, batch):
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
         states, actions, rewards, next_states, dones = batch
+        # states = torch.from_numpy(states).float().transpose(3,1).to(self.device)
+        # next_states = torch.from_numpy(next_states).transpose(3,1).float().to(self.device)
+        # actions = torch.from_numpy(actions).float().to(self.device)
+        #print(states.shape, actions.shape, rewards.shape, next_states.shape, dones.shape)
 
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
             qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
 
-        if self.framework == 'D2QN':
-            #DOUBLE DQN: get q-value for max action in Q, evaluate under qHAT
+        if self.framework == 'D2DQN':
+            #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
             q_next_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
             qhat_nextvalues = self.qhat(next_states).gather(1, q_next_actions)
 
+        expected_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
+        values = self.q(states).gather(1, actions)
 
-        #compute Q targets for the current states using current Q and Q^ of S′
-        expected_state_action_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
-
-        #get the expected values from the current model Q
-        state_action_values = self.q(states).gather(1, actions)
-
-        #compute the loss values over the network
-        loss = F.mse_loss(state_action_values, expected_state_action_values)
+        loss = F.mse_loss(values, expected_values)
 
         #minimize the loss (backpropogation)
         self.optimizer.zero_grad()
         loss.backward()
-        # for param in self.q.parameters():
-        #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
-        #update the target network
-        if self.t_step % (self.update_every ** 3 ) == 0:
-            self.qhat.load_state_dict(self.q.state_dict())
-            #self.qnet_update()
-
-    def qnet_update(self):
-        """Copies the Q network parameters to the qHAT network every C timesteps.
-           Uses a value TAU to only copy at a specific percentage of the training.
-        """
-        #Copy the params from the target network to the local network at rate TAU
-        for target_param, local_param in zip(self.qhat.parameters(), self.q.parameters()):
-            target_param.data.copy_(self.tau*local_param.data + (1-self.tau)*target_param.data)
 
 
 
 class ReplayBuffer:
     def __init__(self, nA, buffersize, batchsize, seed, device):
         self.nA = nA
-        self.memory = deque(maxlen=buffersize)
+        self.buffer = deque(maxlen=buffersize)
         self.batchsize = batchsize
-        self.item = namedtuple("Item", field_names=['state','action','reward','next_state','done'])
+        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state','done'])
         self.seed = random.seed(seed)
         self.device = device
 
     def add(self, state, action, reward, next_state, done):
-        t = self.item(state, action, reward, next_state, done)
-        self.memory.append(t)
+        t = self.memory(state, action, reward, next_state, done)
+        self.buffer.append(t)
 
-    def sample(self, per):
-        batch = random.sample(self.memory, k=self.batchsize)
+    def sample(self):
+        batch = random.sample(self.buffer, k=self.batchsize)
 
-        states = torch.from_numpy(np.vstack([item.state for item in batch if item is not None])).float().to(self.device)
-        actions = torch.from_numpy(np.vstack([item.action for item in batch if item is not None])).long().to(self.device)
-        rewards = torch.from_numpy(np.vstack([item.reward for item in batch if item is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([item.next_state for item in batch if item is not None])).float().to(self.device)
-        dones = torch.from_numpy(np.vstack([item.done for item in batch if item is not None]).astype(np.uint8)).float().to(self.device)
+        states = torch.from_numpy(np.vstack([np.expand_dims(memory.state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
+        actions = torch.from_numpy(np.vstack([memory.action for memory in batch if memory is not None])).long().to(self.device)
+        rewards = torch.from_numpy(np.vstack([memory.reward for memory in batch if memory is not None])).float().to(self.device)
+        next_states = torch.from_numpy(np.vstack([np.expand_dims(memory.next_state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
+        dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
 
         return (states, actions, rewards, next_states, dones)
 
     def __len__(self):
-        return len(self.memory)
+        return len(self.buffer)
+
+
+
+
+class QCNNetwork(nn.Module):
+    """Deep Q-Network CNN Model for use with learning from pixel data.
+       Nonlinear estimator for Qπ
+    """
+
+    def __init__(self, state, action_size, seed):
+        """Initialize parameters and build model.
+        Params
+        ======
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+        """
+        super(QCNNetwork, self).__init__()
+        in_rez = state[1]#84
+        chan_count = state[0]#3
+
+        out1 = 32
+        kernel1 = 8
+        stride1 = 4
+
+        out2 = 64
+        kernel2 = 4
+        stride2 = 2
+
+        out3 = 64
+        kernel3 = 3
+        stride3 = 1
+
+        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1)
+        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2)
+        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3)
+
+        ## output size = (Width-Filtersize)/Stride +1
+        fc_in = (in_rez-kernel1)/stride1 + 1
+        fc_in = (fc_in-kernel2)/stride2 + 1
+        fc_in = (fc_in-kernel3)/stride3 + 1
+        fc_in = int(out3 * fc_in * fc_in)
+
+        fc_handoff = 512
+
+        self.fc1 = nn.Linear(fc_in, fc_handoff)
+        self.fc2 = nn.Linear(fc_handoff, action_size)
+
+        self.seed = torch.manual_seed(seed)
+
+
+    def forward(self, state):
+        """Build a network that maps state -> action values."""
+        x = F.relu(self.conv1(state))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+
+        x = x.view(x.size(0), -1)
+
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+
+        return x
 
 
 
@@ -188,11 +244,6 @@ class QNetwork(nn.Module):
         """
         super(QNetwork, self).__init__()
 
-        # self.seed = torch.manual_seed(seed)
-        # self.fc1 = nn.Linear(state_size, fc1_units)
-        # self.fc2 = nn.Linear(fc1_units, fc2_units)
-        # self.fc3 = nn.Linear(fc2_units, action_size)
-
         self.seed = torch.manual_seed(seed)
         self.hidden_layers = nn.ModuleList([nn.Linear(state_size, layer_sizes[0])])
         self.output = nn.Linear(layer_sizes[-1], action_size)
@@ -204,9 +255,7 @@ class QNetwork(nn.Module):
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
-        # x = F.relu(self.fc1(state))
-        # x = F.relu(self.fc2(x))
-        # return self.fc3(x)
+
 
         x = F.relu(self.hidden_layers[0](state))
         x = self.dropout(x)
