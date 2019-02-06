@@ -40,8 +40,15 @@ class Agent():
         self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
 
         #Initialize a Q-Network
-        self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
-        self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
+        if not args.pixels:
+            print("Using api based training using state data provided by the engine.")
+            self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
+            self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
+        else:
+            print("Using Pixel-based training.")
+            self.q = QCNNetwork(nS, nA, seed, self.dropout).to(device)
+            self.qhat = QCNNetwork(nS, nA, seed, self.dropout).to(device)
+
         self.qhat.load_state_dict(self.q.state_dict())
 
         #set optimizer
@@ -78,16 +85,23 @@ class Agent():
         if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
             batch = self.buffer.sample(self.PER)
             self.learn(batch)
+        #update the target network every C steps
+        if self.t_step % self.c == 0:
+            self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
     def teststep(self, state, action, reward, next_state, done):
-        """For testing in Jupyter Notebook
+        """Moves the agent to the next timestep.
+           Learns every UPDATE_EVERY steps.
         """
-        #save the current SARS′  status in the replay buffer
-        self.buffer.add(state, action, reward, next_state, done)
+        batch = state, action, reward, next_state, done
+        self.learn(batch)
+        #update the target network every C steps
+        if self.t_step % self.c == 0:
+            self.qhat.load_state_dict(self.q.state_dict())
+        self.t_step += 1
 
-        # batch = self.buffer.sample()
-        # self.learn(batch)
+
 
     def learn(self, batch):
         """Trains the Deep QNetwork and returns action values.
@@ -115,9 +129,6 @@ class Agent():
         # for param in self.q.parameters():
         #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
-        #update the target network every C steps
-        if self.t_step % (self.c ) == 0:
-            self.qhat.load_state_dict(self.q.state_dict())
 
 
 
@@ -147,6 +158,125 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
+
+
+
+
+class QCNNetwork(nn.Module):
+    """Deep Q-Network CNN Model for use with learning from pixel data.
+       Nonlinear estimator for Qπ
+    """
+
+    def __init__(self, state_size, action_size, seed, dropout=0.25, layer_sizes=[64, 64]):
+        """Initialize parameters and build model.
+        Params
+        ======
+            state_size (int): Dimension of each state
+            action_size (int): Dimension of each action
+            seed (int): Random seed
+            fc1_units (int): Number of nodes in first hidden layer
+            fc2_units (int): Number of nodes in second hidden layer
+        """
+        super(QCNNetwork, self).__init__()
+
+        # 1 input image channel (grayscale), 10 output channels/feature maps
+        # 3x3 square convolution kernel
+        ## output size = (W-F)/S +1 = (28-3)/1 +1 = 26
+        # the output Tensor for one image, will have the dimensions: (10, 26, 26)
+        # after one pool layer, this becomes (10, 13, 13)
+        # in_rez = 84
+        # chan_count = 3
+        # out1 = 32
+        # kernel1 = 8
+        # stride1 = 4
+        #
+        # out2 = 64
+        # kernel2 = 4
+        # stride2 = 2
+        #
+        # out3 =
+        #
+        # pool_stride = 2
+        # fc_handoff = 64
+        #
+        # self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride1, (kernel1-1)/2)
+        # self.conv2 = nn.Conv2d(out1, out2, kernel2, stride1, (kernel2-1)/2)
+        #
+        # self.pool = nn.MaxPool2d(2, pool_stride)
+        #
+        # conv1_out =  (in_rez-kernel1)/stride1 + 1) / pool_stride
+        # conv2_out =  ((conv1_out-kernel2)/stride1 + 1) / pool_stride
+        # fc_in = out2 * conv2_out * conv2_out
+        #
+        #
+        # self.fc1 = nn.Linear(fc_in, fc_handoff)
+        # self.fc2 = nn.Linear(fc_handoff, action_size)
+        #
+        # self.dropout = nn.Dropout(p=dropout)
+        # self.seed = torch.manual_seed(seed)
+
+        in_rez = 84
+        chan_count = 3
+
+        out1 = 32
+        kernel1 = 8
+        stride1 = 4
+
+        out2 = 64
+        kernel2 = 4
+        stride2 = 2
+
+        out3 = 64
+        kernel3 = 3
+        stride3 = 1
+
+        pool_stride = 2
+
+        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1, padding=int((kernel1-1)/2))
+        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2, padding=int((kernel2-1)/2))
+        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3, padding=int((kernel3-1)/2))
+
+
+        self.pool = nn.MaxPool2d(2, pool_stride)
+
+        # conv1_out = (in_rez-kernel1)/stride1 + 1) / pool_stride
+        # conv2_out = ((conv1_out-kernel2)/stride2 + 1) / pool_stride
+        # conv3_out = ((conv2_out-kernel3)/stride3 + 1) / pool_stride
+        # fc_in = out2 * conv2_out * conv2_out
+        fc_in = 512
+        fc_handoff = 512
+
+        self.fc1 = nn.Linear(fc_in, fc_handoff)
+        self.fc2 = nn.Linear(fc_handoff, action_size)
+
+        self.seed = torch.manual_seed(seed)
+
+
+    def forward(self, state):
+        """Build a network that maps state -> action values."""
+        #
+        # x = self.pool(F.relu(self.conv1(state)))
+        # x = self.pool(F.relu(self.conv2(x)))
+        #
+        # x = x.view(x.size(0), -1)
+        #
+        # x = F.relu(self.fc1(x))
+        # x = self.dropout(x)
+        # x = self.fc2(x)
+        #
+        # return x
+
+        x = F.relu(self.conv1(state))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+
+        x = x.view(x.size(0), -1)
+
+        x = F.relu(self.fc1(x))
+        x = self.fc2(x)
+
+        return x
+
 
 
 
@@ -182,9 +312,7 @@ class QNetwork(nn.Module):
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
-        # x = F.relu(self.fc1(state))
-        # x = F.relu(self.fc2(x))
-        # return self.fc3(x)
+
 
         x = F.relu(self.hidden_layers[0](state))
         x = self.dropout(x)

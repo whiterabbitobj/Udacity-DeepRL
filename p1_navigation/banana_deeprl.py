@@ -41,7 +41,12 @@ def main():
             return
 
     #initialize the environment
-    unity_env = UnityEnvironment(file_name="Banana_Windows_x86_64/Banana.exe", no_graphics=args.nographics)
+    if args.pixels:
+        unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
+    else:
+        unity_filename = "Banana_Windows_x86_64/Banana.exe"
+
+    unity_env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
     brain_name = unity_env.brain_names[0]
     brain = unity_env.brains[brain_name]
     env = unity_env.reset(train_mode=True)[brain_name]
@@ -90,7 +95,7 @@ def run_agent(unity_env, agent, args, brain_name):
             env = unity_env.reset(train_mode=True)[brain_name]
 
             # get the initial environment state
-            state = env.vector_observations[0]
+            state = env.visual_observations[0] if args.pixels else env.vector_observations[0]
 
             while True:
                 #choose an action use current policy and take a timestep using this action
@@ -99,7 +104,7 @@ def run_agent(unity_env, agent, args, brain_name):
 
                 #collect info about new state
                 reward = env.rewards[0]
-                next_state = env.vector_observations[0]
+                next_state = env.visual_observations[0] if args.pixels else env.vector_observations[0]
                 done = env.local_done[0]
                 score += reward
 
