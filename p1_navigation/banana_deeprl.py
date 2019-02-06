@@ -39,12 +39,12 @@ def main():
     else:
         unity_filename = "Banana_Windows_x86_64/Banana.exe"
 
-    unity_env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
-    brain_name = unity_env.brain_names[0]
-    brain = unity_env.brains[brain_name]
-    env = unity_env.reset(train_mode=True)[brain_name]
+    env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
+    brain_name = env.brain_names[0]
+    brain = env.brains[brain_name]
+    env_info = env.reset(train_mode=True)[brain_name]
     nA = brain.vector_action_space_size
-    nS = len(env.vector_observations[0])
+    nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
 
     #calculate how often to print status updates, min 2, max 100.
     args.print_count = utils.print_interval(args, 2, 100)
@@ -59,13 +59,13 @@ def main():
         agent.epsilon = 0
 
     if args.verbose:
-        utils.print_debug_info(sep, device, nA, nS, env, args) #print info about params
+        utils.print_debug_info(sep, device, nA, nS, env_info, args) #print info about params
         print("{}\n{}".format(agent.q, sep)) #print info about the active network
 
 
     #Run the agent
-    scores = run_agent(unity_env, agent, args, brain_name)
-    unity_env.close()
+    scores = run_agent(env, agent, args, brain_name)
+    env.close()
 
     print("TOTAL RUNTIME: {}.".format(utils.get_runtime(start_time)))
     utils.plot_scores(scores)
@@ -74,7 +74,7 @@ def main():
 
 
 
-def run_agent(unity_env, agent, args, brain_name):
+def run_agent(env, agent, args, brain_name):
     """Trains selected agent in the environment."""
     scores = []
     with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
@@ -82,22 +82,25 @@ def run_agent(unity_env, agent, args, brain_name):
             score = 0
             #reset the environment for a new episode runthrough
             #env = unity_env.reset(train_mode=args.train)[brain_name]
-            env = unity_env.reset(train_mode=True)[brain_name]
+            env_info = env.reset(train_mode=True)[brain_name]
 
             # get the initial environment state
-            state = env.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env.vector_observations[0]
+            state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
 
             while True:
                 #choose an action use current policy and take a timestep using this action
-                action = agent.act(state)
-                env = unity_env.step(action)[brain_name]
-
+                action = int(agent.act(state))
+                print("State shape: {}, buffer length: {}".format(state.shape, len(agent.buffer)))
+                #print("State: {}".format(state))
+                print("Action: {}".format(action))
+                env_info = env.step(action)[brain_name]
                 #collect info about new state
-                reward = env.rewards[0]
-                next_state = env.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env.vector_observations[0]
-                done = env.local_done[0]
+                reward = env_info.rewards[0]
+                next_state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
+                done = env_info.local_done[0]
                 score += reward
-
+                if done:
+                    print("DONE")
                 #initiate next timestep
                 if args.train:
                     agent.step(state, action, reward, next_state, done)

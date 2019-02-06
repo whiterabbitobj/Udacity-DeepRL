@@ -42,8 +42,8 @@ class Agent():
         #Initialize Q-Network
         if args.pixels:
             print("Using Pixel-based training.")
-            self.q = QCNNetwork(nA, seed).to(device)
-            self.qhat = QCNNetwork(nA, seed).to(device)
+            self.q = QCNNetwork(nS, nA, seed).to(device)
+            self.qhat = QCNNetwork(nS, nA, seed).to(device)
         else:
             print("Using state data provided by the engine for training.")
             self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
@@ -86,25 +86,24 @@ class Agent():
         self.buffer.add(state, action, reward, next_state, done)
 
         if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
-            batch = self.buffer.sample(self.PER)
+            batch = self.buffer.sample()
+            print("Updating network.")
             self.learn(batch)
         #update the target network every C steps
         if self.t_step % self.c == 0:
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    # def teststep(self, state, action, reward, next_state, done):
-    #     """Moves the agent to the next timestep.
-    #        Learns every UPDATE_EVERY steps.
-    #     """
-    #     batch = state, action, reward, next_state, done
-    #     #self.learn(batch)
-    #     #update the target network every C steps
-    #     if self.t_step % self.c == 0:
-    #         self.qhat.load_state_dict(self.q.state_dict())
-    #     self.t_step += 1
-
-
+    def teststep(self, state, action, reward, next_state, done):
+        """Moves the agent to the next timestep.
+           Learns every UPDATE_EVERY steps.
+        """
+        batch = state, action, reward, next_state, done
+        #self.learn(batch)
+        #update the target network every C steps
+        if self.t_step % self.c == 0:
+            self.qhat.load_state_dict(self.q.state_dict())
+        self.t_step += 1
 
     def learn(self, batch):
         """Trains the Deep QNetwork and returns action values.
@@ -151,7 +150,7 @@ class ReplayBuffer:
         t = self.memory(state, action, reward, next_state, done)
         self.buffer.append(t)
 
-    def sample(self, per):
+    def sample(self):
         batch = random.sample(self.buffer, k=self.batchsize)
 
         states = torch.from_numpy(np.vstack([memory.state for memory in batch if memory is not None])).float().to(self.device)
@@ -173,7 +172,7 @@ class QCNNetwork(nn.Module):
        Nonlinear estimator for Qπ
     """
 
-    def __init__(self, action_size, seed):
+    def __init__(self, state, action_size, seed):
         """Initialize parameters and build model.
         Params
         ======
@@ -182,8 +181,8 @@ class QCNNetwork(nn.Module):
             seed (int): Random seed
         """
         super(QCNNetwork, self).__init__()
-        in_rez = 84
-        chan_count = 3
+        in_rez = state[1]#84
+        chan_count = state[0]#3
 
         out1 = 32
         kernel1 = 8
@@ -197,19 +196,16 @@ class QCNNetwork(nn.Module):
         kernel3 = 3
         stride3 = 1
 
-        pool_stride = 2
-
-        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1)#, padding=int((kernel1-1)/2))
-        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2)#, padding=int((kernel2-1)/2))
-        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3)#, padding=int((kernel3-1)/2))
+        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1)
+        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2)
+        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3)
 
         ## output size = (Width-Filtersize)/Stride +1
-
         fc_in = (in_rez-kernel1)/stride1 + 1
         fc_in = (fc_in-kernel2)/stride2 + 1
         fc_in = (fc_in-kernel3)/stride3 + 1
         fc_in = int(out3 * fc_in * fc_in)
-        #fc_in = 6400
+
         fc_handoff = 512
 
         self.fc1 = nn.Linear(fc_in, fc_handoff)
