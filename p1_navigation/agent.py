@@ -46,8 +46,8 @@ class Agent():
             self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
         else:
             print("Using Pixel-based training.")
-            self.q = QCNNetwork(nS, nA, seed, self.dropout).to(device)
-            self.qhat = QCNNetwork(nS, nA, seed, self.dropout).to(device)
+            self.q = QCNNetwork(nS, nA, seed).to(device)
+            self.qhat = QCNNetwork(nS, nA, seed).to(device)
 
         self.qhat.load_state_dict(self.q.state_dict())
 
@@ -64,7 +64,9 @@ class Agent():
 
     def act(self, state):
         #send the state to a tensor object on the gpu
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        #state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        state = torch.from_numpy(state).float().transpose(3,1).to(self.device)
+
         self.q.eval() #put network into eval mode
         with torch.no_grad():
             action_values = self.q(state)
@@ -108,6 +110,8 @@ class Agent():
            Can use multiple frameworks.
         """
         states, actions, rewards, next_states, dones = batch
+        states = torch.from_numpy(states).float().transpose(3,1).to(self.device)
+        next_states = torch.from_numpy(next_states).transpose(3,1).float().to(self.device)
 
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
@@ -167,54 +171,15 @@ class QCNNetwork(nn.Module):
        Nonlinear estimator for Qπ
     """
 
-    def __init__(self, state_size, action_size, seed, dropout=0.25, layer_sizes=[64, 64]):
+    def __init__(self, state_size, action_size, seed):
         """Initialize parameters and build model.
         Params
         ======
             state_size (int): Dimension of each state
             action_size (int): Dimension of each action
             seed (int): Random seed
-            fc1_units (int): Number of nodes in first hidden layer
-            fc2_units (int): Number of nodes in second hidden layer
         """
         super(QCNNetwork, self).__init__()
-
-        # 1 input image channel (grayscale), 10 output channels/feature maps
-        # 3x3 square convolution kernel
-        ## output size = (W-F)/S +1 = (28-3)/1 +1 = 26
-        # the output Tensor for one image, will have the dimensions: (10, 26, 26)
-        # after one pool layer, this becomes (10, 13, 13)
-        # in_rez = 84
-        # chan_count = 3
-        # out1 = 32
-        # kernel1 = 8
-        # stride1 = 4
-        #
-        # out2 = 64
-        # kernel2 = 4
-        # stride2 = 2
-        #
-        # out3 =
-        #
-        # pool_stride = 2
-        # fc_handoff = 64
-        #
-        # self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride1, (kernel1-1)/2)
-        # self.conv2 = nn.Conv2d(out1, out2, kernel2, stride1, (kernel2-1)/2)
-        #
-        # self.pool = nn.MaxPool2d(2, pool_stride)
-        #
-        # conv1_out =  (in_rez-kernel1)/stride1 + 1) / pool_stride
-        # conv2_out =  ((conv1_out-kernel2)/stride1 + 1) / pool_stride
-        # fc_in = out2 * conv2_out * conv2_out
-        #
-        #
-        # self.fc1 = nn.Linear(fc_in, fc_handoff)
-        # self.fc2 = nn.Linear(fc_handoff, action_size)
-        #
-        # self.dropout = nn.Dropout(p=dropout)
-        # self.seed = torch.manual_seed(seed)
-
         in_rez = 84
         chan_count = 3
 
@@ -236,14 +201,13 @@ class QCNNetwork(nn.Module):
         self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2, padding=int((kernel2-1)/2))
         self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3, padding=int((kernel3-1)/2))
 
+        ## output size = (Width-Filtersize)/Stride +1
 
-        self.pool = nn.MaxPool2d(2, pool_stride)
-
-        # conv1_out = (in_rez-kernel1)/stride1 + 1) / pool_stride
-        # conv2_out = ((conv1_out-kernel2)/stride2 + 1) / pool_stride
-        # conv3_out = ((conv2_out-kernel3)/stride3 + 1) / pool_stride
-        # fc_in = out2 * conv2_out * conv2_out
-        fc_in = 512
+        # fc_in = (in_rez-kernel1)/stride1 + 1
+        # fc_in = (fc_in-kernel2)/stride2 + 1
+        # fc_in = (fc_in-kernel3)/stride3 + 1
+        # fc_in = int(out3 * fc_in * fc_in)
+        fc_in = 6400
         fc_handoff = 512
 
         self.fc1 = nn.Linear(fc_in, fc_handoff)
@@ -254,18 +218,6 @@ class QCNNetwork(nn.Module):
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
-        #
-        # x = self.pool(F.relu(self.conv1(state)))
-        # x = self.pool(F.relu(self.conv2(x)))
-        #
-        # x = x.view(x.size(0), -1)
-        #
-        # x = F.relu(self.fc1(x))
-        # x = self.dropout(x)
-        # x = self.fc2(x)
-        #
-        # return x
-
         x = F.relu(self.conv1(state))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
@@ -295,11 +247,6 @@ class QNetwork(nn.Module):
             fc2_units (int): Number of nodes in second hidden layer
         """
         super(QNetwork, self).__init__()
-
-        # self.seed = torch.manual_seed(seed)
-        # self.fc1 = nn.Linear(state_size, fc1_units)
-        # self.fc2 = nn.Linear(fc1_units, fc2_units)
-        # self.fc3 = nn.Linear(fc2_units, action_size)
 
         self.seed = torch.manual_seed(seed)
         self.hidden_layers = nn.ModuleList([nn.Linear(state_size, layer_sizes[0])])
