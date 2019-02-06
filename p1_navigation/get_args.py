@@ -3,7 +3,8 @@ import argparse
 
 def get_args():
     parser = argparse.ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment",
-            usage="EXAMPLE COMMAND:\npython banana_deeprl.py --train --pixels --nographics --framework D2DQN --debug --verbose -lr 0.001 -drop 0.0 -c 1024 -ed .99 -em .01 -num 10")
+            usage="EXAMPLE COMMAND:\n\
+                   python banana_deeprl.py --train --pixels --nographics --framework D2DQN --verbose -lr 0.001 -num 10")
 
     parser.add_argument("-f", "--framework",
             help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
@@ -27,20 +28,20 @@ def get_args():
     parser.add_argument("-c",
             help="How many timesteps between updating Q' to match Q",
             type=int,
-            default=8)
+            default=1024)
     parser.add_argument("--continue",
             help="Continue training from a loaded file (can use in conjunction with --latest).",
             action="store_true")
     # parser.add_argument("--cpu",
     #         help="Use this flag to run the code on the CPU instead of the default GPU.",
     #         action="store_true")
-    parser.add_argument("--debug",
-            help="Print extra info for debugging purposes.",
-            action="store_true")
+    # parser.add_argument("--debug",
+    #         help="Print extra info for debugging purposes.",
+    #         action="store_true")
     parser.add_argument("-drop", "--dropout",
             help="Dropout rate for deep network.",
             type=float,
-            default=0.05)
+            default=0.0)
     parser.add_argument("-e", "--epsilon",
             help="Starting value of Epsilon.",
             type=float,
@@ -48,11 +49,11 @@ def get_args():
     parser.add_argument("-ed", "--epsilon_decay",
             help="Epsilon decay value.",
             type=float,
-            default=0.999)
+            default=0.99)
     parser.add_argument("-em", "--epsilon_min",
             help="Minimum value for epsilon.",
             type=float,
-            default=0.075)
+            default=0.01)
     parser.add_argument("-gamma",
             help="Gamma (Discount rate).",
             type=float,

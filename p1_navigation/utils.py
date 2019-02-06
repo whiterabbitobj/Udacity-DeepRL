@@ -124,3 +124,6 @@ def get_runtime(start_time):
     m, s = divmod(time.time() - start_time, 60)
     h, m = divmod(m, 60)
     return  "{}h{}m{}s".format(int(h), int(m), int(s))
+
+def print_interval(args, min, max):
+    return int(np.clip(args.num_episodes/args.print_count, min, max))

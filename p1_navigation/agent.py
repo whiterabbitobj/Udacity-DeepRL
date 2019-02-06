@@ -39,33 +39,34 @@ class Agent():
         #initialize REPLAY buffer
         self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
 
-        #Initialize a Q-Network
-        if not args.pixels:
-            print("Using api based training using state data provided by the engine.")
+        #Initialize Q-Network
+        if args.pixels:
+            print("Using Pixel-based training.")
+            self.q = QCNNetwork(nA, seed).to(device)
+            self.qhat = QCNNetwork(nA, seed).to(device)
+        else:
+            print("Using state data provided by the engine for training.")
             self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
             self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
-        else:
-            print("Using Pixel-based training.")
-            self.q = QCNNetwork(nS, nA, seed).to(device)
-            self.qhat = QCNNetwork(nS, nA, seed).to(device)
+
 
         self.qhat.load_state_dict(self.q.state_dict())
 
-        #set optimizer
+        #optimizer
         if args.optimizer == "RMSprop":
             self.optimizer = optim.RMSprop(self.q.parameters(), lr=self.lr, momentum=self.momentum)
-        elif args.optimizer == "Adam":
-            self.optimizer = optim.Adam(self.q.parameters(), lr=self.lr)
-        else:
+        elif args.optimizer == "SGD":
             self.optimizer = optim.SGD(self.q.parameters(), lr=self.lr, momentum=self.momentum)
+        else:
+            self.optimizer = optim.Adam(self.q.parameters(), lr=self.lr)
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
 
     def act(self, state):
         #send the state to a tensor object on the gpu
-        #state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        state = torch.from_numpy(state).float().transpose(3,1).to(self.device)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+        #state = torch.from_numpy(state).float().transpose(3,1).to(self.device)
 
         self.q.eval() #put network into eval mode
         with torch.no_grad():
@@ -92,16 +93,16 @@ class Agent():
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    def teststep(self, state, action, reward, next_state, done):
-        """Moves the agent to the next timestep.
-           Learns every UPDATE_EVERY steps.
-        """
-        batch = state, action, reward, next_state, done
-        self.learn(batch)
-        #update the target network every C steps
-        if self.t_step % self.c == 0:
-            self.qhat.load_state_dict(self.q.state_dict())
-        self.t_step += 1
+    # def teststep(self, state, action, reward, next_state, done):
+    #     """Moves the agent to the next timestep.
+    #        Learns every UPDATE_EVERY steps.
+    #     """
+    #     batch = state, action, reward, next_state, done
+    #     #self.learn(batch)
+    #     #update the target network every C steps
+    #     if self.t_step % self.c == 0:
+    #         self.qhat.load_state_dict(self.q.state_dict())
+    #     self.t_step += 1
 
 
 
@@ -110,8 +111,9 @@ class Agent():
            Can use multiple frameworks.
         """
         states, actions, rewards, next_states, dones = batch
-        states = torch.from_numpy(states).float().transpose(3,1).to(self.device)
-        next_states = torch.from_numpy(next_states).transpose(3,1).float().to(self.device)
+        # states = torch.from_numpy(states).float().transpose(3,1).to(self.device)
+        # next_states = torch.from_numpy(next_states).transpose(3,1).float().to(self.device)
+        # actions = torch.from_numpy(actions).float().to(self.device)
 
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
@@ -171,7 +173,7 @@ class QCNNetwork(nn.Module):
        Nonlinear estimator for Qπ
     """
 
-    def __init__(self, state_size, action_size, seed):
+    def __init__(self, action_size, seed):
         """Initialize parameters and build model.
         Params
         ======
@@ -197,17 +199,17 @@ class QCNNetwork(nn.Module):
 
         pool_stride = 2
 
-        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1, padding=int((kernel1-1)/2))
-        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2, padding=int((kernel2-1)/2))
-        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3, padding=int((kernel3-1)/2))
+        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1)#, padding=int((kernel1-1)/2))
+        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2)#, padding=int((kernel2-1)/2))
+        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3)#, padding=int((kernel3-1)/2))
 
         ## output size = (Width-Filtersize)/Stride +1
 
-        # fc_in = (in_rez-kernel1)/stride1 + 1
-        # fc_in = (fc_in-kernel2)/stride2 + 1
-        # fc_in = (fc_in-kernel3)/stride3 + 1
-        # fc_in = int(out3 * fc_in * fc_in)
-        fc_in = 6400
+        fc_in = (in_rez-kernel1)/stride1 + 1
+        fc_in = (fc_in-kernel2)/stride2 + 1
+        fc_in = (fc_in-kernel3)/stride3 + 1
+        fc_in = int(out3 * fc_in * fc_in)
+        #fc_in = 6400
         fc_handoff = 512
 
         self.fc1 = nn.Linear(fc_in, fc_handoff)
@@ -228,7 +230,6 @@ class QCNNetwork(nn.Module):
         x = self.fc2(x)
 
         return x
-
 
 
 

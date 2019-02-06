@@ -19,19 +19,12 @@ def main():
     and uses a special version of Unity's Banana learning environment. This
     environment should be available via the github repository at:
     https://github.com/whiterabbitobj/udacity-deep-reinforcement-learning/tree/master/p1_navigation
-
-    Example command:
-    python banana_deeprl.py -mode train -a DDQN --epsilon .9 --epsilon_decay .978
     """
 
-    #Get start time
     start_time = time.time()
     sep = "#"*50
-    #gather parameters
+
     args = get_args()
-
-
-    #send all the training to the GPU, if available
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     if not args.train:
@@ -54,11 +47,7 @@ def main():
     nS = len(env.vector_observations[0])
 
     #calculate how often to print status updates, min 2, max 100.
-    args.print_count = min(max(int(args.num_episodes/args.print_count),2), 100)
-
-
-    if args.debug:
-        utils.print_debug_info(sep, device, nA, nS, env, args) #print info about params
+    args.print_count = utils.print_interval(args, 2, 100)
 
 
     if args.train:
@@ -70,6 +59,7 @@ def main():
         agent.epsilon = 0
 
     if args.verbose:
+        utils.print_debug_info(sep, device, nA, nS, env, args) #print info about params
         print("{}\n{}".format(agent.q, sep)) #print info about the active network
 
 
@@ -95,7 +85,7 @@ def run_agent(unity_env, agent, args, brain_name):
             env = unity_env.reset(train_mode=True)[brain_name]
 
             # get the initial environment state
-            state = env.visual_observations[0] if args.pixels else env.vector_observations[0]
+            state = env.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env.vector_observations[0]
 
             while True:
                 #choose an action use current policy and take a timestep using this action
@@ -104,7 +94,7 @@ def run_agent(unity_env, agent, args, brain_name):
 
                 #collect info about new state
                 reward = env.rewards[0]
-                next_state = env.visual_observations[0] if args.pixels else env.vector_observations[0]
+                next_state = env.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env.vector_observations[0]
                 done = env.local_done[0]
                 score += reward
 
