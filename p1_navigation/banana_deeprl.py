@@ -77,42 +77,42 @@ def main():
 def run_agent(env, agent, args, brain_name):
     """Trains selected agent in the environment."""
     scores = []
-    with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
-        for i_episode in range(1, args.num_episodes+1):
-            score = 0
-            #reset the environment for a new episode runthrough
-            #env = unity_env.reset(train_mode=args.train)[brain_name]
-            env_info = env.reset(train_mode=True)[brain_name]
+    # with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
+    for i_episode in range(1, args.num_episodes+1):
+        score = 0
+        #reset the environment for a new episode runthrough
+        #env = unity_env.reset(train_mode=args.train)[brain_name]
+        env_info = env.reset(train_mode=True)[brain_name]
 
-            # get the initial environment state
-            state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
+        # get the initial environment state
+        state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
 
-            while True:
-                #choose an action use current policy and take a timestep using this action
-                action = int(agent.act(state))
-                print("State shape: {}, buffer length: {}".format(state.shape, len(agent.buffer)))
-                #print("State: {}".format(state))
-                print("Action: {}".format(action))
-                env_info = env.step(action)[brain_name]
-                #collect info about new state
-                reward = env_info.rewards[0]
-                next_state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
-                done = env_info.local_done[0]
-                score += reward
-                if done:
-                    print("DONE")
-                #initiate next timestep
-                if args.train:
-                    agent.step(state, action, reward, next_state, done)
+        while True:
+            #choose an action use current policy and take a timestep using this action
+            action = agent.act(state)
+            print(action)
+            #action = np.random.randint(agent.nA)        # select an action
+            #action = 0
+            #print("State: {}".format(state))
+            #print("Action: {}".format(action))
+            env_info = env.step(action)[brain_name]
+            #collect info about new state
+            reward = env_info.rewards[0]
+            next_state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
+            done = env_info.local_done[0]
+            score += reward
+            #initiate next timestep
+            if args.train:
+                agent.step(state, action, reward, next_state, done)
 
-                state = next_state
-                if done:
-                    break
-            agent.update_epsilon() #epsilon is 0 in evaluation mode
-            #prepare for next episode
-            scores.append(score)
-            utils.print_status(i_episode, scores, args, agent)
-            progress_bar.update(i_episode%args.print_count+1)
+            state = next_state
+            if done:
+                break
+        agent.update_epsilon() #epsilon is 0 in evaluation mode
+        #prepare for next episode
+        scores.append(score)
+        utils.print_status(i_episode, scores, args, agent)
+            # progress_bar.update(i_episode%args.print_count+1)
 
     if args.train:
         print(agent.t_step)

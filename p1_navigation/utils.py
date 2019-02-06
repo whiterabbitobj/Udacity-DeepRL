@@ -10,6 +10,8 @@ from agent import Agent
 def anneal_parameter(param, anneal_rate, param_min):
     return min(param * anneal_rate, param_min)
 
+
+
 def generate_savename(agent_name, scores, print_count):
     """Generates an automatic savename for training files, will version-up as
        needed.
@@ -26,19 +28,28 @@ def save_checkpoint(agent, scores, print_count):
        involved in the latest training.
     """
     agent.q.to('cpu')
+    # checkpoint = {'agent_type': agent.framework,
+    #               'state_size': agent.nS,
+    #               'action_size': agent.nA,
+    #               'state_dict': agent.q.state_dict(),
+    #               'optimizer': agent.optimizer.state_dict(),
+    #               'scores': scores,
+    #               'hidden_layers': [layer.out_features for layer in agent.q.hidden_layers]
+    #               }
     checkpoint = {'agent_type': agent.framework,
                   'state_size': agent.nS,
                   'action_size': agent.nA,
                   'state_dict': agent.q.state_dict(),
                   'optimizer': agent.optimizer.state_dict(),
-                  'scores': scores,
-                  'hidden_layers': [layer.out_features for layer in agent.q.hidden_layers]
+                  'scores': scores
                   }
     save_name = generate_savename(agent.framework, scores, print_count)
     torch.save(checkpoint, save_name)
     print("{}\nSaved agent data to: {}".format("#"*50, save_name))
 
     return True
+
+
 
 def load_checkpoint(filepath, device, args):
     """Loads a checkpoint from an earlier trained agent.
@@ -120,10 +131,13 @@ def print_status(i_episode, scores, args, agent):
             print("Epsilon: {}\n".format(agent.epsilon))
 
 
+
 def get_runtime(start_time):
     m, s = divmod(time.time() - start_time, 60)
     h, m = divmod(m, 60)
     return  "{}h{}m{}s".format(int(h), int(m), int(s))
+
+
 
 def print_interval(args, min, max):
     return int(np.clip(args.num_episodes/args.print_count, min, max))

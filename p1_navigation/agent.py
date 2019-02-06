@@ -84,26 +84,26 @@ class Agent():
         """
         #save the current SARS′  status in the replay buffer
         self.buffer.add(state, action, reward, next_state, done)
+        print("State shape: {} NextState: {}, buffer length: {}".format(state.shape, next_state.shape, len(self.buffer)))
 
         if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
             batch = self.buffer.sample()
-            print("Updating network.")
             self.learn(batch)
         #update the target network every C steps
         if self.t_step % self.c == 0:
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    def teststep(self, state, action, reward, next_state, done):
-        """Moves the agent to the next timestep.
-           Learns every UPDATE_EVERY steps.
-        """
-        batch = state, action, reward, next_state, done
-        #self.learn(batch)
-        #update the target network every C steps
-        if self.t_step % self.c == 0:
-            self.qhat.load_state_dict(self.q.state_dict())
-        self.t_step += 1
+    # def teststep(self, state, action, reward, next_state, done):
+    #     """Moves the agent to the next timestep.
+    #        Learns every UPDATE_EVERY steps.
+    #     """
+    #     batch = state, action, reward, next_state, done
+    #     #self.learn(batch)
+    #     #update the target network every C steps
+    #     if self.t_step % self.c == 0:
+    #         self.qhat.load_state_dict(self.q.state_dict())
+    #     self.t_step += 1
 
     def learn(self, batch):
         """Trains the Deep QNetwork and returns action values.
@@ -113,6 +113,7 @@ class Agent():
         # states = torch.from_numpy(states).float().transpose(3,1).to(self.device)
         # next_states = torch.from_numpy(next_states).transpose(3,1).float().to(self.device)
         # actions = torch.from_numpy(actions).float().to(self.device)
+        #print(states.shape, actions.shape, rewards.shape, next_states.shape, dones.shape)
 
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
@@ -131,8 +132,6 @@ class Agent():
         #minimize the loss (backpropogation)
         self.optimizer.zero_grad()
         loss.backward()
-        # for param in self.q.parameters():
-        #     param.grad.data.clamp(-1,1)
         self.optimizer.step()
 
 
@@ -153,10 +152,10 @@ class ReplayBuffer:
     def sample(self):
         batch = random.sample(self.buffer, k=self.batchsize)
 
-        states = torch.from_numpy(np.vstack([memory.state for memory in batch if memory is not None])).float().to(self.device)
+        states = torch.from_numpy(np.vstack([np.expand_dims(memory.state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
         actions = torch.from_numpy(np.vstack([memory.action for memory in batch if memory is not None])).long().to(self.device)
         rewards = torch.from_numpy(np.vstack([memory.reward for memory in batch if memory is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([memory.next_state for memory in batch if memory is not None])).float().to(self.device)
+        next_states = torch.from_numpy(np.vstack([np.expand_dims(memory.next_state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
         dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
 
         return (states, actions, rewards, next_states, dones)

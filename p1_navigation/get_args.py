@@ -19,7 +19,7 @@ def get_args():
             default=0.4)
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
-            type=float,
+            type=int,
             default=64)
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
