@@ -1,5 +1,4 @@
-x = -5
-y = 105
-z = clamp(x, 0, 100)
-
-print(z)
+m = "dogs"
+n = "og"
+if n in m:
+    print("found it")

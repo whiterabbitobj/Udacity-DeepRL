@@ -4,7 +4,7 @@ import argparse
 def get_args():
     parser = argparse.ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment",
             usage="EXAMPLE COMMAND:\n\
-                   python banana_deeprl.py --train --pixels --nographics --framework D2DQN --verbose -lr 0.001 -num 10")
+                   python banana_deeprl.py --train --nographics --framework D2DQN --verbose -num 1 --pixels")
 
     parser.add_argument("-f", "--framework",
             help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
@@ -65,7 +65,7 @@ def get_args():
     parser.add_argument("-lr", "--learn_rate",
             help="Alpha (Learning Rate).",
             type=float,
-            default=0.00025)
+            default=0.001)
     parser.add_argument("-m", "--momentum",
             help="Momentum for use in specific optimizers like SGD",
             type=float,

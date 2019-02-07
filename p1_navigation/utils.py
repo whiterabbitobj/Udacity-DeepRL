@@ -16,10 +16,19 @@ def generate_savename(agent_name, scores, print_count):
     """Generates an automatic savename for training files, will version-up as
        needed.
     """
-    files = [f for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
     savename = "{}_{}_v".format(agent_name, time.strftime("%Y%m%d", time.gmtime()))
-    max_ver = max([int(re.search("_v(\d+)", file).group(1)) for file in files])
-    return "{}{}_{}eps_{:.2f}score{}".format(savename, max_ver + 1, len(scores), np.mean(scores[-print_count:]), ".pth")
+
+    files = [f for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
+    files = [f for f in files if savename in f]
+    if len(files)>0:
+        ver = [int(re.search("_v(\d+)", file).group(1)) for file in files]
+        ver = max(ver) + 1
+    else:
+        ver = 1
+    eps = len(scores)
+    avg_score = np.mean(scores[-print_count:])
+
+    return "{}{}_{}eps_{:.2f}score{}".format(savename, ver, eps, avg_score, ".pth")
 
 
 

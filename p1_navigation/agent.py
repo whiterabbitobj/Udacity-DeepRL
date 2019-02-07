@@ -66,7 +66,6 @@ class Agent():
     def act(self, state):
         #send the state to a tensor object on the gpu
         state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-        #state = torch.from_numpy(state).float().transpose(3,1).to(self.device)
 
         self.q.eval() #put network into eval mode
         with torch.no_grad():
@@ -84,36 +83,24 @@ class Agent():
         """
         #save the current SARS′  status in the replay buffer
         self.buffer.add(state, action, reward, next_state, done)
-        print("State shape: {} NextState: {}, buffer length: {}".format(state.shape, next_state.shape, len(self.buffer)))
+        #print("State shape: {} NextState: {}, buffer length: {}".format(state.shape, next_state.shape, len(self.buffer)))
 
         if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
             batch = self.buffer.sample()
             self.learn(batch)
         #update the target network every C steps
         if self.t_step % self.c == 0:
+            print("setting q' to match q")
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    # def teststep(self, state, action, reward, next_state, done):
-    #     """Moves the agent to the next timestep.
-    #        Learns every UPDATE_EVERY steps.
-    #     """
-    #     batch = state, action, reward, next_state, done
-    #     #self.learn(batch)
-    #     #update the target network every C steps
-    #     if self.t_step % self.c == 0:
-    #         self.qhat.load_state_dict(self.q.state_dict())
-    #     self.t_step += 1
+
 
     def learn(self, batch):
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
         states, actions, rewards, next_states, dones = batch
-        # states = torch.from_numpy(states).float().transpose(3,1).to(self.device)
-        # next_states = torch.from_numpy(next_states).transpose(3,1).float().to(self.device)
-        # actions = torch.from_numpy(actions).float().to(self.device)
-        #print(states.shape, actions.shape, rewards.shape, next_states.shape, dones.shape)
 
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
@@ -129,7 +116,7 @@ class Agent():
 
         loss = F.mse_loss(values, expected_values)
 
-        #minimize the loss (backpropogation)
+        #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
@@ -180,8 +167,8 @@ class QCNNetwork(nn.Module):
             seed (int): Random seed
         """
         super(QCNNetwork, self).__init__()
-        in_rez = state[1]#84
-        chan_count = state[0]#3
+        in_rez = state[1]
+        chan_count = state[0]
 
         out1 = 32
         kernel1 = 8
