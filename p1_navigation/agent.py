@@ -10,7 +10,7 @@ import torch.optim as optim
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
 
-    def __init__(self, nS, nA, device, args, seed=0):
+    def __init__(self, nS, nA, seed=0):
         #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
@@ -72,7 +72,7 @@ class Agent():
             action_values = self.q(state)
         self.q.train() #put network back into training mode
         #select an action using epsilon-greedy π
-        if random.random() > self.epsilon:
+        if random.random() > self.epsilon or not args.train:
             return np.argmax(action_values.cpu().data.numpy()).astype(int)
         else:
             return random.choice(np.arange(self.nA))

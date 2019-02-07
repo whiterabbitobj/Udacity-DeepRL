@@ -10,6 +10,12 @@ from agent import Agent
 def anneal_parameter(param, anneal_rate, param_min):
     return min(param * anneal_rate, param_min)
 
+def setup_global_vars():
+    global start_time = time.time()
+    global sep = "#"*50
+    global args = get_args()
+    global device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    args.print_count = np.clip(args.num_episodes//args.print_count, 2, 100)
 
 
 def generate_savename(agent_name, scores, print_count):
@@ -60,7 +66,7 @@ def save_checkpoint(agent, scores, print_count):
 
 
 
-def load_checkpoint(filepath, device, args):
+def load_checkpoint(filepath):
     """Loads a checkpoint from an earlier trained agent.
     """
     checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
@@ -71,11 +77,12 @@ def load_checkpoint(filepath, device, args):
         agent = Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
     agent.q.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
+    args.num_episodes = 3
     return agent
 
 
 
-def load_filepath(use_latest, separator):
+def load_filepath():
     """Prompts the user about what save to load, or uses the last modified save.
     """
     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
@@ -84,32 +91,53 @@ def load_filepath(use_latest, separator):
         return None
 
     files = sorted(files, key=lambda x: os.path.getmtime(x))
-    if use_latest:
-        print("{0}Proceeding with file: {1}\n{0}".format(separator, files[-1]))
+    if args.latest:
+        print("{0}Proceeding with file: {1}\n{0}".format(sep, files[-1]))
         return files[-1]
     else:
         message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
         message = '\n'.join(message)
-        message = separator + message + " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
+        message = sep + message + " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
         save_file = input(message)
         if save_file.lower() == "q" or save_file.lower() == "quit":
+            print("Quit before loading a file.")
             return None
         try:
             file_index = len(files) - int(save_file)
             if file_index < 0:
                 raise Exception()
             save_file = files[file_index]
-            print("{0}\nProceeding with file: {1}\n{0}".format(separator, save_file))
+            print("{0}\nProceeding with file: {1}\n{0}".format(sep, save_file))
             return save_file
         except:
             print("\nInput invalid...\n")
-            load_filepath(use_latest)
+            load_filepath()
+
+def load_environment():
+    #initialize the environment
+    if args.pixels:
+        unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
+    else:
+        unity_filename = "Banana_Windows_x86_64/Banana.exe"
+
+    env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
+    brain_name = env.brain_names[0]
+    brain = env.brains[brain_name]
+    env_info = env.reset(train_mode=args.train)[brain_name]
+    nA = brain.vector_action_space_size
+    nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
+
+    return env, env_info, brain, brain_name, nA, nS
 
 
 
-def plot_scores(scores):
-    """Simple graph of training data, score per episode across all episodes.
+def report_results(scores):
     """
+    Prints runtime.
+    Displays a simple graph of training data, score per episode across all episodes.
+    """
+    print("TOTAL RUNTIME: {}.".format(utils.get_runtime()))
+
     fig = plt.figure()
     ax = fig.add_subplot(111)
     plt.plot(np.arange(len(scores)), scores)
@@ -120,9 +148,13 @@ def plot_scores(scores):
 
 
 
-def print_verbose_info(sep, agent, env, args):
-    """Prints extra data if --debug flag is set.
+def print_verbose_info(agent, env_info):
     """
+    Prints extra data if --debug flag is set.
+    """
+    if not args.verbose:
+        return
+        
     print("{}\nARGS:".format(sep))
     for arg in vars(args):
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
@@ -144,7 +176,7 @@ def print_status(i_episode, scores, args, agent):
 
 
 
-def get_runtime(start_time):
+def get_runtime():
     m, s = divmod(time.time() - start_time, 60)
     h, m = divmod(m, 60)
     return  "{}h{}m{}s".format(int(h), int(m), int(s))
