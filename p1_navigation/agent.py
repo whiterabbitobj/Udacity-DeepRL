@@ -90,9 +90,9 @@ class Agent():
             self.learn(batch)
         #update the target network every C steps
         if self.t_step % self.c == 0:
-            #print("setting q' to match q")
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
+        agent.update_epsilon()
 
 
 

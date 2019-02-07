@@ -6,17 +6,51 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from agent import Agent
+from get_args import get_args
 
-def anneal_parameter(param, anneal_rate, param_min):
-    return min(param * anneal_rate, param_min)
+
+# def anneal_parameter(param, anneal_rate, param_min):
+#     return min(param * anneal_rate, param_min)
+
+
+##########
+## Setup the runtime environment
+##########
 
 def setup_global_vars():
-    global start_time = time.time()
-    global sep = "#"*50
-    global args = get_args()
-    global device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    global start_time
+    global sep
+    global args
+    global device
+    start_time = time.time()
+    sep = "#"*50
+    args = get_args()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.print_count = np.clip(args.num_episodes//args.print_count, 2, 100)
 
+
+
+def load_environment():
+    #initialize the environment
+    if args.pixels:
+        unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
+    else:
+        unity_filename = "Banana_Windows_x86_64/Banana.exe"
+
+    env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
+    brain_name = env.brain_names[0]
+    brain = env.brains[brain_name]
+    env_info = env.reset(train_mode=args.train)[brain_name]
+    nA = brain.vector_action_space_size
+    nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
+
+    return env, env_info, brain_name, nA, nS
+
+
+
+##########
+## Saving & Loading
+##########
 
 def generate_savename(agent_name, scores, print_count):
     """Generates an automatic savename for training files, will version-up as
@@ -38,19 +72,11 @@ def generate_savename(agent_name, scores, print_count):
 
 
 
-def save_checkpoint(agent, scores, print_count):
+def save_checkpoint(agent, scores):
     """Saves the current Agent's learning dict as well as important parameters
        involved in the latest training.
     """
     agent.q.to('cpu')
-    # checkpoint = {'agent_type': agent.framework,
-    #               'state_size': agent.nS,
-    #               'action_size': agent.nA,
-    #               'state_dict': agent.q.state_dict(),
-    #               'optimizer': agent.optimizer.state_dict(),
-    #               'scores': scores,
-    #               'hidden_layers': [layer.out_features for layer in agent.q.hidden_layers]
-    #               }
     checkpoint = {'agent_type': agent.framework,
                   'state_size': agent.nS,
                   'action_size': agent.nA,
@@ -58,11 +84,9 @@ def save_checkpoint(agent, scores, print_count):
                   'optimizer': agent.optimizer.state_dict(),
                   'scores': scores
                   }
-    save_name = generate_savename(agent.framework, scores, print_count)
+    save_name = generate_savename(agent.framework, scores, args.print_count)
     torch.save(checkpoint, save_name)
     print("{}\nSaved agent data to: {}".format("#"*50, save_name))
-
-    return True
 
 
 
@@ -113,23 +137,11 @@ def load_filepath():
             print("\nInput invalid...\n")
             load_filepath()
 
-def load_environment():
-    #initialize the environment
-    if args.pixels:
-        unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
-    else:
-        unity_filename = "Banana_Windows_x86_64/Banana.exe"
-
-    env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
-    brain_name = env.brain_names[0]
-    brain = env.brains[brain_name]
-    env_info = env.reset(train_mode=args.train)[brain_name]
-    nA = brain.vector_action_space_size
-    nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
-
-    return env, env_info, brain, brain_name, nA, nS
 
 
+##########
+## Print utilities
+##########
 
 def report_results(scores):
     """
@@ -144,7 +156,6 @@ def report_results(scores):
     plt.ylabel('Score')
     plt.xlabel('Episode #')
     plt.show()
-    return
 
 
 
@@ -154,7 +165,7 @@ def print_verbose_info(agent, env_info):
     """
     if not args.verbose:
         return
-        
+
     print("{}\nARGS:".format(sep))
     for arg in vars(args):
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
@@ -167,7 +178,7 @@ def print_verbose_info(agent, env_info):
 
 
 
-def print_status(i_episode, scores, args, agent):
+def print_status(i_episode, scores, agent):
     if i_episode % args.print_count == 0:
         print("\nEpisode {}/{}, avg score for last {} episodes: {:3f}".format(
                 i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
@@ -180,8 +191,3 @@ def get_runtime():
     m, s = divmod(time.time() - start_time, 60)
     h, m = divmod(m, 60)
     return  "{}h{}m{}s".format(int(h), int(m), int(s))
-
-
-
-def print_interval(args, min, max):
-    return int(np.clip(args.num_episodes/args.print_count, min, max))

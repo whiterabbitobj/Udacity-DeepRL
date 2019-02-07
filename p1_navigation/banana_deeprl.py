@@ -4,7 +4,6 @@ import torch
 import progressbar
 
 from unityagents import UnityEnvironment
-from get_args import get_args
 from agent import Agent
 import utils
 
@@ -28,7 +27,7 @@ def main():
         args - arguments from command line, including defaults
         device - which device to run on (usually GPU)
     """
-    setup_global_vars()
+    utils.setup_global_vars()
 
     if not args.train:
         filepath = utils.load_filepath() #prompt user before loading the env to avoid pop-over
@@ -36,8 +35,7 @@ def main():
             return
 
     #initialize the environment
-    env, env_info, brain, brain_name, nA, nS = load_environment()
-
+    env, env_info, brain_name, nA, nS = load_environment()
 
     if args.train:
         agent = Agent(nS, nA)
@@ -47,14 +45,11 @@ def main():
 
     utils.print_verbose_info(agent, env_info)
 
-    #Run the agent
-    scores = run_agent(env, agent, brain_name)
+    scores = run_agent(env, agent, brain_name) #Run the agent
 
-    #close the environment
-    env.close()
+    env.close() #close the environment
 
-    #report results
-    utils.report_results(scores)
+    utils.report_results(scores) #report results
 
     return
 
@@ -66,11 +61,14 @@ def run_agent(env, agent, brain_name):
     with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
             score = 0
-            #reset the environment for a new episode runthrough
+
             env_info = env.reset(train_mode=args.train)[brain_name]
 
             # get the initial environment state
-            state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
+            if args.pixels:
+                state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1)
+            else:
+                state = env_info.vector_observations[0]
 
             while True:
                 #choose an action using current π
@@ -88,15 +86,14 @@ def run_agent(env, agent, brain_name):
                 state = next_state
                 if done:
                     break
-            agent.update_epsilon() #epsilon is 0 in evaluation mode
             #prepare for next episode
             scores.append(score)
-            utils.print_status(i_episode, scores, args, agent)
-            progress_bar.update(i_episode%args.print_count+1)
+            utils.print_status(i_episode, scores, agent)
+            progress_bar.update(i_episode % args.print_count+1)
 
     if args.train:
         print(agent.t_step)
-        utils.save_checkpoint(agent, scores, args.print_count)
+        utils.save_checkpoint(agent, scores)
 
     return scores
 
