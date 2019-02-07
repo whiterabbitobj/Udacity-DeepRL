@@ -35,6 +35,7 @@ class Agent():
         self.update_every = args.update_every
         self.momentum = args.momentum
         self.PER = args.prioritized_replay
+        self.train = args.train
 
         #initialize REPLAY buffer
         self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, self.device)
@@ -72,7 +73,7 @@ class Agent():
             action_values = self.q(state)
         self.q.train() #put network back into training mode
         #select an action using epsilon-greedy π
-        if random.random() > self.epsilon or not args.train:
+        if random.random() > self.epsilon or not self.train:
             return np.argmax(action_values.cpu().data.numpy()).astype(int)
         else:
             return random.choice(np.arange(self.nA))
@@ -92,7 +93,6 @@ class Agent():
         if self.t_step % self.c == 0:
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
-        agent.update_epsilon()
 
 
 

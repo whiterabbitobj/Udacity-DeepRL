@@ -38,7 +38,7 @@ def load_environment(args):
 ## Saving & Loading
 ##########
 
-def generate_savename(agent_name, scores, print_count):
+def generate_savename(agent_name, scores, print_every):
     """Generates an automatic savename for training files, will version-up as
        needed.
     """
@@ -52,13 +52,13 @@ def generate_savename(agent_name, scores, print_count):
     else:
         ver = 1
     eps = len(scores)
-    avg_score = np.mean(scores[-print_count:])
+    avg_score = np.mean(scores[-print_every:])
 
     return "{}{}_{}eps_{:.2f}score{}".format(savename, ver, eps, avg_score, ".pth")
 
 
 
-def save_checkpoint(agent, scores):
+def save_checkpoint(agent, scores, args):
     """Saves the current Agent's learning dict as well as important parameters
        involved in the latest training.
     """
@@ -70,7 +70,7 @@ def save_checkpoint(agent, scores):
                   'optimizer': agent.optimizer.state_dict(),
                   'scores': scores
                   }
-    save_name = generate_savename(agent.framework, scores, args.print_count)
+    save_name = generate_savename(agent.framework, scores, args.print_every)
     torch.save(checkpoint, save_name)
     print("{}\nSaved agent data to: {}".format("#"*50, save_name))
 
@@ -129,12 +129,12 @@ def load_filepath(sep):
 ## Print utilities
 ##########
 
-def report_results(scores):
+def report_results(scores, start_time):
     """
     Prints runtime.
     Displays a simple graph of training data, score per episode across all episodes.
     """
-    print("TOTAL RUNTIME: {}.".format(utils.get_runtime()))
+    print("TOTAL RUNTIME: {}.".format(get_runtime(start_time)))
 
     fig = plt.figure()
     ax = fig.add_subplot(111)
@@ -145,7 +145,7 @@ def report_results(scores):
 
 
 
-def print_verbose_info(agent, env, env_info, args):
+def print_verbose_info(agent, env_info, args):
     """
     Prints extra data if --debug flag is set.
     """
@@ -154,26 +154,28 @@ def print_verbose_info(agent, env, env_info, args):
 
     print("{}\nARGS:".format(args.sep))
     for arg in vars(args):
+        if arg == "sep":
+            continue
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
     print("{}\nVARS:".format(args.sep))
     print("Device: {}".format(agent.device))
     print("Action Size: {}\nState Size: {}".format(agent.nA, agent.nS))
-    print('Number of agents:', len(env.agents))
+    print('Number of agents:', len(env_info.agents))
     print("Number of Episodes: {}".format(args.num_episodes))
     print("{1}\n{0}\n{1}".format(agent.q, args.sep))
 
 
 
-def print_status(i_episode, scores, agent):
-    if i_episode % args.print_count == 0:
+def print_status(i_episode, scores, agent, args):
+    if i_episode % args.print_every == 0:
         print("\nEpisode {}/{}, avg score for last {} episodes: {:3f}".format(
-                i_episode, args.num_episodes, args.print_count, np.mean(scores[-args.print_count:])))
+                i_episode, args.num_episodes, args.print_every, np.mean(scores[-args.print_every:])))
         if args.verbose:
             print("Epsilon: {}\n".format(agent.epsilon))
 
 
 
-def get_runtime():
+def get_runtime(start_time):
     m, s = divmod(time.time() - start_time, 60)
     h, m = divmod(m, 60)
     return  "{}h{}m{}s".format(int(h), int(m), int(s))

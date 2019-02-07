@@ -22,16 +22,16 @@ def main():
     """
 
     """Sets up a few global variables to condense code:
-        args - arguments from command line, including defaults
-        sep - separator used for print statements
-        start_time - start time of program initialization
-        device - which device to run on (usually GPU)
+            args - arguments from command line, including defaults
+            sep - separator used for print statements
+            start_time - start time of program initialization
+            device - which device to run on (usually GPU)
     """
+    start_time = time.time()
     args = get_args()
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.print_every = np.clip(args.num_episodes//args.print_count, 2, 100)
     args.sep = "#"*50
-    args.start_time = time.time()
 
     if not args.train:
         filepath = utils.load_filepath(args.sep) #prompt user before loading the env to avoid pop-over
@@ -40,20 +40,20 @@ def main():
 
     #initialize the environment
     env, env_info, brain_name, nA, nS = utils.load_environment(args)
-    print(env)
+
     if args.train:
         agent = Agent(nS, nA, args)
         print("Printing training data every {} episodes.\n{}".format(args.print_every, args.sep))
     else:
         agent = utils.load_checkpoint(filepath, args)
 
-    utils.print_verbose_info(agent, env, env_info, args)
+    utils.print_verbose_info(agent, env_info, args)
 
     scores = run_agent(env, agent, brain_name, args) #Run the agent
 
     env.close() #close the environment
 
-    utils.report_results(scores) #report results
+    utils.report_results(scores, start_time) #report results
 
     return
 
@@ -62,7 +62,7 @@ def main():
 def run_agent(env, agent, brain_name, args):
     """Trains selected agent in the environment."""
     scores = []
-    with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:
+    with progressbar.ProgressBar(max_value=args.print_every) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
             score = 0
 
@@ -91,13 +91,14 @@ def run_agent(env, agent, brain_name, args):
                 if done:
                     break
             #prepare for next episode
+            agent.update_epsilon()
             scores.append(score)
-            utils.print_status(i_episode, scores, agent)
-            progress_bar.update(i_episode % args.print_count+1)
+            utils.print_status(i_episode, scores, agent, args)
+            progress_bar.update(i_episode % args.print_every+1)
 
     if args.train:
         print(agent.t_step)
-        utils.save_checkpoint(agent, scores)
+        utils.save_checkpoint(agent, scores, args)
 
     return scores
 

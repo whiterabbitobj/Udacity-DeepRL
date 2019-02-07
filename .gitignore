@@ -1,5 +1,6 @@
 p1_navigation/VisualBanana_Windows_x86_64/
 p1_navigation/Banana_Windows_x86_64/
+*.pth
 
 # Mac OS
 .DS_Store
