@@ -67,26 +67,30 @@ def load_checkpoint(filepath, device, args):
 
     if checkpoint['agent_type'] == 'DQN':
         agent = Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
+    if checkpoint['agent_type'] == 'D2DQN':
+        agent = Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
     agent.q.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
     return agent
 
 
 
-def load_filepath(use_latest):
+def load_filepath(use_latest, separator):
     """Prompts the user about what save to load, or uses the last modified save.
     """
-    separator = "#"*50 + "\n"
     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
-    files = sorted(files, key=lambda x: os.path.getmtime(x))
     if len(files) == 0:
         print("Oops! Couldn't find any save files in the current directory.")
         return None
+
+    files = sorted(files, key=lambda x: os.path.getmtime(x))
     if use_latest:
         print("{0}Proceeding with file: {1}\n{0}".format(separator, files[-1]))
         return files[-1]
     else:
-        message = separator + '\n'.join(["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]) + " (LATEST)\n\nPlease choose a saved Agent training file or (q/quit): "
+        message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
+        message = '\n'.join(message)
+        message = separator + message + " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
         save_file = input(message)
         if save_file.lower() == "q" or save_file.lower() == "quit":
             return None
@@ -95,9 +99,8 @@ def load_filepath(use_latest):
             if file_index < 0:
                 raise Exception()
             save_file = files[file_index]
-            print("{0}Proceeding with file: {1}\n{0}".format(separator, save_file))
+            print("{0}\nProceeding with file: {1}\n{0}".format(separator, save_file))
             return save_file
-
         except:
             print("\nInput invalid...\n")
             load_filepath(use_latest)
@@ -117,18 +120,18 @@ def plot_scores(scores):
 
 
 
-def print_debug_info(sep, device, nA, nS, env, args):
+def print_verbose_info(sep, agent, env, args):
     """Prints extra data if --debug flag is set.
     """
     print("{}\nARGS:".format(sep))
     for arg in vars(args):
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
     print("{}\nVARS:".format(sep))
-    print("Device: {}".format(device))
-    print("Action Size: {}\nState Size: {}".format(nA, nS))
+    print("Device: {}".format(agent.device))
+    print("Action Size: {}\nState Size: {}".format(agent.nA, agent.nS))
     print('Number of agents:', len(env.agents))
     print("Number of Episodes: {}".format(args.num_episodes))
-    print(sep)
+    print("{1}\n{0}\n{1}".format(agent.q, sep))
 
 
 

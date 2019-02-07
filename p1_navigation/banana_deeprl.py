@@ -28,7 +28,7 @@ def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     if not args.train:
-        filepath = utils.load_filepath(args.latest) #prompt user before loading the env to avoid pop-over
+        filepath = utils.load_filepath(args.latest, sep) #prompt user before loading the env to avoid pop-over
         if filepath == None:
             print("Quit before loading a file.")
             return
@@ -59,9 +59,7 @@ def main():
         agent.epsilon = 0
 
     if args.verbose:
-        utils.print_debug_info(sep, device, nA, nS, env_info, args) #print info about params
-        print("{}\n{}".format(agent.q, sep)) #print info about the active network
-
+        utils.print_verbose_info(sep, agent, env_info, args)
 
     #Run the agent
     scores = run_agent(env, agent, args, brain_name)
@@ -81,7 +79,7 @@ def run_agent(env, agent, args, brain_name):
         for i_episode in range(1, args.num_episodes+1):
             score = 0
             #reset the environment for a new episode runthrough
-            env_info = env.reset(train_mode=True)[brain_name]
+            env_info = env.reset(train_mode=args.train)[brain_name]
 
             # get the initial environment state
             state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]

@@ -90,7 +90,7 @@ class Agent():
             self.learn(batch)
         #update the target network every C steps
         if self.t_step % self.c == 0:
-            print("setting q' to match q")
+            #print("setting q' to match q")
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
@@ -114,11 +114,14 @@ class Agent():
         expected_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
         values = self.q(states).gather(1, actions)
 
-        loss = F.mse_loss(values, expected_values)
+        #loss = F.mse_loss(values, expected_values)
+        loss = F.smooth_l1_loss(values, expected_values)
 
         #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
+        for param in self.q.parameters():
+            param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
 
@@ -170,11 +173,11 @@ class QCNNetwork(nn.Module):
         in_rez = state[1]
         chan_count = state[0]
 
-        out1 = 32
+        out1 = 24#32
         kernel1 = 8
         stride1 = 4
 
-        out2 = 64
+        out2 = 32#64
         kernel2 = 4
         stride2 = 2
 
@@ -187,10 +190,14 @@ class QCNNetwork(nn.Module):
         self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3)
 
         ## output size = (Width-Filtersize)/Stride +1
-        fc_in = (in_rez-kernel1)/stride1 + 1
-        fc_in = (fc_in-kernel2)/stride2 + 1
-        fc_in = (fc_in-kernel3)/stride3 + 1
-        fc_in = int(out3 * fc_in * fc_in)
+        def _calc_size(size, kernel, stride):
+            return (size - (kernel - 1) - 1) // stride  + 1
+        # fc_in = (in_rez-kernel1)/stride1 + 1
+        # fc_in = (fc_in-kernel2)/stride2 + 1
+        # fc_in = (fc_in-kernel3)/stride3 + 1
+        # fc_in = int(out3 * fc_in * fc_in)
+        fc_in = _calc_size(_calc_size(_calc_size(in_rez, kernel1, stride1), kernel2, stride2,), kernel3, stride3)
+        fc_in = out3 * fc_in * fc_in
 
         fc_handoff = 512
 
