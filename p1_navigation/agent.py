@@ -19,50 +19,31 @@ class Agent():
         self.seed = random.seed(seed)
         self.device = args.device
         self.t_step = 0
-
+        self.optimizer = args.optimizer
         #initialize params from the command line args
         self.framework = args.framework
         self.batchsize = args.batchsize
         self.buffersize = args.buffersize
-        self.c = args.c
+        self.C = args.C
         self.dropout = args.dropout
         self.epsilon = args.epsilon
         self.epsilon_decay = args.epsilon_decay
         self.epsilon_min = args.epsilon_min
         self.gamma = args.gamma
         self.lr = args.learn_rate
-        self.tau = args.tau
         self.update_every = args.update_every
         self.momentum = args.momentum
         self.PER = args.prioritized_replay
         self.train = args.train
 
         #initialize REPLAY buffer
-        self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, self.device)
+        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.device)
 
         #Initialize Q-Network
-        if args.pixels:
-            print("Using Pixel-based training.")
-            self.q = QCNNetwork(nS, nA, seed).to(self.device)
-            self.qhat = QCNNetwork(nS, nA, seed).to(self.device)
-        else:
-            print("Using state data provided by the engine for training.")
-            self.q = QNetwork(nS, nA, seed, self.dropout).to(self.device)
-            self.qhat = QNetwork(nS, nA, seed, self.dropout).to(self.device)
-
-
+        self.q = _make_model(args.pixels)
+        self.qhat = _make_model(args.pixels)
         self.qhat.load_state_dict(self.q.state_dict())
-
-        #optimizer
-        if args.optimizer == "RMSprop":
-            self.optimizer = optim.RMSprop(self.q.parameters(), lr=self.lr, momentum=self.momentum)
-        elif args.optimizer == "SGD":
-            self.optimizer = optim.SGD(self.q.parameters(), lr=self.lr, momentum=self.momentum)
-        else:
-            self.optimizer = optim.Adam(self.q.parameters(), lr=self.lr)
-
-    def update_epsilon(self):
-        self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
+        self.optimizer = _set_optimizer(self.q.parameters())
 
     def act(self, state):
         #send the state to a tensor object on the gpu
@@ -80,17 +61,16 @@ class Agent():
 
     def step(self, state, action, reward, next_state, done):
         """Moves the agent to the next timestep.
-           Learns every UPDATE_EVERY steps.
+           Learns each UPDATE_EVERY steps.
         """
         #save the current SARS′  status in the replay buffer
         self.buffer.add(state, action, reward, next_state, done)
-        #print("State shape: {} NextState: {}, buffer length: {}".format(state.shape, next_state.shape, len(self.buffer)))
 
         if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
             batch = self.buffer.sample()
             self.learn(batch)
         #update the target network every C steps
-        if self.t_step % self.c == 0:
+        if self.t_step % self.C == 0:
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
@@ -124,15 +104,33 @@ class Agent():
             param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
+    def update_epsilon(self):
+        self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
+
+    def _set_optimizer(self, params):
+        if self.optimizer == "RMSprop":
+            return optim.RMSprop(params, lr=self.lr, momentum=self.momentum)
+        elif self.optimizer == "SGD":
+            return optim.SGD(params, lr=self.lr, momentum=self.momentum)
+        else:
+            return optim.Adam(params, lr=self.lr)
+
+    def _make_model(self, use_cnn):
+        if use_cnn:
+            print("Using Pixel-based training.")
+            return QCNNetwork(nS, nA, seed).to(self.device)
+        else:
+            print("Using state data provided by the engine for training.")
+            return QNetwork(nS, nA, seed, self.dropout).to(self.device)
+
+
 
 
 class ReplayBuffer:
-    def __init__(self, nA, buffersize, batchsize, seed, device):
-        self.nA = nA
+    def __init__(self,buffersize, batchsize, device):
         self.buffer = deque(maxlen=buffersize)
         self.batchsize = batchsize
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state','done'])
-        self.seed = random.seed(seed)
         self.device = device
 
     def add(self, state, action, reward, next_state, done):
@@ -170,40 +168,24 @@ class QCNNetwork(nn.Module):
             seed (int): Random seed
         """
         super(QCNNetwork, self).__init__()
-        in_rez = state[1]
-        chan_count = state[0]
+        chans, width, height = state
 
-        out1 = 24#32
-        kernel1 = 8
-        stride1 = 4
+        outs = [32, 64, 64]
+        kernels = [8, 4, 3]
+        strides = [4, 2, 1]
+        fc_hidden = 512
 
-        out2 = 32#64
-        kernel2 = 4
-        stride2 = 2
+        self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=stride[0])
+        self.conv2 = nn.Conv2d(out[0], outs[1], kernel[1], stride=stride[1])
+        self.conv3 = nn.Conv2d(out[1], out[2], kernel[2], stride=stride[2])
 
-        out3 = 64
-        kernel3 = 3
-        stride3 = 1
+        fc = np.array([width, height])
+        for _, kernel, stride in zip(outs, kernels, strides):
+            fc = (fc - (kernel - 1) - 1) // stride  + 1
+        fc_in = outs[-1] * fc[0] * fc[1]
 
-        self.conv1 = nn.Conv2d(chan_count, out1, kernel1, stride=stride1)
-        self.conv2 = nn.Conv2d(out1, out2, kernel2, stride=stride2)
-        self.conv3 = nn.Conv2d(out2, out3, kernel3, stride=stride3)
-
-        ## output size = (Width-Filtersize)/Stride +1
-        def _calc_size(size, kernel, stride):
-            return (size - (kernel - 1) - 1) // stride  + 1
-        # fc_in = (in_rez-kernel1)/stride1 + 1
-        # fc_in = (fc_in-kernel2)/stride2 + 1
-        # fc_in = (fc_in-kernel3)/stride3 + 1
-        # fc_in = int(out3 * fc_in * fc_in)
-        fc_in = _calc_size(_calc_size(_calc_size(in_rez, kernel1, stride1), kernel2, stride2,), kernel3, stride3)
-        fc_in = out3 * fc_in * fc_in
-
-        fc_handoff = 512
-
-        self.fc1 = nn.Linear(fc_in, fc_handoff)
-        self.fc2 = nn.Linear(fc_handoff, action_size)
-
+        self.fc1 = nn.Linear(fc_in, fc_hidden)
+        self.fc2 = nn.Linear(fc_hidden, action_size)
         self.seed = torch.manual_seed(seed)
 
 

@@ -25,7 +25,7 @@ def get_args():
             help="How many past timesteps to keep in memory.",
             type=int,
             default=100000)
-    parser.add_argument("-c",
+    parser.add_argument("-C",
             help="How many timesteps between updating Q' to match Q",
             type=int,
             default=1024)
@@ -85,16 +85,14 @@ def get_args():
             help="Train the network using visual data instead of states from the engine.",
             action="store_true")
     parser.add_argument("--print_count",
-            help="How many times to print status updates during training. The \
-                  number of episodes is divided by this, unless it would result\
-                   in printing less than every 100 episodes, in which case \
-                  training will print info every 100 episodes.",
+            help="How many times to print status updates during training. \
+                  Bounded between 2<->100.",
             type=int,
             default=15)
-    parser.add_argument("-tau",
-            help="Tau",
-            type=float,
-            default=1e-3)
+    # parser.add_argument("-tau",
+    #         help="Tau",
+    #         type=float,
+    #         default=1e-3)
     parser.add_argument("-t", "--train",
             help="Run in training mode.",
             action="store_true")
