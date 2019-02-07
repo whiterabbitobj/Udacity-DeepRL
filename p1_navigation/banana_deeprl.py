@@ -3,9 +3,10 @@ import numpy as np
 import torch
 import progressbar
 
-from unityagents import UnityEnvironment
+# from unityagents import UnityEnvironment
 from agent import Agent
 import utils
+from get_args import get_args
 
 
 
@@ -21,31 +22,34 @@ def main():
     """
 
     """Sets up a few global variables to condense code:
-       VARS:
+        args - arguments from command line, including defaults
         sep - separator used for print statements
         start_time - start time of program initialization
-        args - arguments from command line, including defaults
         device - which device to run on (usually GPU)
     """
-    utils.setup_global_vars()
+    args = get_args()
+    args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    args.print_every = np.clip(args.num_episodes//args.print_count, 2, 100)
+    args.sep = "#"*50
+    args.start_time = time.time()
 
     if not args.train:
-        filepath = utils.load_filepath() #prompt user before loading the env to avoid pop-over
+        filepath = utils.load_filepath(args.sep) #prompt user before loading the env to avoid pop-over
         if filepath == None:
             return
 
     #initialize the environment
-    env, env_info, brain_name, nA, nS = load_environment()
-
+    env, env_info, brain_name, nA, nS = utils.load_environment(args)
+    print(env)
     if args.train:
-        agent = Agent(nS, nA)
-        print("Printing training data every {} episodes.\n{}".format(args.print_count,sep))
+        agent = Agent(nS, nA, args)
+        print("Printing training data every {} episodes.\n{}".format(args.print_every, args.sep))
     else:
-        agent = utils.load_checkpoint(filepath)
+        agent = utils.load_checkpoint(filepath, args)
 
-    utils.print_verbose_info(agent, env_info)
+    utils.print_verbose_info(agent, env, env_info, args)
 
-    scores = run_agent(env, agent, brain_name) #Run the agent
+    scores = run_agent(env, agent, brain_name, args) #Run the agent
 
     env.close() #close the environment
 
@@ -55,7 +59,7 @@ def main():
 
 
 
-def run_agent(env, agent, brain_name):
+def run_agent(env, agent, brain_name, args):
     """Trains selected agent in the environment."""
     scores = []
     with progressbar.ProgressBar(max_value=args.print_count) as progress_bar:

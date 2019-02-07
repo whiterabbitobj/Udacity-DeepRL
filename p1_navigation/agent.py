@@ -10,14 +10,14 @@ import torch.optim as optim
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
 
-    def __init__(self, nS, nA, seed=0):
+    def __init__(self, nS, nA, args, seed=0):
         #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
         self.nS = nS
         self.nA = nA
         self.seed = random.seed(seed)
-        self.device = device
+        self.device = args.device
         self.t_step = 0
 
         #initialize params from the command line args
@@ -37,17 +37,17 @@ class Agent():
         self.PER = args.prioritized_replay
 
         #initialize REPLAY buffer
-        self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, device)
+        self.buffer = ReplayBuffer(nA, self.buffersize, self.batchsize, seed, self.device)
 
         #Initialize Q-Network
         if args.pixels:
             print("Using Pixel-based training.")
-            self.q = QCNNetwork(nS, nA, seed).to(device)
-            self.qhat = QCNNetwork(nS, nA, seed).to(device)
+            self.q = QCNNetwork(nS, nA, seed).to(self.device)
+            self.qhat = QCNNetwork(nS, nA, seed).to(self.device)
         else:
             print("Using state data provided by the engine for training.")
-            self.q = QNetwork(nS, nA, seed, self.dropout).to(device)
-            self.qhat = QNetwork(nS, nA, seed, self.dropout).to(device)
+            self.q = QNetwork(nS, nA, seed, self.dropout).to(self.device)
+            self.qhat = QNetwork(nS, nA, seed, self.dropout).to(self.device)
 
 
         self.qhat.load_state_dict(self.q.state_dict())

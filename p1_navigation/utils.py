@@ -6,7 +6,7 @@ import torch
 import matplotlib.pyplot as plt
 import numpy as np
 from agent import Agent
-from get_args import get_args
+from unityagents import UnityEnvironment
 
 
 # def anneal_parameter(param, anneal_rate, param_min):
@@ -17,21 +17,7 @@ from get_args import get_args
 ## Setup the runtime environment
 ##########
 
-def setup_global_vars():
-    global start_time
-    global sep
-    global args
-    global device
-    start_time = time.time()
-    sep = "#"*50
-    args = get_args()
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    args.print_count = np.clip(args.num_episodes//args.print_count, 2, 100)
-
-
-
-def load_environment():
-    #initialize the environment
+def load_environment(args):
     if args.pixels:
         unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
     else:
@@ -90,15 +76,15 @@ def save_checkpoint(agent, scores):
 
 
 
-def load_checkpoint(filepath):
+def load_checkpoint(filepath, args):
     """Loads a checkpoint from an earlier trained agent.
     """
     checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
 
     if checkpoint['agent_type'] == 'DQN':
-        agent = Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
+        agent = Agent(checkpoint['state_size'], checkpoint['action_size'], args)
     if checkpoint['agent_type'] == 'D2DQN':
-        agent = Agent(checkpoint['state_size'], checkpoint['action_size'], device, args)
+        agent = Agent(checkpoint['state_size'], checkpoint['action_size'], args)
     agent.q.load_state_dict(checkpoint['state_dict'])
     agent.optimizer.load_state_dict(checkpoint['optimizer'])
     args.num_episodes = 3
@@ -106,7 +92,7 @@ def load_checkpoint(filepath):
 
 
 
-def load_filepath():
+def load_filepath(sep):
     """Prompts the user about what save to load, or uses the last modified save.
     """
     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
@@ -159,22 +145,22 @@ def report_results(scores):
 
 
 
-def print_verbose_info(agent, env_info):
+def print_verbose_info(agent, env, env_info, args):
     """
     Prints extra data if --debug flag is set.
     """
     if not args.verbose:
         return
 
-    print("{}\nARGS:".format(sep))
+    print("{}\nARGS:".format(args.sep))
     for arg in vars(args):
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
-    print("{}\nVARS:".format(sep))
+    print("{}\nVARS:".format(args.sep))
     print("Device: {}".format(agent.device))
     print("Action Size: {}\nState Size: {}".format(agent.nA, agent.nS))
     print('Number of agents:', len(env.agents))
     print("Number of Episodes: {}".format(args.num_episodes))
-    print("{1}\n{0}\n{1}".format(agent.q, sep))
+    print("{1}\n{0}\n{1}".format(agent.q, args.sep))
 
 
 
