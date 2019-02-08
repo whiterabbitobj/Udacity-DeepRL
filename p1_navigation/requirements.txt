@@ -87,7 +87,7 @@ python-utils=2.3.0=py36_0
 pytorch=1.0.0=py3.6_cuda100_cudnn7_1
 pyvirtualdisplay=0.2.1=pypi_0
 pywinpty=0.5.5=pypi_0
-pyyaml=3.13=pypi_0
+pyyaml=4.2b1=pypi_0
 pyzmq=17.1.2=py36hfa6e2cd_0
 qtconsole=4.4.3=pypi_0
 requests=2.21.0=pypi_0
