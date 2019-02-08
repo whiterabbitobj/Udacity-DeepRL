@@ -97,7 +97,7 @@ def get_args():
             help="Run in training mode.",
             action="store_true")
     parser.add_argument("-u", "--update_every",
-            help="Timesteps between acting on new environment states.",
+            help="Timesteps between updating the network parameters.",
             type=int,
             default=4)
     parser.add_argument("-v", "--verbose",

@@ -1,4 +1,4 @@
-m = "dogs"
-n = "og"
-if n in m:
-    print("found it")
+import random
+
+for i in range(20):
+    print(random.randrange(4))

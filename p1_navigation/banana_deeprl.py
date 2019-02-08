@@ -64,41 +64,37 @@ def run_agent(env, agent, brain_name, args):
     scores = []
     with progressbar.ProgressBar(max_value=args.print_every) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
+            # reset the scenario
             score = 0
-
             env_info = env.reset(train_mode=args.train)[brain_name]
 
             # get the initial environment state
-            if args.pixels:
-                state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1)
-            else:
-                state = env_info.vector_observations[0]
+            state = utils.get_state(env_info, args)
 
             while True:
                 #choose an action using current π
                 action = agent.act(state)
-                env_info = env.step(action)[brain_name]
+                #use action in environment and observe results
+                env_info = env.step(action.item())[brain_name]
                 #collect info about new state
-                reward = env_info.rewards[0]
-                next_state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1) if args.pixels else env_info.vector_observations[0]
+                reward = torch.tensor([env_info.rewards[0]], device=args.device)
+                next_state = utils.get_state(env_info, args)
                 done = env_info.local_done[0]
-                score += reward
                 #initiate next timestep
-                if args.train:
-                    agent.step(state, action, reward, next_state, done)
+                agent.step(state, action, reward, next_state, done)
 
                 state = next_state
+                score += reward
                 if done:
                     break
+
             #prepare for next episode
             agent.update_epsilon()
             scores.append(score)
             utils.print_status(i_episode, scores, agent, args)
             progress_bar.update(i_episode % args.print_every+1)
 
-    if args.train:
-        print(agent.t_step)
-        utils.save_checkpoint(agent, scores, args)
+    utils.save_checkpoint(agent, scores, args) #save a checkpoint if train=True
 
     return scores
 

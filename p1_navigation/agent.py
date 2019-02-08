@@ -16,7 +16,7 @@ class Agent():
         #initialize agent parameters
         self.nS = nS
         self.nA = nA
-        self.seed = random.seed(seed)
+        self.seed = 0#random.seed(seed)
         self.device = args.device
         self.t_step = 0
         self.optimizer = args.optimizer
@@ -35,40 +35,47 @@ class Agent():
         self.momentum = args.momentum
         self.PER = args.prioritized_replay
         self.train = args.train
+        #self.pixels = args.pixels
 
         #initialize REPLAY buffer
         self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.device)
 
         #Initialize Q-Network
-        self.q = _make_model(args.pixels)
-        self.qhat = _make_model(args.pixels)
+        self.q = self._make_model(args.pixels)
+        self.qhat = self._make_model(args.pixels)
         self.qhat.load_state_dict(self.q.state_dict())
-        self.optimizer = _set_optimizer(self.q.parameters())
+        self.qhat.eval()
+        self.optimizer = self._set_optimizer(self.q.parameters())
 
     def act(self, state):
-        #send the state to a tensor object on the gpu
-        state = torch.from_numpy(state).float().unsqueeze(0).to(self.device)
-
-        self.q.eval() #put network into eval mode
-        with torch.no_grad():
-            action_values = self.q(state)
-        self.q.train() #put network back into training mode
-        #select an action using epsilon-greedy π
+        """Select an action using epsilon-greedy π.
+           Always use greedy if not training.
+        """
         if random.random() > self.epsilon or not self.train:
-            return np.argmax(action_values.cpu().data.numpy()).astype(int)
+            self.q.eval()
+            with torch.no_grad():
+                action_values = self.q(state)
+            self.q.train()
+            return action_values.max(1)[1].view(1,1)
         else:
-            return random.choice(np.arange(self.nA))
+            return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.long)
+        #     return np.argmax(action_values.cpu().data.numpy()).astype(int)
+        # else:
+        #     return random.choice(np.arange(self.nA))
 
     def step(self, state, action, reward, next_state, done):
         """Moves the agent to the next timestep.
            Learns each UPDATE_EVERY steps.
         """
+        if not self.train:
+            return
+
         #save the current SARS′  status in the replay buffer
         self.buffer.add(state, action, reward, next_state, done)
 
-        if len(self.buffer) > self.batchsize and self.t_step % self.update_every == 0:
-            batch = self.buffer.sample()
-            self.learn(batch)
+        if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
+            #batch = self.buffer.sample()
+            self.learn()
         #update the target network every C steps
         if self.t_step % self.C == 0:
             self.qhat.load_state_dict(self.q.state_dict())
@@ -76,25 +83,33 @@ class Agent():
 
 
 
-    def learn(self, batch):
+    def learn(self):
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
-        states, actions, rewards, next_states, dones = batch
+        #states, actions, rewards, next_states, dones = batch
+        batch = self.buffer.sample()
+        state_batch = torch.cat(batch.state)
+        action_batch = torch.cat(batch.action)
+        reward_batch = torch.cat(batch.reward)
+        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
+        next_states = torch.cat([s for s in batch.next_state if s is not None])
 
+        values = self.q(state_batch).gather(1, action_batch)
+
+        qhat_next_values = torch.zeros(self.batch_size, device=self.device)
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
-            qhat_nextvalues = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
+            qhat_nextvalues[non_final_mask] = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
 
         if self.framework == 'D2DQN':
             #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
-            q_next_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
-            qhat_nextvalues = self.qhat(next_states).gather(1, q_next_actions)
+            q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1).unsqueeze(1)
+            qhat_nextvalues[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions)
 
-        expected_values = rewards + (self.gamma * qhat_nextvalues * (1 - dones))
-        values = self.q(states).gather(1, actions)
+        expected_values = reward_batch + (self.gamma * qhat_nextvalues)
 
-        #loss = F.mse_loss(values, expected_values)
+        #Huber Loss provides better results than MSE
         loss = F.smooth_l1_loss(values, expected_values)
 
         #backpropogate
@@ -118,10 +133,10 @@ class Agent():
     def _make_model(self, use_cnn):
         if use_cnn:
             print("Using Pixel-based training.")
-            return QCNNetwork(nS, nA, seed).to(self.device)
+            return QCNNetwork(self.nS, self.nA, self.seed).to(self.device)
         else:
             print("Using state data provided by the engine for training.")
-            return QNetwork(nS, nA, seed, self.dropout).to(self.device)
+            return QNetwork(self.nS, self.nA, self.seed, self.dropout).to(self.device)
 
 
 
@@ -130,23 +145,24 @@ class ReplayBuffer:
     def __init__(self,buffersize, batchsize, device):
         self.buffer = deque(maxlen=buffersize)
         self.batchsize = batchsize
-        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state','done'])
+        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
 
     def add(self, state, action, reward, next_state, done):
-        t = self.memory(state, action, reward, next_state, done)
+        t = self.memory(state, action, reward, next_state)
         self.buffer.append(t)
 
     def sample(self):
-        batch = random.sample(self.buffer, k=self.batchsize)
-
-        states = torch.from_numpy(np.vstack([np.expand_dims(memory.state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
-        actions = torch.from_numpy(np.vstack([memory.action for memory in batch if memory is not None])).long().to(self.device)
-        rewards = torch.from_numpy(np.vstack([memory.reward for memory in batch if memory is not None])).float().to(self.device)
-        next_states = torch.from_numpy(np.vstack([np.expand_dims(memory.next_state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
-        dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
-
-        return (states, actions, rewards, next_states, dones)
+        # batch = random.sample(self.buffer, k=self.batchsize)
+        #
+        # states = torch.from_numpy(np.vstack([np.expand_dims(memory.state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
+        # actions = torch.from_numpy(np.vstack([memory.action for memory in batch if memory is not None])).long().to(self.device)
+        # rewards = torch.from_numpy(np.vstack([memory.reward for memory in batch if memory is not None])).float().to(self.device)
+        # next_states = torch.from_numpy(np.vstack([np.expand_dims(memory.next_state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
+        # dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
+        #
+        # return (states, actions, rewards, next_states, dones)
+        return  random.sample(self.buffer, k=self.batchsize)
 
     def __len__(self):
         return len(self.buffer)

@@ -14,7 +14,7 @@ from unityagents import UnityEnvironment
 
 
 ##########
-## Setup the runtime environment
+## Interact with the environment
 ##########
 
 def load_environment(args):
@@ -31,6 +31,15 @@ def load_environment(args):
     nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
 
     return env, env_info, brain_name, nA, nS
+
+
+
+def get_state(env_info, args):
+    if args.pixels:
+        state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1)
+    else:
+        state = env_info.vector_observations[0]
+    return torch.from_numpy(state).float().unsqueeze(0).to(args.device)
 
 
 
@@ -62,6 +71,9 @@ def save_checkpoint(agent, scores, args):
     """Saves the current Agent's learning dict as well as important parameters
        involved in the latest training.
     """
+    if not args.train:
+        return
+
     agent.q.to('cpu')
     checkpoint = {'agent_type': agent.framework,
                   'state_size': agent.nS,
