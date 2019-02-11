@@ -10,13 +10,14 @@ import torch.optim as optim
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
 
-    def __init__(self, nS, nA, args, seed=0):
+    def __init__(self, nA, nS, args, seed=0):
         #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
         self.nS = nS
         self.nA = nA
         self.seed = 0#random.seed(seed)
+        self.framestack = args.framestack
         self.device = args.device
         self.t_step = 0
         self.optimizer = args.optimizer
@@ -38,7 +39,7 @@ class Agent():
         #self.pixels = args.pixels
 
         #initialize REPLAY buffer
-        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.device)
+        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device)
 
         #Initialize Q-Network
         self.q = self._make_model(args.pixels)
@@ -59,11 +60,6 @@ class Agent():
             return action_values.max(1)[1].view(1,1)
         else:
             return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.long)
-            #return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.float)
-
-        #     return np.argmax(action_values.cpu().data.numpy()).astype(int)
-        # else:
-        #     return random.choice(np.arange(self.nA))
 
     def step(self, state, action, reward, next_state, done):
         """Moves the agent to the next timestep.
@@ -76,7 +72,6 @@ class Agent():
         self.buffer.add(state, action, reward, next_state)
 
         if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
-            #batch = self.buffer.sample()
             self.learn()
         #update the target network every C steps
         if self.t_step % self.C == 0:
@@ -89,12 +84,11 @@ class Agent():
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
-        #states, actions, rewards, next_states, dones = batch
         batch = self.buffer.sample()
 
-        state_batch = torch.cat(batch.state)
-        action_batch = torch.cat(batch.action)
-        reward_batch = torch.cat(batch.reward)
+        state_batch = torch.cat(batch.state) #[64,1]
+        action_batch = torch.cat(batch.action) #[64,1]
+        reward_batch = torch.cat(batch.reward) #[64,1]
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
         next_states = torch.cat([s for s in batch.next_state if s is not None])
 
@@ -114,7 +108,6 @@ class Agent():
 
         #Huber Loss provides better results than MSE
         loss = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
-
         #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
@@ -145,11 +138,15 @@ class Agent():
 
 
 class ReplayBuffer:
-    def __init__(self, buffersize, batchsize, device):
+    def __init__(self, buffersize, batchsize, framestack, device):
         self.buffer = deque(maxlen=buffersize)
+        self.stack = deque(maxlen=framestack)
         self.batchsize = batchsize
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
+
+    def stack(self, state):
+
 
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)

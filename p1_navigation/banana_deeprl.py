@@ -42,14 +42,14 @@ def main():
     env, env_info, brain_name, nA, nS = utils.load_environment(args)
 
     if args.train:
-        agent = Agent(nS, nA, args)
+        agent = Agent(nA, nS, args)
         print("Printing training data every {} episodes.\n{}".format(args.print_every, args.sep))
     else:
         agent = utils.load_checkpoint(filepath, args)
 
-    utils.print_verbose_info(agent, env_info, args)
+    utils.print_verbose_info(agent, env_info, args) #print extra info if flagged
 
-    scores = run_agent(env, agent, brain_name, args) #Run the agent
+    scores = run_agent(env, agent, brain_name, args) #run the agent
 
     env.close() #close the environment
 
