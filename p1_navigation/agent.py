@@ -98,7 +98,6 @@ class Agent():
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
         next_states = torch.cat([s for s in batch.next_state if s is not None])
 
-        values = self.q(state_batch).gather(1, action_batch) #[64,1]
         qhat_next_values = torch.zeros(self.batchsize, device=self.device) #[64]
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
@@ -109,6 +108,8 @@ class Agent():
             q_next_actions = torch.zeros(self.batchsize, device=self.device, dtype=torch.long) #[64]
             q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1) #[64]
             qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1) #[64]
+
+        values = self.q(state_batch).gather(1, action_batch) #[64,1]
         expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
 
         #Huber Loss provides better results than MSE
@@ -150,27 +151,13 @@ class ReplayBuffer:
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
 
-    # def _memory(self, *args):
-    #     return namedtuple("memory", field_names=['state','action','reward','next_state'])
-
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
         self.buffer.append(t)
 
     def sample(self):
-        # batch = random.sample(self.buffer, k=self.batchsize)
-        #
-        # states = torch.from_numpy(np.vstack([np.expand_dims(memory.state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
-        # actions = torch.from_numpy(np.vstack([memory.action for memory in batch if memory is not None])).long().to(self.device)
-        # rewards = torch.from_numpy(np.vstack([memory.reward for memory in batch if memory is not None])).float().to(self.device)
-        # next_states = torch.from_numpy(np.vstack([np.expand_dims(memory.next_state, axis=0) for memory in batch if memory is not None])).float().to(self.device)
-        # dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
-        #
-        # return (states, actions, rewards, next_states, dones)
         batch = random.sample(self.buffer, k=self.batchsize)
-        sample = self.memory(*zip(*batch))
-
-        return  sample
+        return  self.memory(*zip(*batch))
 
     def __len__(self):
         return len(self.buffer)
@@ -199,9 +186,9 @@ class QCNNetwork(nn.Module):
         strides = [4, 2, 1]
         fc_hidden = 512
 
-        self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=stride[0])
-        self.conv2 = nn.Conv2d(out[0], outs[1], kernel[1], stride=stride[1])
-        self.conv3 = nn.Conv2d(out[1], out[2], kernel[2], stride=stride[2])
+        self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
+        self.conv2 = nn.Conv2d(outs[0], outs[1], kernels[1], stride=strides[1])
+        self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
 
         fc = np.array([width, height])
         for _, kernel, stride in zip(outs, kernels, strides):
