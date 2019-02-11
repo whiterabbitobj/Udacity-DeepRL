@@ -77,11 +77,11 @@ def run_agent(env, agent, brain_name, args):
                 #use action in environment and observe results
                 env_info = env.step(action.item())[brain_name]
                 #collect info about new state
-                reward = torch.tensor([env_info.rewards[0]], device=args.device)
+                reward = env_info.rewards[0]
                 next_state = utils.get_state(env_info, args)
                 done = env_info.local_done[0]
                 #initiate next timestep
-                agent.step(state, action, reward, next_state, done)
+                agent.step(state, action, torch.tensor([reward], device=args.device), next_state, done)
 
                 state = next_state
                 score += reward

@@ -59,6 +59,8 @@ class Agent():
             return action_values.max(1)[1].view(1,1)
         else:
             return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.long)
+            #return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.float)
+
         #     return np.argmax(action_values.cpu().data.numpy()).astype(int)
         # else:
         #     return random.choice(np.arange(self.nA))
@@ -71,7 +73,7 @@ class Agent():
             return
 
         #save the current SARS′  status in the replay buffer
-        self.buffer.add(state, action, reward, next_state, done)
+        self.buffer.add(state, action, reward, next_state)
 
         if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
             #batch = self.buffer.sample()
@@ -89,28 +91,28 @@ class Agent():
         """
         #states, actions, rewards, next_states, dones = batch
         batch = self.buffer.sample()
+
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
         reward_batch = torch.cat(batch.reward)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
         next_states = torch.cat([s for s in batch.next_state if s is not None])
 
-        values = self.q(state_batch).gather(1, action_batch)
-
-        qhat_next_values = torch.zeros(self.batch_size, device=self.device)
+        values = self.q(state_batch).gather(1, action_batch) #[64,1]
+        qhat_next_values = torch.zeros(self.batchsize, device=self.device) #[64]
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
-            qhat_nextvalues[non_final_mask] = self.qhat(next_states).detach().max(1)[0].unsqueeze(1)
+            qhat_next_values[non_final_mask] = self.qhat(next_states).detach().max(1)[0] #[64]
 
         if self.framework == 'D2DQN':
             #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
-            q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1).unsqueeze(1)
-            qhat_nextvalues[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions)
-
-        expected_values = reward_batch + (self.gamma * qhat_nextvalues)
+            q_next_actions = torch.zeros(self.batchsize, device=self.device, dtype=torch.long) #[64]
+            q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1) #[64]
+            qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1) #[64]
+        expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
 
         #Huber Loss provides better results than MSE
-        loss = F.smooth_l1_loss(values, expected_values)
+        loss = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
 
         #backpropogate
         self.optimizer.zero_grad()
@@ -142,13 +144,16 @@ class Agent():
 
 
 class ReplayBuffer:
-    def __init__(self,buffersize, batchsize, device):
+    def __init__(self, buffersize, batchsize, device):
         self.buffer = deque(maxlen=buffersize)
         self.batchsize = batchsize
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
 
-    def add(self, state, action, reward, next_state, done):
+    # def _memory(self, *args):
+    #     return namedtuple("memory", field_names=['state','action','reward','next_state'])
+
+    def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
         self.buffer.append(t)
 
@@ -162,7 +167,10 @@ class ReplayBuffer:
         # dones = torch.from_numpy(np.vstack([memory.done for memory in batch if memory is not None]).astype(np.uint8)).float().to(self.device)
         #
         # return (states, actions, rewards, next_states, dones)
-        return  random.sample(self.buffer, k=self.batchsize)
+        batch = random.sample(self.buffer, k=self.batchsize)
+        sample = self.memory(*zip(*batch))
+
+        return  sample
 
     def __len__(self):
         return len(self.buffer)
