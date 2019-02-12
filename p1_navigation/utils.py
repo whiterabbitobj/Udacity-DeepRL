@@ -46,7 +46,7 @@ def get_state(env_info, agent):
         agent.buffer.stack(state)
         #state = agent.buffer.get_stack()
         #state = torch.from_numpy(state).float().unsqueeze(0).to(args.device)
-        return agent.buffer.get_stack()
+        return agent.buffer.get_stack().unsqueeze(0)
     else:
         state = env_info.vector_observations[0]
         state =  torch.from_numpy(state).float().unsqueeze(0).to(agent.device)
