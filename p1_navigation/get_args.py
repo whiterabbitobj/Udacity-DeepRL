@@ -24,7 +24,7 @@ def get_args():
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=100000)
+            default=50000)
     parser.add_argument("-C",
             help="How many timesteps between updating Q' to match Q",
             type=int,
