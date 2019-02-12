@@ -70,7 +70,6 @@ def run_agent(env, agent, brain_name, args):
 
             # get the initial environment state
             state = utils.get_state(env_info, agent)
-            print(state.shape)
             while True:
                 #choose an action using current π
                 action = agent.act(state)
