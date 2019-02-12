@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import torchvision.transforms as T
 
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
@@ -36,10 +37,11 @@ class Agent():
         self.momentum = args.momentum
         self.PER = args.prioritized_replay
         self.train = args.train
-        #self.pixels = args.pixels
+        self.pixels = args.pixels
 
         #initialize REPLAY buffer
-        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device)
+        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS)
+
 
         #Initialize Q-Network
         self.q = self._make_model(args.pixels)
@@ -138,15 +140,29 @@ class Agent():
 
 
 class ReplayBuffer:
-    def __init__(self, buffersize, batchsize, framestack, device):
+    def __init__(self, buffersize, batchsize, framestack, device, nS):
         self.buffer = deque(maxlen=buffersize)
-        self.stack = deque(maxlen=framestack)
+        self.phi = deque(maxlen=framestack)
         self.batchsize = batchsize
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
 
+        self._initialize_stack(nS)
+
     def stack(self, state):
+        state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1))
+        fit = T.Compose([T.ToPILImage(), T.Grayscale(),T.ToTensor()])
+        frame = fit(state).to(self.device)
+        self.phi.append(frame)
         return
+
+    def get_stack(self):
+        #t =  torch.cat(tuple(self.phi),dim=0)
+        return torch.cat(tuple(self.phi),dim=0)
+
+    def _initialize_stack(self, nS):
+        while len(self.phi) < self.phi.maxlen:
+            self.phi.append(torch.zeros([1,nS[1], nS[2]]).to(self.device))
 
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)

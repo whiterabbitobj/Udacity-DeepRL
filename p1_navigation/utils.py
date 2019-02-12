@@ -9,6 +9,7 @@ from agent import Agent
 from unityagents import UnityEnvironment
 from PIL import Image
 
+
 # def anneal_parameter(param, anneal_rate, param_min):
 #     return min(param * anneal_rate, param_min)
 
@@ -28,24 +29,28 @@ def load_environment(args):
     brain = env.brains[brain_name]
     env_info = env.reset(train_mode=args.train)[brain_name]
     nA = brain.vector_action_space_size
-    nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
-
+    #nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
+    #nS = get_state(env_info, agent).shape if args.pixels else len(env_info.vector_observations[0])
+    if args.pixels:
+        nS = list(env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape)
+        nS[0] = args.framestack
+    else:
+        nS = len(env_info.vector_observations[0])
     return env, env_info, brain_name, nA, nS
 
 
 
-def get_state(env_info, args):
-    if args.pixels:
-        state = env_info.visual_observations[0].squeeze(0).astype(np.float32).transpose(2,0,1)
-        state = torch.from_numpy(state).to(args.device)
-        fit = T.Compose([T.ToPILImage(), T.Grayscale(),T.ToTensor()])
-        frame = fit(state).to(args.device)
+def get_state(env_info, agent):
+    if agent.pixels:
+        state = env_info.visual_observations[0]
+        agent.buffer.stack(state)
+        #state = agent.buffer.get_stack()
         #state = torch.from_numpy(state).float().unsqueeze(0).to(args.device)
-
+        return agent.buffer.get_stack()
     else:
         state = env_info.vector_observations[0]
-        state = torch.from_numpy(state).float().unsqueeze(0).to(args.device)
-    return
+        state =  torch.from_numpy(state).float().unsqueeze(0).to(agent.device)
+    return state
 
 
 
