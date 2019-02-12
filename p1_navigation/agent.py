@@ -146,7 +146,7 @@ class ReplayBuffer:
         self.device = device
 
     def stack(self, state):
-
+        return
 
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)

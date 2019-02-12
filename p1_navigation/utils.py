@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from agent import Agent
 from unityagents import UnityEnvironment
-
+from PIL import Image
 
 # def anneal_parameter(param, anneal_rate, param_min):
 #     return min(param * anneal_rate, param_min)
@@ -36,10 +36,16 @@ def load_environment(args):
 
 def get_state(env_info, args):
     if args.pixels:
-        state = env_info.visual_observations[0].squeeze(0).transpose(2,0,1)
+        state = env_info.visual_observations[0].squeeze(0).astype(np.float32).transpose(2,0,1)
+        state = torch.from_numpy(state).to(args.device)
+        fit = T.Compose([T.ToPILImage(), T.Grayscale(),T.ToTensor()])
+        frame = fit(state).to(args.device)
+        #state = torch.from_numpy(state).float().unsqueeze(0).to(args.device)
+
     else:
         state = env_info.vector_observations[0]
-    return torch.from_numpy(state).float().unsqueeze(0).to(args.device)
+        state = torch.from_numpy(state).float().unsqueeze(0).to(args.device)
+    return
 
 
 
