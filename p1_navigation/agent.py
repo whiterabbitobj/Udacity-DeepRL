@@ -150,12 +150,12 @@ class ReplayBuffer:
         self.device = device
         self.framestack = framestack
 
-    def _get_frame(self, state):
-        state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1))
-        return state[0,:,:].unsqueeze(0).to(self.device)
+    # def _get_frame(self, state):
+    #     state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
+    #     return state[0,:,:].unsqueeze(0).to(self.device)
 
-    def stack(self, state, done):
-        frame = self._get_frame(state)
+    def stack(self, frame, done):
+        #frame = self._get_frame(state)
         if done:
             self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
         else:
@@ -163,7 +163,7 @@ class ReplayBuffer:
         return
 
     def get_stack(self):
-        return torch.cat(tuple(self.phi),dim=0)
+        return torch.cat(tuple(self.phi),dim=0).to(self.device)
 
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
@@ -193,7 +193,7 @@ class QCNNetwork(nn.Module):
         """
         super(QCNNetwork, self).__init__()
         chans, width, height = state
-
+        print("Processing state stack of size: ", state)
         # outs = [32, 64, 64]
         # kernels = [8, 4, 3]
         # strides = [4, 2, 1]
@@ -213,7 +213,7 @@ class QCNNetwork(nn.Module):
         for _, kernel, stride in zip(outs, kernels, strides):
             fc = (fc - (kernel - 1) - 1) // stride  + 1
         fc_in = outs[-1] * fc[0] * fc[1]
-
+        print("FC_IN: ", fc_in)
         self.fc1 = nn.Linear(fc_in, fc_hidden)
         self.fc2 = nn.Linear(fc_hidden, action_size)
         self.seed = torch.manual_seed(seed)

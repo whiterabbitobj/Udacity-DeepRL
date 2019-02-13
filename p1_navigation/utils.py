@@ -21,7 +21,7 @@ from PIL import Image
 def process_frame(state):
         state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
         #return red channel & chop off top of frame
-        return state[0,:-40,:].unsqueeze(0).to(self.device) #[1,44,84]
+        return state[0,:-40,:].unsqueeze(0) #[1,44,84]
 
 def load_environment(args):
     if args.pixels:
@@ -49,7 +49,7 @@ def load_environment(args):
 def get_state(env_info, agent, done):
     if agent.pixels:
         state = env_info.visual_observations[0]
-        agent.buffer.stack(state, done)
+        agent.buffer.stack(process_frame(state), done)
         return agent.buffer.get_stack().unsqueeze(0)
     else:
         state = env_info.vector_observations[0]
@@ -184,12 +184,12 @@ def print_verbose_info(agent, env_info, args):
         if arg == "sep":
             continue
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
-    print("{}\nVARS:".format(args.sep))
-    print("Device: {}".format(agent.device))
-    print("Action Size: {}".format(agent.nA))
-    print("Processed state looks like: {}".format(agent.nS))
-    print('Number of agents:', len(env_info.agents))
-    print("Number of Episodes: {}".format(args.num_episodes))
+    print("{}\nVARS: ", args.sep)
+    print("Device: ", agent.device)
+    print("Action Size: ", agent.nA)
+    print("Processed state looks like: ", agent.nS)
+    print('Number of agents: ', len(env_info.agents))
+    print("Number of Episodes: ", args.num_episodes)
     print("{1}\n{0}\n{1}".format(agent.q, args.sep))
 
 
