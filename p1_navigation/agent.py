@@ -146,44 +146,21 @@ class ReplayBuffer:
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
         self.framestack = framestack
-        # if pixels:
-        #     self.phi = deque(maxlen=framestack)
-        #     self._initialize_stack(nS)
-        #self.phi = deque(maxlen=framestack)
 
     def _get_frame(self, state):
         state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1))
         return state[0,:,:].unsqueeze(0).to(self.device)
 
-
     def stack(self, state, done):
-        # if done:
-        #     self._initialize_stack(state, self.phi.maxlen)
         frame = self._get_frame(state)
         if done:
             self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
-        #state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1))
-
-        #Use below for grayscale images
-        # fit = T.Compose([T.ToPILImage(), T.Grayscale(),T.ToTensor()])
-        # frame = fit(state).to(self.device)
-
-        #Use below for analyzing red channel only (which should distinguish yellow bananas well)
-        #frame = t[0,:,:].unsqueeze(0).to(self.device)
-
         else:
             self.phi.append(frame)
         return
 
     def get_stack(self):
-        #t =  torch.cat(tuple(self.phi),dim=0)
         return torch.cat(tuple(self.phi),dim=0)
-
-    # def _initialize_stack(self, state, nS):
-    #     # while len(self.phi) < self.phi.maxlen:
-    #     #     self.phi.append(torch.zeros([1,nS[1], nS[2]]).to(self.device))
-    #     print("NS IN INITIALIZE_STACK:", nS)
-    #     self.phi = [self.stack(state, False) for i in range(nS)]
 
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
@@ -236,25 +213,15 @@ class QCNNetwork(nn.Module):
 
         self.fc1 = nn.Linear(fc_in, fc_hidden)
         self.fc2 = nn.Linear(fc_hidden, action_size)
-        #self.fcAlt = nn.Linear(fc_in, action_size)
         self.seed = torch.manual_seed(seed)
 
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
-        # x = F.relu(self.conv1(state))
-        # x = F.relu(self.conv2(x))
-        # x = F.relu(self.conv3(x))
-        #
-        # x = x.view(x.size(0), -1)
-        #
-        # x = F.relu(self.fc1(x))
-        # x = self.fc2(x)
         x = F.relu(self.bn1(self.conv1(state)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
-        # x = self.fcAlt(x)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
