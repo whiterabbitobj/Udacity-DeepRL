@@ -41,3 +41,8 @@ t = list(t)
 print(t)
 t[0] = 10
 print(t)
+
+
+"""
+python banana_deeprl.py --train --pixels --verbose --framework D2DQN -ed .9975 -em .05 -lr .001 -C 2000 -u 3 -buffer 6000 -num 1800
+"""

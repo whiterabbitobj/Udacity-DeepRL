@@ -69,7 +69,10 @@ class Agent():
         """
         if not self.train:
             return
-
+        # if self.t_step % self.update_every == 0:
+        #     self.buffer.add(state, action, reward, next_state)
+        #     if len(self.buffer) >= self.batchsize:
+        #         self.learn()
         #save the current SARS′  status in the replay buffer
         self.buffer.add(state, action, reward, next_state)
 

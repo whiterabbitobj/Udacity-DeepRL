@@ -18,6 +18,11 @@ from PIL import Image
 ## Interact with the environment
 ##########
 
+def process_frame(state):
+        state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
+        #return red channel & chop off top of frame
+        return state[0,:-40,:].unsqueeze(0).to(self.device) #[1,44,84]
+
 def load_environment(args):
     if args.pixels:
         unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
@@ -30,7 +35,10 @@ def load_environment(args):
     env_info = env.reset(train_mode=args.train)[brain_name]
     nA = brain.vector_action_space_size
     if args.pixels:
-        nS = list(env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape)
+        # nS = list(env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape)
+        # nS[0] = args.framestack
+        state = env_info.visual_observations[0]
+        nS = list(process_frame(state).shape)
         nS[0] = args.framestack
     else:
         nS = len(env_info.vector_observations[0])
@@ -178,7 +186,8 @@ def print_verbose_info(agent, env_info, args):
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
     print("{}\nVARS:".format(args.sep))
     print("Device: {}".format(agent.device))
-    print("Action Size: {}\nState Size: {}".format(agent.nA, agent.nS))
+    print("Action Size: {}".format(agent.nA))
+    print("Processed state looks like: {}".format(agent.nS))
     print('Number of agents:', len(env_info.agents))
     print("Number of Episodes: {}".format(args.num_episodes))
     print("{1}\n{0}\n{1}".format(agent.q, args.sep))
