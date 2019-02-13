@@ -40,7 +40,7 @@ class Agent():
         self.pixels = args.pixels
 
         #initialize REPLAY buffer
-        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS)
+        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
 
 
         #Initialize Q-Network
@@ -113,8 +113,8 @@ class Agent():
         #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
-        for param in self.q.parameters():
-            param.grad.data.clamp_(-1, 1)
+        # for param in self.q.parameters():
+        #     param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
     def update_epsilon(self):
@@ -140,29 +140,50 @@ class Agent():
 
 
 class ReplayBuffer:
-    def __init__(self, buffersize, batchsize, framestack, device, nS):
+    def __init__(self, buffersize, batchsize, framestack, device, nS, pixels):
         self.buffer = deque(maxlen=buffersize)
-        self.phi = deque(maxlen=framestack)
         self.batchsize = batchsize
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
+        self.framestack = framestack
+        # if pixels:
+        #     self.phi = deque(maxlen=framestack)
+        #     self._initialize_stack(nS)
+        #self.phi = deque(maxlen=framestack)
 
-        self._initialize_stack(nS)
-
-    def stack(self, state):
+    def _get_frame(self, state):
         state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1))
-        fit = T.Compose([T.ToPILImage(), T.Grayscale(),T.ToTensor()])
-        frame = fit(state).to(self.device)
-        self.phi.append(frame)
+        return state[0,:,:].unsqueeze(0).to(self.device)
+
+
+    def stack(self, state, done):
+        # if done:
+        #     self._initialize_stack(state, self.phi.maxlen)
+        frame = self._get_frame(state)
+        if done:
+            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
+        #state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1))
+
+        #Use below for grayscale images
+        # fit = T.Compose([T.ToPILImage(), T.Grayscale(),T.ToTensor()])
+        # frame = fit(state).to(self.device)
+
+        #Use below for analyzing red channel only (which should distinguish yellow bananas well)
+        #frame = t[0,:,:].unsqueeze(0).to(self.device)
+
+        else:
+            self.phi.append(frame)
         return
 
     def get_stack(self):
         #t =  torch.cat(tuple(self.phi),dim=0)
         return torch.cat(tuple(self.phi),dim=0)
 
-    def _initialize_stack(self, nS):
-        while len(self.phi) < self.phi.maxlen:
-            self.phi.append(torch.zeros([1,nS[1], nS[2]]).to(self.device))
+    # def _initialize_stack(self, state, nS):
+    #     # while len(self.phi) < self.phi.maxlen:
+    #     #     self.phi.append(torch.zeros([1,nS[1], nS[2]]).to(self.device))
+    #     print("NS IN INITIALIZE_STACK:", nS)
+    #     self.phi = [self.stack(state, False) for i in range(nS)]
 
     def add(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
@@ -174,7 +195,6 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
-
 
 
 
@@ -194,14 +214,20 @@ class QCNNetwork(nn.Module):
         super(QCNNetwork, self).__init__()
         chans, width, height = state
 
-        outs = [32, 64, 64]
-        kernels = [8, 4, 3]
-        strides = [4, 2, 1]
+        # outs = [32, 64, 64]
+        # kernels = [8, 4, 3]
+        # strides = [4, 2, 1]
+        outs = [128, 128, 128]
+        kernels = [5, 5, 5]
+        strides = [2, 2, 2]
         fc_hidden = 512
 
         self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
+        self.bn1 = nn.BatchNorm2d(outs[0])
         self.conv2 = nn.Conv2d(outs[0], outs[1], kernels[1], stride=strides[1])
+        self.bn2 = nn.BatchNorm2d(outs[1])
         self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
+        self.bn3 = nn.BatchNorm2d(outs[2])
 
         fc = np.array([width, height])
         for _, kernel, stride in zip(outs, kernels, strides):
@@ -210,20 +236,27 @@ class QCNNetwork(nn.Module):
 
         self.fc1 = nn.Linear(fc_in, fc_hidden)
         self.fc2 = nn.Linear(fc_hidden, action_size)
+        #self.fcAlt = nn.Linear(fc_in, action_size)
         self.seed = torch.manual_seed(seed)
 
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
-        x = F.relu(self.conv1(state))
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-
+        # x = F.relu(self.conv1(state))
+        # x = F.relu(self.conv2(x))
+        # x = F.relu(self.conv3(x))
+        #
+        # x = x.view(x.size(0), -1)
+        #
+        # x = F.relu(self.fc1(x))
+        # x = self.fc2(x)
+        x = F.relu(self.bn1(self.conv1(state)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
-
+        # x = self.fcAlt(x)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
-
         return x
 
 

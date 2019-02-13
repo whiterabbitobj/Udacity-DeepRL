@@ -29,8 +29,6 @@ def load_environment(args):
     brain = env.brains[brain_name]
     env_info = env.reset(train_mode=args.train)[brain_name]
     nA = brain.vector_action_space_size
-    #nS = env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape if args.pixels else len(env_info.vector_observations[0])
-    #nS = get_state(env_info, agent).shape if args.pixels else len(env_info.vector_observations[0])
     if args.pixels:
         nS = list(env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape)
         nS[0] = args.framestack
@@ -40,12 +38,10 @@ def load_environment(args):
 
 
 
-def get_state(env_info, agent):
+def get_state(env_info, agent, done):
     if agent.pixels:
         state = env_info.visual_observations[0]
-        agent.buffer.stack(state)
-        #state = agent.buffer.get_stack()
-        #state = torch.from_numpy(state).float().unsqueeze(0).to(args.device)
+        agent.buffer.stack(state, done)
         return agent.buffer.get_stack().unsqueeze(0)
     else:
         state = env_info.vector_observations[0]

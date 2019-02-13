@@ -69,7 +69,7 @@ def run_agent(env, agent, brain_name, args):
             env_info = env.reset(train_mode=args.train)[brain_name]
 
             # get the initial environment state
-            state = utils.get_state(env_info, agent)
+            state = utils.get_state(env_info, agent, True)
             while True:
                 #choose an action using current π
                 action = agent.act(state)
@@ -77,11 +77,11 @@ def run_agent(env, agent, brain_name, args):
                 env_info = env.step(action.item())[brain_name]
                 #collect info about new state
                 reward = env_info.rewards[0]
-                next_state = utils.get_state(env_info, agent)
                 done = env_info.local_done[0]
+                next_state = utils.get_state(env_info, agent, done)
+
 
                 # print("STATE: {}, NEXT_STATE: {}".format(state.shape, next_state.shape))
-                # print("STATE: {}, NEXT_STATE: {}".format(state, next_state))
 
                 #initiate next timestep
                 agent.step(state, action, torch.tensor([reward], device=args.device), next_state, done)
