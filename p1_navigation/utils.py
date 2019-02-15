@@ -49,8 +49,10 @@ def load_environment(args):
 def get_state(env_info, agent, done):
     if agent.pixels:
         state = env_info.visual_observations[0]
-        agent.buffer.stack(process_frame(state), done)
-        return agent.buffer.get_stack().unsqueeze(0)
+        #agent.buffer.stack(process_frame(state), done)
+        #return agent.buffer.get_stack().unsqueeze(0)
+        agent.memory.stack(process_frame(state), done)
+        return agent.memory.get_stack().unsqueeze(0)
     else:
         state = env_info.vector_observations[0]
         state =  torch.from_numpy(state).float().unsqueeze(0).to(agent.device)

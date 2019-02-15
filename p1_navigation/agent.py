@@ -41,7 +41,7 @@ class Agent():
 
         #initialize REPLAY buffer
         #self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
-        self.memory = Memory(self.buffersize, self.batchsize)
+        self.memory = Memory(self.buffersize, self.batchsize, self.framestack, self.device)
 
         #Initialize Q-Network
         self.q = self._make_model(args.pixels)
@@ -71,7 +71,7 @@ class Agent():
             return
 
         #self.buffer.add(state, action, reward, next_state)
-        self.memory.store((state, action, reward, next_state))
+        self.memory.store(state, action, reward, next_state)
 
         #if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
         if len(self.memory) >= self.batchsize and self.t_step % self.update_every == 0:
@@ -90,7 +90,7 @@ class Agent():
         #batch = self.buffer.sample()
         tree_idx, batch, ISWeights = self.memory.sample()
 
-
+        print("BATCH:", len(batch.state))
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
         reward_batch = torch.cat(batch.reward) #[64,1]
@@ -102,7 +102,7 @@ class Agent():
             #VANILLA DQN: get max predicted Q values for the next states from the target model
             qhat_next_values[non_final_mask] = self.qhat(next_states).detach().max(1)[0] #[64]
 
-        if self.framework == 'D2DQN':
+        if self.framework == 'DDQN':
             #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
             q_next_actions = torch.zeros(self.batchsize, device=self.device, dtype=torch.long) #[64]
             q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1) #[64]
@@ -110,15 +110,20 @@ class Agent():
 
         values = self.q(state_batch).gather(1, action_batch) #[64,1]
         expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
-
         #Huber Loss provides better results than MSE
-        loss = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
-        #backpropogate
-        self.optimizer.zero_grad()
-        loss.backward()
-        # for param in self.q.parameters():
-        #     param.grad.data.clamp_(-1, 1)
-        self.optimizer.step()
+        # δ (TD loss)
+        td_errors = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
+        print("VALUES: {}, EXPECTED: {}, TD_ERRORS: {}".format(values.shape, expected_values.unsqueeze(1).shape, td_errors.shape))
+
+        #print(td_errors, ISWeights)
+        # td_errors = ISWeights * td_errors
+        # self.memory.batch_update(tree_idx, td_errors.detach().numpy())
+        # #backpropogate
+        # self.optimizer.zero_grad()
+        # td_errors.backward()
+        # # for param in self.q.parameters():
+        # #     param.grad.data.clamp_(-1, 1)
+        # self.optimizer.step()
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
@@ -142,39 +147,6 @@ class Agent():
 
 
 
-class ReplayBuffer:
-    def __init__(self, buffersize, batchsize, framestack, device, nS, pixels):
-        self.buffer = deque(maxlen=buffersize)
-        self.batchsize = batchsize
-        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
-        self.device = device
-        self.framestack = framestack
-
-    # def _get_frame(self, state):
-    #     state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
-    #     return state[0,:,:].unsqueeze(0).to(self.device)
-
-    def stack(self, frame, done):
-        #frame = self._get_frame(state)
-        if done:
-            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
-        else:
-            self.phi.append(frame)
-        return
-
-    def get_stack(self):
-        return torch.cat(tuple(self.phi),dim=0).to(self.device)
-
-    def add(self, state, action, reward, next_state):
-        t = self.memory(state, action, reward, next_state)
-        self.buffer.append(t)
-
-    def sample(self):
-        batch = random.sample(self.buffer, k=self.batchsize)
-        return  self.memory(*zip(*batch))
-
-    def __len__(self):
-        return len(self.buffer)
 
 
 
@@ -268,6 +240,39 @@ class QNetwork(nn.Module):
         return self.output(x)
 
 
+class ReplayBuffer:
+    def __init__(self, buffersize, batchsize, framestack, device, nS, pixels):
+        self.buffer = deque(maxlen=buffersize)
+        self.batchsize = batchsize
+        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
+        self.device = device
+        self.framestack = framestack
+
+    # def _get_frame(self, state):
+    #     state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
+    #     return state[0,:,:].unsqueeze(0).to(self.device)
+
+    def stack(self, frame, done):
+        #frame = self._get_frame(state)
+        if done:
+            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
+        else:
+            self.phi.append(frame)
+        return
+
+    def get_stack(self):
+        return torch.cat(tuple(self.phi),dim=0).to(self.device)
+
+    def add(self, state, action, reward, next_state):
+        t = self.memory(state, action, reward, next_state)
+        self.buffer.append(t)
+
+    def sample(self):
+        batch = random.sample(self.buffer, k=self.batchsize)
+        return  self.memory(*zip(*batch))
+
+    def __len__(self):
+        return len(self.buffer)
 
 class SumTree(object):
     """
@@ -372,9 +377,25 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
     absolute_error_upper = 1.0  # clipped abs error
 
-    def __init__(self, capacity, batchsize):
+    def __init__(self, capacity, batchsize, framestack, device):
         self.tree = SumTree(capacity) # Making the tree
         self.batchsize = batchsize
+        self.framestack = framestack
+        self.device = device
+        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
+
+
+    def stack(self, frame, done):
+        #frame = self._get_frame(state)
+        if done:
+            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
+        else:
+            self.phi.append(frame)
+        return
+
+    def get_stack(self):
+        return torch.cat(tuple(self.phi),dim=0).to(self.device)
+
 
     def _leaf_values(self):
         """
@@ -382,14 +403,14 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         """
         return self.tree.tree[self.tree.branches:]
 
-    def store(self, experience):
+    def store(self, state, action, reward, next_state):
         """
         Store a new experience in our tree
         Each new experience have a score of max_prority (it will be then improved when we use this exp to train our DDQN)
         """
         # Find the max priority
         max_priority = np.max(self._leaf_values())
-
+        experience = self.memory(state, action, reward, next_state)
         # If the max priority = 0 we can't put priority = 0 since this exp will never have a chance to be selected
         # So we use a minimum priority
         if max_priority == 0:
@@ -420,8 +441,11 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.beta = np.min([self.beta + self.beta_incremement, 1.0])  # max = 1
 
         # Calculating the max_weight
-        p_min = np.min(self._leaf_values()) / self.tree.total_priority
+        #p_min = np.min(self._leaf_values()) / self.tree.total_priority
+        p_min = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_priority
+        print(self._leaf_values(), self._leaf_values().shape)
         max_weight = np.power(n * p_min, -self.beta)
+
 
         for i in range(n):
             """
@@ -443,23 +467,23 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
             indexes[i]= index
 
-            experience = [data]
+            #experience = [data]
 
-            memory_batch.append(experience)
-
-        return indexes, memory_batch, ISWeights
+            # memory_batch.append(experience)
+            memory_batch.append(data)
+        return indexes, self.memory(*zip(*memory_batch)), torch.from_numpy(ISWeights)
 
     """
     Update the priorities on the tree
     """
-    def batch_update(self, tree_idx, abs_errors):
+    def batch_update(self, tree_idx, td_errors):
         #error should be provided to this function as ABS()
-        abs_errors += self.priority_epsilon  # Add small epsilon to error to avoid ~0 probability
-        clipped_errors = np.minimum(abs_errors, self.absolute_error_upper) # No error should be weight more than a pre-set maximum value
-        ps = np.power(clipped_errors, self.alpha) # Raise the TD-error to power of Alpha to tune between fully weighted or fully random
+        td_errors += self.priority_epsilon  # Add small epsilon to error to avoid ~0 probability
+        clipped_errors = np.minimum(td_errors, self.absolute_error_upper) # No error should be weight more than a pre-set maximum value
+        priorities = np.power(clipped_errors, self.alpha) # Raise the TD-error to power of Alpha to tune between fully weighted or fully random
 
-        for idx, p in zip(tree_idx, ps):
-            self.tree.update(idx, p)
+        for idx, priority in zip(tree_idx, priorities):
+            self.tree.update(idx, priority)
 
     def __len__(self):
         return self.tree.tree_size
