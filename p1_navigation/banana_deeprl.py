@@ -8,7 +8,12 @@ from agent import Agent
 import utils
 from get_args import get_args
 
-
+#
+#
+#TO-DO LIST:
+#-check into implementing frame skipping for speedup and training fidelity
+#
+#
 
 def main():
     """

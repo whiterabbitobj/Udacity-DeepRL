@@ -40,8 +40,8 @@ class Agent():
         self.pixels = args.pixels
 
         #initialize REPLAY buffer
-        self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
-
+        #self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
+        self.memory = Memory(self.buffersize, self.batchsize)
 
         #Initialize Q-Network
         self.q = self._make_model(args.pixels)
@@ -69,14 +69,12 @@ class Agent():
         """
         if not self.train:
             return
-        # if self.t_step % self.update_every == 0:
-        #     self.buffer.add(state, action, reward, next_state)
-        #     if len(self.buffer) >= self.batchsize:
-        #         self.learn()
-        #save the current SARS′  status in the replay buffer
-        self.buffer.add(state, action, reward, next_state)
 
-        if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
+        #self.buffer.add(state, action, reward, next_state)
+        self.memory.store((state, action, reward, next_state))
+
+        #if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
+        if len(self.memory) >= self.batchsize and self.t_step % self.update_every == 0:
             self.learn()
         #update the target network every C steps
         if self.t_step % self.C == 0:
@@ -89,7 +87,9 @@ class Agent():
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
-        batch = self.buffer.sample()
+        #batch = self.buffer.sample()
+        tree_idx, batch, ISWeights = self.memory.sample()
+
 
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
@@ -266,3 +266,200 @@ class QNetwork(nn.Module):
             x = F.relu(layer(x))
             x = self.dropout(x)
         return self.output(x)
+
+
+
+class SumTree(object):
+    """
+    This SumTree implementation is a heavily modified version of code from
+    Thomas Simonini: https://tinyurl.com/y3y6n2zc
+    """
+
+    data_pointer = 0
+
+    """
+    Here we initialize the tree with all nodes = 0, and initialize the data with all values = 0
+    The TREE array (binary tree) holds the priority values
+    The DATA array holds the replay memories
+    """
+    def __init__(self, capacity):
+        self.capacity = capacity # Number of memories to store
+        self.branches = capacity - 1 # Branches above the leafs that store sums
+        self.tree_size = self.capacity + self.branches # Total tree size
+        self.tree = np.zeros(self.tree_size) # Create SumTree array
+        self.data = np.zeros(capacity, dtype=object)  # Create array to hold memories corresponding to SumTree leaves
+
+
+
+    def add(self, priority, data):
+        """
+        Add the memory in DATA
+        Add priority score in the TREE leaf
+        """
+        idx = self.data_pointer % self.capacity
+        self.data[idx] = data # Update data frame
+        tree_index = idx + self.branches # Update the leaf
+        self.update(tree_index, priority) # Indexes are added sequentially
+        # Incremement
+        self.data_pointer += 1
+
+    """
+    Update the leaf priority score and propagate the change through tree
+    """
+    def update(self, tree_index, new_priority):
+        # Change = new priority score - former priority score
+        change = new_priority - self.tree[tree_index]
+        self.tree[tree_index] = new_priority
+        # then propagate the change through tree
+        while tree_index != 0:
+            tree_index = (tree_index - 1) // 2
+            self.tree[tree_index] += change
+
+
+    """
+    Here we get the leaf_index, priority value of that leaf and experience associated with that index
+    """
+    def get_leaf(self, v):
+        """
+        Tree structure and array storage:
+        Tree index:
+             0         -> storing priority sum
+            / \
+          1     2
+         / \   / \
+        3   4 5   6    -> storing priority for experiences
+        Array type for storing:
+        [0,1,2,3,4,5,6]
+        """
+        parent_index = 0
+
+        while True:
+            left_child_index = 2 * parent_index + 1
+            right_child_index = left_child_index + 1
+
+            # If we reach bottom, end the search
+            if left_child_index >= self.tree_size:
+                leaf_index = parent_index
+                break
+
+            else: # downward search, always search for a higher priority node
+
+                if v <= self.tree[left_child_index]:
+                    parent_index = left_child_index
+
+                else:
+                    v -= self.tree[left_child_index]
+                    parent_index = right_child_index
+
+        data_index = leaf_index - self.capacity + 1
+
+        return leaf_index, self.tree[leaf_index], self.data[data_index]
+
+    @property
+    def total_priority(self):
+        return self.tree[0] # Returns the root node
+
+class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
+    """
+    This SumTree implementation is a heavily modified version of code from
+    Thomas Simonini: https://tinyurl.com/y3y6n2zc
+    """
+    priority_epsilon = 0.01  # Ensure no experiences end up with a 0-prob of being sampled
+    alpha = 0.6  # Controls likelihood of using high priority or random samples
+    beta = 0.4  # For adjusting the IS weights, beta anneals to 1
+
+    beta_incremement = 0.001
+
+    absolute_error_upper = 1.0  # clipped abs error
+
+    def __init__(self, capacity, batchsize):
+        self.tree = SumTree(capacity) # Making the tree
+        self.batchsize = batchsize
+
+    def _leaf_values(self):
+        """
+        Return the values of all the leaves in the SumTree
+        """
+        return self.tree.tree[self.tree.branches:]
+
+    def store(self, experience):
+        """
+        Store a new experience in our tree
+        Each new experience have a score of max_prority (it will be then improved when we use this exp to train our DDQN)
+        """
+        # Find the max priority
+        max_priority = np.max(self._leaf_values())
+
+        # If the max priority = 0 we can't put priority = 0 since this exp will never have a chance to be selected
+        # So we use a minimum priority
+        if max_priority == 0:
+            max_priority = self.absolute_error_upper
+
+        self.tree.add(max_priority, experience)   # set the max p for new p
+
+
+    """
+    - First, to sample a minibatch of k size, the range [0, priority_total] is / into k ranges.
+    - Then a value is uniformly sampled from each range
+    - We search in the sumtree, the experience where priority score correspond to sample values are retrieved from.
+    - Then, we calculate IS weights for each minibatch element
+    """
+    def sample(self):
+        n = self.batchsize
+        # Create a sample array that will contains the minibatch
+        memory_batch = []
+
+        indexes = np.empty((n,), dtype=np.int32)
+        ISWeights = np.empty((n, 1), dtype=np.float32)
+
+        # Calculate the size of each segment of the replay memory,
+        # based the magnitude of total priority divided into equal segments
+        segment_size = self.tree.total_priority / n
+
+        # Here we increasing the beta each time we sample a new minibatch
+        self.beta = np.min([self.beta + self.beta_incremement, 1.0])  # max = 1
+
+        # Calculating the max_weight
+        p_min = np.min(self._leaf_values()) / self.tree.total_priority
+        max_weight = np.power(n * p_min, -self.beta)
+
+        for i in range(n):
+            """
+            A value is uniformly sample from each range
+            """
+            low, high = segment_size * i, segment_size * (i + 1)
+            value = np.random.uniform(low, high) #sample a value from the segment
+
+            """
+            Experience that correspond to each value is retrieved
+            """
+            index, priority, data = self.tree.get_leaf(value)
+
+            #P(j)
+            p = priority / self.tree.total_priority
+
+            #  IS = (N*P(i))**-b  /max wi
+            ISWeights[i, 0] = np.power(n * p, -self.beta) / max_weight
+
+            indexes[i]= index
+
+            experience = [data]
+
+            memory_batch.append(experience)
+
+        return indexes, memory_batch, ISWeights
+
+    """
+    Update the priorities on the tree
+    """
+    def batch_update(self, tree_idx, abs_errors):
+        #error should be provided to this function as ABS()
+        abs_errors += self.priority_epsilon  # Add small epsilon to error to avoid ~0 probability
+        clipped_errors = np.minimum(abs_errors, self.absolute_error_upper) # No error should be weight more than a pre-set maximum value
+        ps = np.power(clipped_errors, self.alpha) # Raise the TD-error to power of Alpha to tune between fully weighted or fully random
+
+        for idx, p in zip(tree_idx, ps):
+            self.tree.update(idx, p)
+
+    def __len__(self):
+        return self.tree.tree_size
