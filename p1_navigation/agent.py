@@ -113,6 +113,8 @@ class Agent():
 
         #Huber Loss provides better results than MSE
         loss = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
+        #print("VALUES: {}, EXPECTED: {}, TD_ERRORS: {}".format(values.shape, expected_values.unsqueeze(1).shape, loss.shape))
+
         #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
