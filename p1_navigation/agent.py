@@ -38,6 +38,7 @@ class Agent():
         self.PER = args.prioritized_replay
         self.train = args.train
         self.pixels = args.pixels
+        self.criterion = WeightedLoss()
 
         #initialize REPLAY buffer
         #self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
@@ -90,7 +91,7 @@ class Agent():
         #batch = self.buffer.sample()
         tree_idx, batch, ISWeights = self.memory.sample()
 
-        print("BATCH:", len(batch.state))
+        #print("BATCH:", len(batch.state))
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
         reward_batch = torch.cat(batch.reward) #[64,1]
@@ -108,22 +109,30 @@ class Agent():
             q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1) #[64]
             qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1) #[64]
 
-        values = self.q(state_batch).gather(1, action_batch) #[64,1]
-        expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
+        values = self.q(state_batch).gather(1, action_batch)#.detach() #[64,1]
+        expected_values = reward_batch + (self.gamma * qhat_next_values)#.detach() #[64]
+        expected_values = expected_values.unsqueeze(1)
+        #print(values.shape, expected_values.shape)
         #Huber Loss provides better results than MSE
-        # δ (TD loss)
-        td_errors = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
-        print("VALUES: {}, EXPECTED: {}, TD_ERRORS: {}".format(values.shape, expected_values.unsqueeze(1).shape, td_errors.shape))
+        #td_errors = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
 
-        #print(td_errors, ISWeights)
-        # td_errors = ISWeights * td_errors
-        # self.memory.batch_update(tree_idx, td_errors.detach().numpy())
-        # #backpropogate
-        # self.optimizer.zero_grad()
-        # td_errors.backward()
-        # # for param in self.q.parameters():
-        # #     param.grad.data.clamp_(-1, 1)
-        # self.optimizer.step()
+        #Compute Huber Loss manually to utilize ISWeights
+        # td_loss, td_errors = self._weighted_huber_loss(values, expected_values.unsqueeze(1), ISWeights)
+        #print("VALUES GRAD: {} EVALUES GRAD: {}".format(values.requires_grad, expected_values.requires_grad))
+
+        #criterion = WeightedLoss()
+        weighted_loss, td_errors = self.criterion.huber(values, expected_values, ISWeights)
+        #print("TDLOSS GRAD:", weighted_loss.requires_grad)
+        #print("weighted loss: {}, td errors: {}".format(weighted_loss, td_errors))
+
+
+        self.memory.batch_update(tree_idx, td_errors)
+        #backpropogate
+        self.optimizer.zero_grad()
+        weighted_loss.backward()
+        # for param in self.q.parameters():
+        #     param.grad.data.clamp_(-1, 1)
+        self.optimizer.step()
 
     def update_epsilon(self):
         self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
@@ -145,7 +154,19 @@ class Agent():
             return QNetwork(self.nS, self.nA, self.seed, self.dropout).to(self.device)
 
 
-
+class WeightedLoss(nn.Module):
+    def __init__(self):
+        super(WeightedLoss, self).__init__()
+    def huber(self, values, targets, weights):
+        # errors = (values - targets).abs()
+        # loss = [0.5 * (x ** 2) if x < 1 else x - 0.5 for x in errors]
+        # loss = torch.tensor(loss) * weights
+        # return loss.mean(), errors.detach().cpu().numpy()
+        errors = torch.abs(values - targets)
+        loss = (errors<1).float()*(errors**2) + (errors>=1).float()*(errors - 0.5)
+        weighted_loss = weights * loss
+        weighted_loss = weighted_loss.sum()
+        return weighted_loss, errors.detach().cpu().numpy()
 
 
 
@@ -185,7 +206,6 @@ class QCNNetwork(nn.Module):
         for _, kernel, stride in zip(outs, kernels, strides):
             fc = (fc - (kernel - 1) - 1) // stride  + 1
         fc_in = outs[-1] * fc[0] * fc[1]
-        print("FC_IN: ", fc_in)
         self.fc1 = nn.Linear(fc_in, fc_hidden)
         self.fc2 = nn.Linear(fc_hidden, action_size)
         self.seed = torch.manual_seed(seed)
@@ -435,6 +455,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
         # Calculate the size of each segment of the replay memory,
         # based the magnitude of total priority divided into equal segments
+        print(self.tree.total_priority)
         segment_size = self.tree.total_priority / n
 
         # Here we increasing the beta each time we sample a new minibatch
@@ -443,7 +464,7 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
         # Calculating the max_weight
         #p_min = np.min(self._leaf_values()) / self.tree.total_priority
         p_min = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_priority
-        print(self._leaf_values(), self._leaf_values().shape)
+        #print(self._leaf_values(), self._leaf_values().shape)
         max_weight = np.power(n * p_min, -self.beta)
 
 
@@ -471,7 +492,8 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
             # memory_batch.append(experience)
             memory_batch.append(data)
-        return indexes, self.memory(*zip(*memory_batch)), torch.from_numpy(ISWeights)
+        #print(memory_batch)
+        return indexes, self.memory(*zip(*memory_batch)), torch.from_numpy(ISWeights).to(self.device)
 
     """
     Update the priorities on the tree

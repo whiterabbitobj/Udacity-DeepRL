@@ -10,10 +10,6 @@ from get_args import get_args
 from PIL import Image
 import torchvision.transforms as T
 
-x = np.min([3, 1])
-print(x)
-
-
-a = [0,1,2,3,4,5,6,7,8]
-print(a[-5:])
-print(a[4:])
+e = 1, 1, 2, 3, 5, 8, 13
+print(e)
+print(type(e))

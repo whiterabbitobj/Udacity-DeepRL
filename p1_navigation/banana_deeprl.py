@@ -12,7 +12,7 @@ from get_args import get_args
 #
 #TO-DO LIST:
 #-check into implementing frame skipping for speedup and training fidelity
-#
+#-make sure that sumtree is initialized properly and not full of 0 priorities
 #
 
 def main():
@@ -58,7 +58,7 @@ def main():
 
     env.close() #close the environment
 
-    utils.report_results(scores, start_time) #report results
+    #utils.report_results(scores, start_time) #report results
 
     return
 
