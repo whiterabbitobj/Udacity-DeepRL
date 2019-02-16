@@ -70,7 +70,7 @@ class Agent():
         """
         if not self.train:
             return
-
+        #print(state.shape, action.shape, reward, next_state.shape)
         #self.buffer.add(state, action, reward, next_state)
         self.memory.store(state, action, reward, next_state)
 
@@ -91,7 +91,6 @@ class Agent():
         #batch = self.buffer.sample()
         tree_idx, batch, ISWeights = self.memory.sample()
 
-        #print("BATCH:", len(batch.state))
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
         reward_batch = torch.cat(batch.reward) #[64,1]
@@ -112,19 +111,12 @@ class Agent():
         values = self.q(state_batch).gather(1, action_batch)#.detach() #[64,1]
         expected_values = reward_batch + (self.gamma * qhat_next_values)#.detach() #[64]
         expected_values = expected_values.unsqueeze(1)
-        #print(values.shape, expected_values.shape)
+
         #Huber Loss provides better results than MSE
         #td_errors = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
 
         #Compute Huber Loss manually to utilize ISWeights
-        # td_loss, td_errors = self._weighted_huber_loss(values, expected_values.unsqueeze(1), ISWeights)
-        #print("VALUES GRAD: {} EVALUES GRAD: {}".format(values.requires_grad, expected_values.requires_grad))
-
-        #criterion = WeightedLoss()
         weighted_loss, td_errors = self.criterion.huber(values, expected_values, ISWeights)
-        #print("TDLOSS GRAD:", weighted_loss.requires_grad)
-        #print("weighted loss: {}, td errors: {}".format(weighted_loss, td_errors))
-
 
         self.memory.batch_update(tree_idx, td_errors)
         #backpropogate
@@ -455,15 +447,15 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
         # Calculate the size of each segment of the replay memory,
         # based the magnitude of total priority divided into equal segments
-        print(self.tree.total_priority)
+        #print(self.tree.total_priority)
         segment_size = self.tree.total_priority / n
 
         # Here we increasing the beta each time we sample a new minibatch
         self.beta = np.min([self.beta + self.beta_incremement, 1.0])  # max = 1
 
         # Calculating the max_weight
-        #p_min = np.min(self._leaf_values()) / self.tree.total_priority
-        p_min = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_priority
+        p_min = np.min(self._leaf_values()) / self.tree.total_priority
+        #p_min = np.min(self.tree.tree[-self.tree.capacity:]) / self.tree.total_priority
         #print(self._leaf_values(), self._leaf_values().shape)
         max_weight = np.power(n * p_min, -self.beta)
 
@@ -489,10 +481,8 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
             indexes[i]= index
 
             #experience = [data]
-
             # memory_batch.append(experience)
             memory_batch.append(data)
-        #print(memory_batch)
         return indexes, self.memory(*zip(*memory_batch)), torch.from_numpy(ISWeights).to(self.device)
 
     """
