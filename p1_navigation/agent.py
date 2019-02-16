@@ -73,7 +73,7 @@ class Agent():
         """
         if not self.train:
             return
-        reward = torch.tensor([reward], device=args.device)
+        reward = torch.tensor([reward], device=self.device)
         self.memory.store(state, action, reward, next_state)
 
         if len(self.memory) >= self.batchsize and self.t_step % self.update_every == 0:
@@ -256,6 +256,7 @@ class ReplayBuffer:
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
         self.framestack = framestack
+        print("Using standard stochastic Replay memory buffer.")
 
     def store(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
@@ -268,96 +269,6 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
-class SumTree(object):
-    """
-    This SumTree implementation is a heavily modified version of code from
-    Thomas Simonini: https://tinyurl.com/y3y6n2zc
-    """
-
-    data_pointer = 0
-
-    """
-    Here we initialize the tree with all nodes = 0, and initialize the data with all values = 0
-    The TREE array (binary tree) holds the priority values
-    The DATA array holds the replay memories
-    """
-    def __init__(self, capacity):
-        self.capacity = capacity # Number of memories to store
-        self.branches = capacity - 1 # Branches above the leafs that store sums
-        self.tree_size = self.capacity + self.branches # Total tree size
-        self.tree = np.zeros(self.tree_size) # Create SumTree array
-        self.data = np.zeros(capacity, dtype=object)  # Create array to hold memories corresponding to SumTree leaves
-
-
-
-    def add(self, priority, data):
-        """
-        Add the memory in DATA
-        Add priority score in the TREE leaf
-        """
-        idx = self.data_pointer % self.capacity
-        self.data[idx] = data # Update data frame
-        tree_index = idx + self.branches # Update the leaf
-        self.update(tree_index, priority) # Indexes are added sequentially
-        # Incremement
-        self.data_pointer += 1
-
-    """
-    Update the leaf priority score and propagate the change through tree
-    """
-    def update(self, tree_index, new_priority):
-        # Change = new priority score - former priority score
-        change = new_priority - self.tree[tree_index]
-        self.tree[tree_index] = new_priority
-        # then propagate the change through tree
-        while tree_index != 0:
-            tree_index = (tree_index - 1) // 2
-            self.tree[tree_index] += change
-
-
-    """
-    Here we get the leaf_index, priority value of that leaf and experience associated with that index
-    """
-    def get_leaf(self, v):
-        """
-        Tree structure and array storage:
-        Tree index:
-             0         -> storing priority sum
-            / \
-          1     2
-         / \   / \
-        3   4 5   6    -> storing priority for experiences
-        Array type for storing:
-        [0,1,2,3,4,5,6]
-        """
-        parent_index = 0
-
-        while True:
-            left_child_index = 2 * parent_index + 1
-            right_child_index = left_child_index + 1
-
-            # If we reach bottom, end the search
-            if left_child_index >= self.tree_size:
-                leaf_index = parent_index
-                break
-
-            else: # downward search, always search for a higher priority node
-
-                if v <= self.tree[left_child_index]:
-                    parent_index = left_child_index
-
-                else:
-                    v -= self.tree[left_child_index]
-                    parent_index = right_child_index
-
-        data_index = leaf_index - self.capacity + 1
-
-        return leaf_index, self.tree[leaf_index], self.data[data_index]
-
-    @property
-    def total_priority(self):
-        return self.tree[0] # Returns the root node
-
 
 
 class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
@@ -366,8 +277,8 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
     Thomas Simonini: https://tinyurl.com/y3y6n2zc
     """
     priority_epsilon = 0.01  # Ensure no experiences end up with a 0-prob of being sampled
-    alpha = 0.6  # Controls likelihood of using high priority or random samples
-    beta = 0.4  # For adjusting the IS weights, beta anneals to 1
+    #alpha = 0.6  # Controls likelihood of using high priority or random samples
+    #beta = 0.4  # For adjusting the IS weights, beta anneals to 1
 
     beta_incremement = 0.001
 
@@ -381,6 +292,7 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.alpha = alpha
         self.beta = beta
+        print("Using Priorized Experience Replay memory buffer.")
 
     def _leaf_values(self):
         """
@@ -471,3 +383,95 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
 
     def __len__(self):
         return self.tree.tree_size
+
+
+
+class SumTree(object):
+    """
+    This SumTree implementation is a heavily modified version of code from
+    Thomas Simonini: https://tinyurl.com/y3y6n2zc
+    """
+
+    data_pointer = 0
+
+    """
+    Here we initialize the tree with all nodes = 0, and initialize the data with all values = 0
+    The TREE array (binary tree) holds the priority values
+    The DATA array holds the replay memories
+    """
+    def __init__(self, capacity):
+        self.capacity = capacity # Number of memories to store
+        self.branches = capacity - 1 # Branches above the leafs that store sums
+        self.tree_size = self.capacity + self.branches # Total tree size
+        self.tree = np.zeros(self.tree_size) # Create SumTree array
+        self.data = np.zeros(capacity, dtype=object)  # Create array to hold memories corresponding to SumTree leaves
+
+
+
+    def add(self, priority, data):
+        """
+        Add the memory in DATA
+        Add priority score in the TREE leaf
+        """
+        idx = self.data_pointer % self.capacity
+        self.data[idx] = data # Update data frame
+        tree_index = idx + self.branches # Update the leaf
+        self.update(tree_index, priority) # Indexes are added sequentially
+        # Incremement
+        self.data_pointer += 1
+
+    """
+    Update the leaf priority score and propagate the change through tree
+    """
+    def update(self, tree_index, new_priority):
+        # Change = new priority score - former priority score
+        change = new_priority - self.tree[tree_index]
+        self.tree[tree_index] = new_priority
+        # then propagate the change through tree
+        while tree_index != 0:
+            tree_index = (tree_index - 1) // 2
+            self.tree[tree_index] += change
+
+
+    """
+    Here we get the leaf_index, priority value of that leaf and experience associated with that index
+    """
+    def get_leaf(self, v):
+        """
+        Tree structure and array storage:
+        Tree index:
+             0         -> storing priority sum
+            / \
+          1     2
+         / \   / \
+        3   4 5   6    -> storing priority for experiences
+        Array type for storing:
+        [0,1,2,3,4,5,6]
+        """
+        parent_index = 0
+
+        while True:
+            left_child_index = 2 * parent_index + 1
+            right_child_index = left_child_index + 1
+
+            # If we reach bottom, end the search
+            if left_child_index >= self.tree_size:
+                leaf_index = parent_index
+                break
+
+            else: # downward search, always search for a higher priority node
+
+                if v <= self.tree[left_child_index]:
+                    parent_index = left_child_index
+
+                else:
+                    v -= self.tree[left_child_index]
+                    parent_index = right_child_index
+
+        data_index = leaf_index - self.capacity + 1
+
+        return leaf_index, self.tree[leaf_index], self.data[data_index]
+
+    @property
+    def total_priority(self):
+        return self.tree[0] # Returns the root node

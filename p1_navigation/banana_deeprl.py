@@ -6,7 +6,7 @@ import progressbar
 # from unityagents import UnityEnvironment
 from agent import Agent
 #import utils
-from utils import load_environment, load_checkpoint, print_verbose_info, report_results, get_state, print_status, save_checkpoint
+#from utils import load_environment, load_checkpoint, print_verbose_info, report_results, get_state, print_status, save_checkpoint
 from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
 
 from get_args import get_args
@@ -46,10 +46,6 @@ def main():
         if filepath == None:
             return
 
-    #initialize the environment
-    # frame_buffer = Preprocess()
-    # env, env_info, brain_name, nA, state_size = load_environment(args, frame_buffer)
-
     env = Environment(args)
 
     if args.train:
@@ -58,9 +54,8 @@ def main():
     else:
         agent = load_checkpoint(filepath, args)
 
-    #print_verbose_info(agent, env_info, args) #print extra info if flagged
+    print_verbose_info(agent, args) #print extra info if flagged
 
-    #scores = run_agent(env, agent, brain_name, args, frame_buffer) #run the agent
     scores = run_agent(agent, env, args) #run the agent
 
     env.close() #close the environment
