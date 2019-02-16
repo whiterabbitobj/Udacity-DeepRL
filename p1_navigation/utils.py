@@ -18,39 +18,41 @@ from PIL import Image
 ## Interact with the environment
 ##########
 
-def process_frame(state):
-        state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
-        #return red channel & chop off top of frame
-        return state[0,:-40,:].unsqueeze(0) #[1,44,84]
+# def process_frame(state):
+#     #state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
+#     state = state.squeeze(0).transpose(2,0,1)
+#     #return red channel & crop frame
+#     state = state[0,5:-40,5:-5]
+#     state = np.ascontiguousarray(state, dtype=np.float32)
+#     state = torch.from_numpy(state).unsqueeze(0)
+#     return state
+#     #return state[0,5:-40,5:-5].unsqueeze(0) #[1,39,74] crop image to save calculation time
 
-def load_environment(args):
+
+
+def load_environment(args, frame_buffer):
     if args.pixels:
         unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
     else:
         unity_filename = "Banana_Windows_x86_64/Banana.exe"
-
     env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
     env_info = env.reset(train_mode=args.train)[brain_name]
     nA = brain.vector_action_space_size
     if args.pixels:
-        # nS = list(env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape)
-        # nS[0] = args.framestack
         state = env_info.visual_observations[0]
-        nS = list(process_frame(state).shape)
-        nS[0] = args.framestack
+        state_size = list(frame_buffer.process_frame(state).shape)
+        state_size[0] = args.framestack
     else:
-        nS = len(env_info.vector_observations[0])
-    return env, env_info, brain_name, nA, nS
+        state_size = len(env_info.vector_observations[0])
+    return env, env_info, brain_name, nA, state_size
 
 
 
 def get_state(env_info, agent, done):
     if agent.pixels:
         state = env_info.visual_observations[0]
-        #agent.buffer.stack(process_frame(state), done)
-        #return agent.buffer.get_stack().unsqueeze(0)
         agent.memory.stack(process_frame(state), done)
         return agent.memory.get_stack().unsqueeze(0)
     else:
@@ -176,17 +178,16 @@ def report_results(scores, start_time):
 
 def print_verbose_info(agent, env_info, args):
     """
-    Prints extra data if --debug flag is set.
+    Prints extra data if --verbose flag is set.
     """
     if not args.verbose:
         return
 
-    print("{}\nARGS:".format(args.sep))
+    print("ARGS:\n", "-"*5)
     for arg in vars(args):
-        if arg == "sep":
-            continue
+        if arg == "sep": continue
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
-    print("{}\nVARS: ", args.sep)
+    print(args.sep, "\nVARS:\n", "-"*5)
     print("Device: ", agent.device)
     print("Action Size: ", agent.nA)
     print("Processed state looks like: ", agent.nS)

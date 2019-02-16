@@ -10,13 +10,17 @@ def get_args():
             help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
             type=str,
             default="DDQN")
-    parser.add_argument("-per", "--prioritized_replay",
-            help="Use Prioritized Experience Replay. This is independent of Agent type.",
+    parser.add_argument("-no_per", "--no_prioritized_replay",
+            help="Use standard Replay Buffer instead of Prioritized Experience Replay.",
             action="store_true")
     parser.add_argument("-a", "--alpha",
             help="Alpha parameter of the Prioritized Experience Replay.",
             type=float,
-            default=0.4)
+            default=0.6)
+    parser.add_argument("-b", "--beta",
+            help="Beta parameter of the Prioritized Experience Replay.",
+            type=float,
+            default=0.4)            
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
             type=int,

@@ -11,11 +11,11 @@ import torchvision.transforms as T
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
 
-    def __init__(self, nA, nS, args, seed=0):
+    def __init__(self, nA, state_size, args, seed=0):
         #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
-        self.nS = nS
+        self.nS = state_size
         self.nA = nA
         self.seed = 0#random.seed(seed)
         self.framestack = args.framestack
@@ -35,14 +35,16 @@ class Agent():
         self.lr = args.learn_rate
         self.update_every = args.update_every
         self.momentum = args.momentum
-        self.PER = args.prioritized_replay
+        self.no_per = args.no_prioritized_replay
         self.train = args.train
         self.pixels = args.pixels
         self.criterion = WeightedLoss()
 
         #initialize REPLAY buffer
-        #self.buffer = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
-        self.memory = Memory(self.buffersize, self.batchsize, self.framestack, self.device)
+        if self.no_per:
+            self.memory = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
+        else:
+            self.memory = PERBuffer(self.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
 
         #Initialize Q-Network
         self.q = self._make_model(args.pixels)
@@ -139,10 +141,8 @@ class Agent():
 
     def _make_model(self, use_cnn):
         if use_cnn:
-            print("Using Pixel-based training.")
             return QCNNetwork(self.nS, self.nA, self.seed).to(self.device)
         else:
-            print("Using state data provided by the engine for training.")
             return QNetwork(self.nS, self.nA, self.seed, self.dropout).to(self.device)
 
 
@@ -162,7 +162,6 @@ class WeightedLoss(nn.Module):
 
 
 
-
 class QCNNetwork(nn.Module):
     """Deep Q-Network CNN Model for use with learning from pixel data.
        Nonlinear estimator for Qπ
@@ -172,20 +171,19 @@ class QCNNetwork(nn.Module):
         """Initialize parameters and build model.
         Params
         ======
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
+            state (tensor): Dimension of each state
+            action_size (int): Number of possible actions returned from network
             seed (int): Random seed
         """
         super(QCNNetwork, self).__init__()
         chans, width, height = state
-        print("Processing state stack of size: ", state)
-        # outs = [32, 64, 64]
-        # kernels = [8, 4, 3]
-        # strides = [4, 2, 1]
-        outs = [128, 128, 128]
-        kernels = [5, 5, 5]
-        strides = [2, 2, 2]
-        fc_hidden = 512
+
+        outs = [32, 64, 64]
+        kernels = [8, 4, 3]
+        strides = [4, 2, 1]
+        # outs = [128, 128, 128]
+        # kernels = [5, 5, 5]
+        # strides = [2, 2, 2]
 
         self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
         self.bn1 = nn.BatchNorm2d(outs[0])
@@ -193,6 +191,8 @@ class QCNNetwork(nn.Module):
         self.bn2 = nn.BatchNorm2d(outs[1])
         self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
         self.bn3 = nn.BatchNorm2d(outs[2])
+
+        fc_hidden = 512
 
         fc = np.array([width, height])
         for _, kernel, stride in zip(outs, kernels, strides):
@@ -260,12 +260,7 @@ class ReplayBuffer:
         self.device = device
         self.framestack = framestack
 
-    # def _get_frame(self, state):
-    #     state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
-    #     return state[0,:,:].unsqueeze(0).to(self.device)
-
     def stack(self, frame, done):
-        #frame = self._get_frame(state)
         if done:
             self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
         else:
@@ -376,7 +371,30 @@ class SumTree(object):
     def total_priority(self):
         return self.tree[0] # Returns the root node
 
-class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
+
+class Preprocess():
+    def __init__(self):
+        pass
+    def stack(self, frame, done):
+        #frame = self._get_frame(state)
+        if done:
+            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
+        else:
+            self.phi.append(frame)
+        return
+
+    def get_stack(self):
+        return torch.cat(tuple(self.phi),dim=0).to(self.device)
+
+    def process_frame(self.state):
+        state = state.squeeze(0).transpose(2,0,1)
+        #return red channel & crop frame
+        state = state[0,5:-40,5:-5]
+        state = np.ascontiguousarray(state, dtype=np.float32)
+        state = torch.from_numpy(state).unsqueeze(0)
+        return state
+
+class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
     """
     This SumTree implementation is a heavily modified version of code from
     Thomas Simonini: https://tinyurl.com/y3y6n2zc
@@ -389,13 +407,14 @@ class Memory(object):  # stored as ( s, a, r, s_ ) in SumTree
 
     absolute_error_upper = 1.0  # clipped abs error
 
-    def __init__(self, capacity, batchsize, framestack, device):
+    def __init__(self, capacity, batchsize, framestack, device, alpha, beta):
         self.tree = SumTree(capacity) # Making the tree
         self.batchsize = batchsize
         self.framestack = framestack
         self.device = device
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
-
+        self.alpha = alpha
+        self.beta = beta
 
     def stack(self, frame, done):
         #frame = self._get_frame(state)
