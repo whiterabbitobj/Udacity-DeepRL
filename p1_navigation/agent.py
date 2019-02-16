@@ -38,7 +38,6 @@ class Agent():
         self.no_per = args.no_prioritized_replay
         self.train = args.train
         self.pixels = args.pixels
-        self.criterion = WeightedLoss()
 
         #initialize REPLAY buffer
         if self.no_per:
@@ -52,6 +51,8 @@ class Agent():
         self.qhat.load_state_dict(self.q.state_dict())
         self.qhat.eval()
         self.optimizer = self._set_optimizer(self.q.parameters())
+        self.criterion = WeightedLoss()
+
 
     def act(self, state):
         """Select an action using epsilon-greedy π.
@@ -72,11 +73,9 @@ class Agent():
         """
         if not self.train:
             return
-        #print(state.shape, action.shape, reward, next_state.shape)
-        #self.buffer.add(state, action, reward, next_state)
+        reward = torch.tensor([reward], device=args.device)
         self.memory.store(state, action, reward, next_state)
 
-        #if len(self.buffer) >= self.batchsize and self.t_step % self.update_every == 0:
         if len(self.memory) >= self.batchsize and self.t_step % self.update_every == 0:
             self.learn()
         #update the target network every C steps
@@ -84,14 +83,11 @@ class Agent():
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-
-
     def learn(self):
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
-        #batch = self.buffer.sample()
-        tree_idx, batch, ISWeights = self.memory.sample()
+        batch, ISWeights, tree_idx = self.memory.sample()
 
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
@@ -110,20 +106,23 @@ class Agent():
             q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1) #[64]
             qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1) #[64]
 
-        values = self.q(state_batch).gather(1, action_batch)#.detach() #[64,1]
-        expected_values = reward_batch + (self.gamma * qhat_next_values)#.detach() #[64]
-        expected_values = expected_values.unsqueeze(1)
+        expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
+        expected_values = expected_values.unsqueeze(1) #[64,1]
 
-        #Huber Loss provides better results than MSE
-        #td_errors = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
+        values = self.q(state_batch).gather(1, action_batch) #[64,1]
 
-        #Compute Huber Loss manually to utilize ISWeights
-        weighted_loss, td_errors = self.criterion.huber(values, expected_values, ISWeights)
 
-        self.memory.batch_update(tree_idx, td_errors)
+        if ISWeights is None:
+            #Huber Loss provides better results than MSE
+            loss = F.smooth_l1_loss(values, expected_values) #[64,1]
+        else:
+            #Compute Huber Loss manually to utilize ISWeights
+            loss, td_errors = self.criterion.huber(values, expected_values, ISWeights)
+            self.memory.batch_update(tree_idx, td_errors)
+
         #backpropogate
         self.optimizer.zero_grad()
-        weighted_loss.backward()
+        loss.backward()
         # for param in self.q.parameters():
         #     param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
@@ -146,18 +145,16 @@ class Agent():
             return QNetwork(self.nS, self.nA, self.seed, self.dropout).to(self.device)
 
 
+
 class WeightedLoss(nn.Module):
     def __init__(self):
         super(WeightedLoss, self).__init__()
+
     def huber(self, values, targets, weights):
-        # errors = (values - targets).abs()
-        # loss = [0.5 * (x ** 2) if x < 1 else x - 0.5 for x in errors]
-        # loss = torch.tensor(loss) * weights
-        # return loss.mean(), errors.detach().cpu().numpy()
         errors = torch.abs(values - targets)
         loss = (errors<1).float()*(errors**2) + (errors>=1).float()*(errors - 0.5)
-        weighted_loss = weights * loss
-        weighted_loss = weighted_loss.sum()
+        weighted_loss = (weights * loss).sum()
+        #weighted_loss = weighted_loss.sum()
         return weighted_loss, errors.detach().cpu().numpy()
 
 
@@ -166,7 +163,6 @@ class QCNNetwork(nn.Module):
     """Deep Q-Network CNN Model for use with learning from pixel data.
        Nonlinear estimator for Qπ
     """
-
     def __init__(self, state, action_size, seed):
         """Initialize parameters and build model.
         Params
@@ -252,6 +248,7 @@ class QNetwork(nn.Module):
         return self.output(x)
 
 
+
 class ReplayBuffer:
     def __init__(self, buffersize, batchsize, framestack, device, nS, pixels):
         self.buffer = deque(maxlen=buffersize)
@@ -260,23 +257,13 @@ class ReplayBuffer:
         self.device = device
         self.framestack = framestack
 
-    def stack(self, frame, done):
-        if done:
-            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
-        else:
-            self.phi.append(frame)
-        return
-
-    def get_stack(self):
-        return torch.cat(tuple(self.phi),dim=0).to(self.device)
-
-    def add(self, state, action, reward, next_state):
+    def store(self, state, action, reward, next_state):
         t = self.memory(state, action, reward, next_state)
         self.buffer.append(t)
 
     def sample(self):
         batch = random.sample(self.buffer, k=self.batchsize)
-        return  self.memory(*zip(*batch))
+        return  self.memory(*zip(*batch)), None, None
 
     def __len__(self):
         return len(self.buffer)
@@ -372,27 +359,6 @@ class SumTree(object):
         return self.tree[0] # Returns the root node
 
 
-class Preprocess():
-    def __init__(self):
-        pass
-    def stack(self, frame, done):
-        #frame = self._get_frame(state)
-        if done:
-            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
-        else:
-            self.phi.append(frame)
-        return
-
-    def get_stack(self):
-        return torch.cat(tuple(self.phi),dim=0).to(self.device)
-
-    def process_frame(self.state):
-        state = state.squeeze(0).transpose(2,0,1)
-        #return red channel & crop frame
-        state = state[0,5:-40,5:-5]
-        state = np.ascontiguousarray(state, dtype=np.float32)
-        state = torch.from_numpy(state).unsqueeze(0)
-        return state
 
 class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
     """
@@ -416,18 +382,6 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.alpha = alpha
         self.beta = beta
 
-    def stack(self, frame, done):
-        #frame = self._get_frame(state)
-        if done:
-            self.phi = deque([frame for i in range(self.framestack)], maxlen=self.framestack)
-        else:
-            self.phi.append(frame)
-        return
-
-    def get_stack(self):
-        return torch.cat(tuple(self.phi),dim=0).to(self.device)
-
-
     def _leaf_values(self):
         """
         Return the values of all the leaves in the SumTree
@@ -449,17 +403,16 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
 
         self.tree.add(max_priority, experience)   # set the max p for new p
 
-
-    """
-    - First, to sample a minibatch of k size, the range [0, priority_total] is / into k ranges.
-    - Then a value is uniformly sampled from each range
-    - We search in the sumtree, the experience where priority score correspond to sample values are retrieved from.
-    - Then, we calculate IS weights for each minibatch element
-    """
     def sample(self):
+        """
+        - First, to sample a minibatch of k size, the range [0, priority_total] is / into k ranges.
+        - Then a value is uniformly sampled from each range
+        - We search in the sumtree, the experience where priority score correspond to sample values are retrieved from.
+        - Then, we calculate IS weights for each minibatch element
+        """
         n = self.batchsize
         # Create a sample array that will contains the minibatch
-        memory_batch = []
+        batch = []
 
         indexes = np.empty((n,), dtype=np.int32)
         ISWeights = np.empty((n, 1), dtype=np.float32)
@@ -500,9 +453,9 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
             indexes[i]= index
 
             #experience = [data]
-            # memory_batch.append(experience)
-            memory_batch.append(data)
-        return indexes, self.memory(*zip(*memory_batch)), torch.from_numpy(ISWeights).to(self.device)
+            # batch.append(experience)
+            batch.append(data)
+        return self.memory(*zip(*batch)), torch.from_numpy(ISWeights).to(self.device), indexes
 
     """
     Update the priorities on the tree

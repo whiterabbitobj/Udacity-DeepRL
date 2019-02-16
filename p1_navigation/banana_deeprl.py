@@ -7,6 +7,8 @@ import progressbar
 from agent import Agent
 #import utils
 from utils import load_environment, load_checkpoint, print_verbose_info, report_results, get_state, print_status, save_checkpoint
+from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
+
 from get_args import get_args
 
 #
@@ -45,18 +47,21 @@ def main():
             return
 
     #initialize the environment
-    frame_buffer = Preprocess()
-    env, env_info, brain_name, nA, state_size = load_environment(args, frame_buffer)
+    # frame_buffer = Preprocess()
+    # env, env_info, brain_name, nA, state_size = load_environment(args, frame_buffer)
+
+    env = Environment(args)
 
     if args.train:
-        agent = Agent(nA, state_size, args)
+        agent = Agent(env.nA, env.state_size, args)
         print("{0}\nPrinting training data every {1} episodes.\n{0}".format(args.sep, args.print_every))
     else:
         agent = load_checkpoint(filepath, args)
 
-    print_verbose_info(agent, env_info, args) #print extra info if flagged
+    #print_verbose_info(agent, env_info, args) #print extra info if flagged
 
-    scores = run_agent(env, agent, brain_name, args, frame_buffer) #run the agent
+    #scores = run_agent(env, agent, brain_name, args, frame_buffer) #run the agent
+    scores = run_agent(agent, env, args) #run the agent
 
     env.close() #close the environment
 
@@ -66,32 +71,24 @@ def main():
 
 
 
-def run_agent(env, agent, brain_name, args, frame_buffer):
+def run_agent(agent, env, args):
     """Trains selected agent in the environment."""
     scores = []
     with progressbar.ProgressBar(max_value=args.print_every) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
             # reset the scenario
             score = 0
-            env_info = env.reset(train_mode=args.train)[brain_name]
-
+            #env_info = env.reset(args.train)
+            env.reset()
             # get the initial environment state
-            state = get_state(env_info, agent, done=True)
+            state = env.state(done=True)
             while True:
                 #choose an action using current π
                 action = agent.act(state)
                 #use action in environment and observe results
-                env_info = env.step(action.item())[brain_name]
-                #collect info about new state
-                reward = env_info.rewards[0]
-                done = env_info.local_done[0]
-                next_state = get_state(env_info, agent, done)
-
-
-                # print("STATE: {}, NEXT_STATE: {}".format(state.shape, next_state.shape))
-
+                next_state, reward, done = env.step(action.item())
                 #initiate next timestep
-                agent.step(state, action, torch.tensor([reward], device=args.device), next_state, done)
+                agent.step(state, action, reward, next_state, done)
 
                 state = next_state
                 score += reward
