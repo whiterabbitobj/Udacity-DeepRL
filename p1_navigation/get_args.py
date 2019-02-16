@@ -9,14 +9,18 @@ def get_args():
     parser.add_argument("-f", "--framework",
             help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
             type=str,
-            default="DQN")
-    parser.add_argument("-per", "--prioritized_replay",
-            help="Use Prioritized Experience Replay. This is independent of Agent type.",
+            default="DDQN")
+    parser.add_argument("-no_per", "--no_prioritized_replay",
+            help="Use standard Replay Buffer instead of Prioritized Experience Replay.",
             action="store_true")
     parser.add_argument("-a", "--alpha",
             help="Alpha parameter of the Prioritized Experience Replay.",
             type=float,
-            default=0.4)
+            default=0.6)
+    parser.add_argument("-b", "--beta",
+            help="Beta parameter of the Prioritized Experience Replay.",
+            type=float,
+            default=0.4)            
     parser.add_argument("-bs", "--batchsize",
             help="Size of each batch between learning updates",
             type=int,
@@ -24,7 +28,7 @@ def get_args():
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=50000)
+            default=25000)
     parser.add_argument("-C",
             help="How many timesteps between updating Q' to match Q",
             type=int,
@@ -32,12 +36,6 @@ def get_args():
     parser.add_argument("--continue",
             help="Continue training from a loaded file (can use in conjunction with --latest).",
             action="store_true")
-    # parser.add_argument("--cpu",
-    #         help="Use this flag to run the code on the CPU instead of the default GPU.",
-    #         action="store_true")
-    # parser.add_argument("--debug",
-    #         help="Print extra info for debugging purposes.",
-    #         action="store_true")
     parser.add_argument("-drop", "--dropout",
             help="Dropout rate for deep network.",
             type=float,

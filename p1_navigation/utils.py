@@ -7,7 +7,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from agent import Agent
 from unityagents import UnityEnvironment
-from PIL import Image
+#from PIL import Image
+from collections import deque
 
 
 # def anneal_parameter(param, anneal_rate, param_min):
@@ -18,43 +19,69 @@ from PIL import Image
 ## Interact with the environment
 ##########
 
-def process_frame(state):
-        state = torch.from_numpy(state.squeeze(0).astype(np.float32).transpose(2,0,1)) #[3,84,84]
-        #return red channel & chop off top of frame
-        return state[0,:-40,:].unsqueeze(0) #[1,44,84]
+class Environment():
+    def __init__(self, args):
+        self.device = args.device
+        self.pixels = args.pixels
+        self.training = args.train
+        self.phi = deque(maxlen=args.framestack)
 
-def load_environment(args):
-    if args.pixels:
-        unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
-    else:
-        unity_filename = "Banana_Windows_x86_64/Banana.exe"
+        if self.pixels:
+            unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
+        else:
+            unity_filename = "Banana_Windows_x86_64/Banana.exe"
+        self.env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
+        self.brain_name = self.env.brain_names[0]
+        brain = self.env.brains[self.brain_name]
 
-    env = UnityEnvironment(file_name=unity_filename, no_graphics=args.nographics)
-    brain_name = env.brain_names[0]
-    brain = env.brains[brain_name]
-    env_info = env.reset(train_mode=args.train)[brain_name]
-    nA = brain.vector_action_space_size
-    if args.pixels:
-        # nS = list(env_info.visual_observations[0].squeeze(0).transpose(2,0,1).shape)
-        # nS[0] = args.framestack
-        state = env_info.visual_observations[0]
-        nS = list(process_frame(state).shape)
-        nS[0] = args.framestack
-    else:
-        nS = len(env_info.vector_observations[0])
-    return env, env_info, brain_name, nA, nS
+        self.env_info = self.env.reset(train_mode=args.train)[self.brain_name]
+        self.nA = brain.vector_action_space_size
 
+        if self.pixels:
+            state = self.env_info.visual_observations[0]
+            self.state_size = list(self.process_frame(state).shape)
+            self.state_size[0] = args.framestack
+        else:
+            self.state_size = len(self.env_info.vector_observations[0])
 
+    def process_frame(self, state):
+        frame = state.squeeze(0).transpose(2,0,1) #remove banana env extra dimension & transpose to tensor style encoding
+        frame = frame[0,5:-40,5:-5] #return red channel & crop frame
+        frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
+        return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
 
-def get_state(env_info, agent, done):
-    if agent.pixels:
-        state = env_info.visual_observations[0]
-        agent.buffer.stack(process_frame(state), done)
-        return agent.buffer.get_stack().unsqueeze(0)
-    else:
-        state = env_info.vector_observations[0]
-        state =  torch.from_numpy(state).float().unsqueeze(0).to(agent.device)
-    return state
+    def stack(self, frame, done):
+        if done:
+            self.phi = deque([frame for i in range(self.phi.maxlen)], maxlen=self.phi.maxlen)
+        else:
+            self.phi.append(frame)
+        return
+
+    def get_stack(self):
+        return torch.cat(tuple(self.phi),dim=0).to(self.device)
+
+    def state(self, done):
+        if self.pixels:
+            state = self.env_info.visual_observations[0]
+            frame = self.process_frame(state)
+            self.stack(frame, done)
+            return self.get_stack().unsqueeze(0)
+        else:
+            state = self.env_info.vector_observations[0]
+            return torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+
+    def step(self, action):
+        self.env_info = self.env.step(action)[self.brain_name]
+        reward = self.env_info.rewards[0]
+        done = self.env_info.local_done[0]
+        next_state = self.state(done)
+        return next_state, reward, done
+
+    def reset(self):
+        self.env_info = self.env.reset(train_mode=self.training)[self.brain_name]
+
+    def close(self):
+        self.env.close()
 
 
 
@@ -172,23 +199,23 @@ def report_results(scores, start_time):
 
 
 
-def print_verbose_info(agent, env_info, args):
+def print_verbose_info(agent, args):
     """
-    Prints extra data if --debug flag is set.
+    Prints extra data if --verbose flag is set.
     """
     if not args.verbose:
         return
 
-    print("{}\nARGS:".format(args.sep))
+    print("ARGS:")
+    print("-"*5)
     for arg in vars(args):
-        if arg == "sep":
-            continue
+        if arg == "sep": continue
         print("{}: {}".format(arg.upper(), getattr(args, arg)))
-    print("{}\nVARS: ", args.sep)
+    print(args.sep, "\nVARS:")
+    print("-"*5)
     print("Device: ", agent.device)
     print("Action Size: ", agent.nA)
     print("Processed state looks like: ", agent.nS)
-    print('Number of agents: ', len(env_info.agents))
     print("Number of Episodes: ", args.num_episodes)
     print("{1}\n{0}\n{1}".format(agent.q, args.sep))
 
