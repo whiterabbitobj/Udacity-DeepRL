@@ -90,19 +90,20 @@ class Agent():
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
         reward_batch = torch.cat(batch.reward) #[64,1]
+        #print(torch.cat(batch.next_state).shape)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
         next_states = torch.cat([s for s in batch.next_state if s is not None])
-
+        #print(next_states.shape)
         qhat_next_values = torch.zeros(self.batchsize, device=self.device) #[64]
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
             qhat_next_values[non_final_mask] = self.qhat(next_states).detach().max(1)[0] #[64]
+            # print("NV:", qhat_next_values.shape)
 
         if self.framework == 'DDQN':
             #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
-            q_next_actions = torch.zeros(self.batchsize, device=self.device, dtype=torch.long) #[64]
-            q_next_actions[non_final_mask] = self.q(next_states).detach().argmax(1) #[64]
-            qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1) #[64]
+            q_next_actions = self.q(next_states).detach().argmax(1)
+            qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1)
 
         expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
 

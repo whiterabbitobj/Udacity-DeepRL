@@ -73,7 +73,6 @@ def run_agent(agent, env, args):
     with progressbar.ProgressBar(max_value=args.print_every) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
             score = 0
-            print("Timesteps: ", agent.t_step)
             # reset the scenario
             env.reset()
 
@@ -83,7 +82,7 @@ def run_agent(agent, env, args):
                 #choose an action using current π
                 action = agent.act(state)
                 #use action in environment and observe results
-                next_state, reward = env.step(action.item())
+                next_state, reward, done = env.step(action.item())
                 #initiate next timestep
                 agent.step(state, action, reward, next_state)
 

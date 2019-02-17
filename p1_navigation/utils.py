@@ -85,7 +85,7 @@ class Environment():
             next_state = None
         else:
             next_state = self.state()
-        return next_state, reward
+        return next_state, reward, done
 
     def reset(self):
         self.env_info = self.env.reset(train_mode=self.training)[self.brain_name]
@@ -236,7 +236,9 @@ def print_status(i_episode, scores, agent, args):
         print("\nEpisode {}/{}, avg score for last {} episodes: {:3f}".format(
                 i_episode, args.num_episodes, args.print_every, np.mean(scores[-args.print_every:])))
         if args.verbose:
-            print("Epsilon: {}\n".format(agent.epsilon))
+            print("Epsilon: {}".format(agent.epsilon))
+            print("Timesteps: ", agent.t_step, "\n\n")        
+
 
 
 
