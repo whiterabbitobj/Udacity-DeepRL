@@ -72,10 +72,9 @@ def run_agent(agent, env, args):
     scores = []
     with progressbar.ProgressBar(max_value=args.print_every) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
-            # reset the scenario
             score = 0
-
-            #env_info = env.reset()
+            print("Timesteps: ", agent.t_step)
+            # reset the scenario
             env.reset()
 
             # get the initial environment state

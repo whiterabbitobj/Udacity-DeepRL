@@ -37,20 +37,19 @@ class Agent():
         self.train = args.train
         self.pixels = args.pixels
 
-        #initialize REPLAY buffer
-        if self.no_per:
-            self.memory = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
-        else:
-            self.memory = PERBuffer(self.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
-
         #Initialize Q-Network
         self.q = self._make_model(args.pixels)
         self.qhat = self._make_model(args.pixels)
         self.qhat.load_state_dict(self.q.state_dict())
         self.qhat.eval()
         self.optimizer = self._set_optimizer(self.q.parameters())
-        self.criterion = WeightedLoss()
 
+        #initialize REPLAY buffer
+        if self.no_per:
+            self.memory = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
+        else:
+            self.memory = PERBuffer(self.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
+            self.criterion = WeightedLoss()
 
     def act(self, state):
         """Select an action using epsilon-greedy π.
@@ -85,6 +84,7 @@ class Agent():
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
         """
+        #If using standard ReplayBuffer, ISWeights & tree_idx will return None
         batch, ISWeights, tree_idx = self.memory.sample()
 
         state_batch = torch.cat(batch.state) #[64,1]
