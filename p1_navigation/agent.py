@@ -29,8 +29,6 @@ class Agent():
         self.C = args.C
         self.dropout = args.dropout
         self.epsilon = args.epsilon
-        self.epsilon_decay = args.epsilon_decay
-        self.epsilon_min = args.epsilon_min
         self.gamma = args.gamma
         self.lr = args.learn_rate
         self.update_every = args.update_every
@@ -67,7 +65,7 @@ class Agent():
         else:
             return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.long)
 
-    def step(self, state, action, reward, next_state, done):
+    def step(self, state, action, reward, next_state):
         """Moves the agent to the next timestep.
            Learns each UPDATE_EVERY steps.
         """
@@ -107,8 +105,8 @@ class Agent():
             qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1) #[64]
 
         expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
-        expected_values = expected_values.unsqueeze(1) #[64,1]
 
+        expected_values = expected_values.unsqueeze(1) #[64,1]
         values = self.q(state_batch).gather(1, action_batch) #[64,1]
 
 
@@ -120,16 +118,6 @@ class Agent():
             loss, td_errors = self.criterion.huber(values, expected_values, ISWeights)
             self.memory.batch_update(tree_idx, td_errors)
 
-<<<<<<< HEAD
-        #Huber Loss provides better results than MSE
-        loss = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
-        #print("VALUES: {}, EXPECTED: {}, TD_ERRORS: {}".format(values.shape, expected_values.unsqueeze(1).shape, loss.shape))
-
-||||||| merged common ancestors
-        #Huber Loss provides better results than MSE
-        loss = F.smooth_l1_loss(values, expected_values.unsqueeze(1)) #[64,1]
-=======
->>>>>>> class_reorganization
         #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
@@ -137,8 +125,8 @@ class Agent():
         #     param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
-    def update_epsilon(self):
-        self.epsilon = max(self.epsilon*self.epsilon_decay, self.epsilon_min)
+    def update_epsilon(self, ed, em):
+        self.epsilon = max(self.epsilon * ed, em)
 
     def _set_optimizer(self, params):
         if self.optimizer == "RMSprop":

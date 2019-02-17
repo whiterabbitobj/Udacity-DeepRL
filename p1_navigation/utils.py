@@ -34,7 +34,8 @@ class Environment():
         self.brain_name = self.env.brain_names[0]
         brain = self.env.brains[self.brain_name]
 
-        self.env_info = self.env.reset(train_mode=args.train)[self.brain_name]
+        #self.env_info = self.env.reset(train_mode=args.train)[self.brain_name]
+        self.reset()
         self.nA = brain.vector_action_space_size
 
         if self.pixels:
@@ -47,11 +48,17 @@ class Environment():
     def process_frame(self, state):
         frame = state.squeeze(0).transpose(2,0,1) #remove banana env extra dimension & transpose to tensor style encoding
         frame = frame[0,5:-40,5:-5] #return red channel & crop frame
-        frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
+        frame = np.ascontiguousarray(frame, dtype=np.float32)# / 255 #ensure cropped data is not kept in memory
         return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
 
-    def stack(self, frame, done):
-        if done:
+    # def process_color_frame(self, state):
+    #     frame = state.transpose(0,3,1,2) #remove banana env extra dimension & transpose to tensor style encoding
+    #     frame = frame[:,:,5:-40,5:-5] #return red channel & crop frame
+    #     frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
+    #     return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
+
+    def stack(self, frame, reset):
+        if reset:
             self.phi = deque([frame for i in range(self.phi.maxlen)], maxlen=self.phi.maxlen)
         else:
             self.phi.append(frame)
@@ -60,11 +67,11 @@ class Environment():
     def get_stack(self):
         return torch.cat(tuple(self.phi),dim=0).to(self.device)
 
-    def state(self, done):
+    def state(self, reset=False):
         if self.pixels:
             state = self.env_info.visual_observations[0]
             frame = self.process_frame(state)
-            self.stack(frame, done)
+            self.stack(frame, reset)
             return self.get_stack().unsqueeze(0)
         else:
             state = self.env_info.vector_observations[0]
@@ -74,8 +81,11 @@ class Environment():
         self.env_info = self.env.step(action)[self.brain_name]
         reward = self.env_info.rewards[0]
         done = self.env_info.local_done[0]
-        next_state = self.state(done)
-        return next_state, reward, done
+        if done:
+            next_state = None
+        else:
+            next_state = self.state()
+        return next_state, reward
 
     def reset(self):
         self.env_info = self.env.reset(train_mode=self.training)[self.brain_name]

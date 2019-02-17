@@ -45,7 +45,7 @@ def main():
         filepath = utils.load_filepath(args.sep) #prompt user before loading the env to avoid pop-over
         if filepath == None:
             return
-
+    #wrap Banana environment in a Class for concise handling
     env = Environment(args)
 
     if args.train:
@@ -56,7 +56,8 @@ def main():
 
     print_verbose_info(agent, args) #print extra info if flagged
 
-    scores = run_agent(agent, env, args) #run the agent
+    #run the agent
+    scores = run_agent(agent, env, args)
 
     env.close() #close the environment
 
@@ -73,17 +74,19 @@ def run_agent(agent, env, args):
         for i_episode in range(1, args.num_episodes+1):
             # reset the scenario
             score = 0
-            #env_info = env.reset(args.train)
+
+            #env_info = env.reset()
             env.reset()
+
             # get the initial environment state
-            state = env.state(done=True)
+            state = env.state(reset=True)
             while True:
                 #choose an action using current π
                 action = agent.act(state)
                 #use action in environment and observe results
-                next_state, reward, done = env.step(action.item())
+                next_state, reward = env.step(action.item())
                 #initiate next timestep
-                agent.step(state, action, reward, next_state, done)
+                agent.step(state, action, reward, next_state)
 
                 state = next_state
                 score += reward
@@ -91,7 +94,7 @@ def run_agent(agent, env, args):
                     break
 
             #prepare for next episode
-            agent.update_epsilon()
+            agent.update_epsilon(args.epsilon_decay, args.epsilon_min)
             scores.append(score)
             print_status(i_episode, scores, agent, args)
             progress_bar.update(i_episode % args.print_every+1)
