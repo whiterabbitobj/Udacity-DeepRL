@@ -16,7 +16,7 @@ from get_args import get_args
 #TO-DO LIST:
 #-check into implementing frame skipping for speedup and training fidelity, pull frames across 8-16 frames to stack four, instead of consecutive four frames
 #-make sure that sumtree is initialized properly and not full of 0 priorities
-#
+#-review p_min "max weight" in PER buffer
 
 def main():
     """
