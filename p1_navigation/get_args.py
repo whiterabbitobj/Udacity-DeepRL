@@ -52,8 +52,12 @@ def get_args():
             help="Minimum value for epsilon.",
             type=float,
             default=0.01)
-    parser.add_argument("-frames", "--framestack",
+    parser.add_argument("-fs", "--framestack",
             help="How many recent frames to stack for temporal replay.",
+            type=int,
+            default=4)
+    parser.add_argument("-skip", "--frameskip",
+            help="How many frames to skip in between new actions/frame stacking.",
             type=int,
             default=4)
     parser.add_argument("-gamma",

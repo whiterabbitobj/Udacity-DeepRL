@@ -36,3 +36,6 @@ class ReplayBuffer:
 
 x = ReplayBuffer(1000, 64, 4, "cpu", 6, True)
 print(type(x))
+
+
+print(2%4)

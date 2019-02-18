@@ -38,6 +38,7 @@ def main():
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.print_every = np.clip(args.num_episodes//args.print_count, 2, 100)
     args.sep = "#"*50
+    #args.update_every = args.update_every * args.frameskip
 
     if not args.train:
         filepath = utils.load_filepath(args.sep) #prompt user before loading the env to avoid pop-over
@@ -78,14 +79,24 @@ def run_agent(agent, env, args):
             state = env.state(reset=True)
 
             while True:
-                #choose an action using current π
-                action = agent.act(state)
+                counter = 0
+                if counter % args.frameskip == 0:
+                    #choose an action using current π
+                    action = agent.act(state)
                 #use action in environment and observe results
-                next_state, reward, done = env.step(action.item())
-                #initiate next timestep
-                agent.step(state, action, reward, next_state)
+                # next_state, reward, done = env.step(action.item())
+                reward, done = env.step(action.item())
 
-                state = next_state
+                #initiate next timestep
+                if counter % args.frameskip == 0:
+                    if done:
+                        next_state = None
+                    else:
+                        next_state = self.state()
+                    agent.step(state, action, reward, next_state)
+                    state = next_state
+
+                counter += 1
                 score += reward
                 if done:
                     break

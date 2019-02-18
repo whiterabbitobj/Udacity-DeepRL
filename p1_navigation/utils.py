@@ -92,11 +92,7 @@ class Environment():
         self.env_info = self.env.step(action)[self.brain_name]
         reward = self.env_info.rewards[0]
         done = self.env_info.local_done[0]
-        if done:
-            next_state = None
-        else:
-            next_state = self.state()
-        return next_state, reward, done
+        return reward, done
 
     def reset(self):
         self.env_info = self.env.reset(train_mode=self.training)[self.brain_name]
