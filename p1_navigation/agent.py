@@ -83,6 +83,13 @@ class Agent():
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
+    def _memory_loaded(self):
+        """Determines whether it's safe to start learning because the memory is filled
+        """
+        # if self.memory.type == "ReplayBuffer":
+        #     pass
+        return
+
     def learn(self):
         """Trains the Deep QNetwork and returns action values.
            Can use multiple frameworks.
@@ -93,15 +100,13 @@ class Agent():
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
         reward_batch = torch.cat(batch.reward) #[64,1]
-        #print(torch.cat(batch.next_state).shape)
         non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
         next_states = torch.cat([s for s in batch.next_state if s is not None])
-        #print(next_states.shape)
+
         qhat_next_values = torch.zeros(self.batchsize, device=self.device) #[64]
         if self.framework == 'DQN':
             #VANILLA DQN: get max predicted Q values for the next states from the target model
             qhat_next_values[non_final_mask] = self.qhat(next_states).detach().max(1)[0] #[64]
-            # print("NV:", qhat_next_values.shape)
 
         if self.framework == 'DDQN':
             #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
@@ -259,6 +264,7 @@ class ReplayBuffer:
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
         self.framestack = framestack
+        self.type = "ReplayBuffer"
         print("Using standard stochastic Replay memory buffer.")
 
     def store(self, state, action, reward, next_state):
