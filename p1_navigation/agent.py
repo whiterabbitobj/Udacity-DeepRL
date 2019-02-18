@@ -6,7 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-# import torchvision.transforms as T
 
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
@@ -83,17 +82,18 @@ class Agent():
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    def _memory_loaded(self):
-        """Determines whether it's safe to start learning because the memory is
-           sufficiently filled.
-        """
-        # if self.memory.type == "ReplayBuffer":
-        #     pass
-        return
+    # def _memory_loaded(self):
+    #     """Determines whether it's safe to start learning because the memory is
+    #        sufficiently filled.
+    #     """
+    #     # if self.memory.type == "ReplayBuffer":
+    #     #     pass
+    #     return
 
     def learn(self):
-        """Trains the Deep QNetwork and returns action values.
-           Can use multiple frameworks.
+        """
+        Trains the Deep QNetwork and returns action values.
+        Can use multiple frameworks.
         """
         #If using standard ReplayBuffer, is_weights & tree_idx will return None
         batch, is_weights, tree_idx = self.memory.sample(self.batchsize)
@@ -155,6 +155,9 @@ class Agent():
 
 
 class WeightedLoss(nn.Module):
+    """
+    Returns Huber Loss with importance sampled weighting.
+    """
     def __init__(self):
         super(WeightedLoss, self).__init__()
 
@@ -168,16 +171,13 @@ class WeightedLoss(nn.Module):
 
 
 class QCNNetwork(nn.Module):
-    """Deep Q-Network CNN Model for use with learning from pixel data.
-       Nonlinear estimator for Qπ
+    """
+    Deep Q-Network CNN Model for use with learning from pixel data.
+    Nonlinear estimator for Qπ
     """
     def __init__(self, state, action_size, seed):
-        """Initialize parameters and build model.
-        Params
-        ======
-            state (tensor): Dimension of each state
-            action_size (int): Number of possible actions returned from network
-            seed (int): Random seed
+        """
+        Initialize parameters and build model.
         """
         super(QCNNetwork, self).__init__()
         #print(len(state))
@@ -221,18 +221,13 @@ class QCNNetwork(nn.Module):
 
 
 class QNetwork(nn.Module):
-    """Deep Q-Network Model. Nonlinear estimator for Qπ
+    """
+    Deep Q-Network Model. Nonlinear estimator for Qπ
     """
 
     def __init__(self, state_size, action_size, seed, dropout=0.25, layer_sizes=[64, 64]):
-        """Initialize parameters and build model.
-        Params
-        ======
-            state_size (int): Dimension of each state
-            action_size (int): Dimension of each action
-            seed (int): Random seed
-            fc1_units (int): Number of nodes in first hidden layer
-            fc2_units (int): Number of nodes in second hidden layer
+        """
+        Initialize parameters and build model.
         """
         super(QNetwork, self).__init__()
 
@@ -246,7 +241,9 @@ class QNetwork(nn.Module):
 
 
     def forward(self, state):
-        """Build a network that maps state -> action values."""
+        """
+        Build a network that maps state -> action values.
+        """
 
 
         x = F.relu(self.hidden_layers[0](state))
@@ -325,10 +322,8 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
 
     def sample(self, n):
         """
-        - First, to sample a minibatch of k size, the range [0, priority_total] is / into k ranges.
-        - Then a value is uniformly sampled from each range
-        - We search in the sumtree, the experience where priority score correspond to sample values are retrieved from.
-        - Then, we calculate IS weights for each minibatch element
+        Sample experiences from the replay buffer using stochastic prioritization
+        based on TD-error. Returns a batch evenly distributed in N samples.
         """
         batch = []
         idxs = []
@@ -369,10 +364,10 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
         is_weights = torch.from_numpy(is_weights).type(torch.FloatTensor).to(self.device)
         return self.memory(*zip(*batch)), is_weights, idxs
 
-    """
-    Update the priorities on the tree
-    """
     def batch_update(self, tree_idx, td_errors):
+        """
+        Update the priorities on the tree
+        """
         #error should be provided to this function as ABS()
         td_errors += self.priority_epsilon  # Add small epsilon to error to avoid ~0 probability
         clipped_errors = np.minimum(td_errors, self.max_error) # No error should be weight more than a pre-set maximum value
@@ -429,6 +424,10 @@ class SumTree(object):
             self.tree[tree_index] += change
 
     def get(self, v):
+        """
+        Retrieve the index, values at that index, and replay memory, that is
+        most closely associated to sample value of V.
+        """
         current_idx = 0
         while True:
             left = 2 * current_idx + 1

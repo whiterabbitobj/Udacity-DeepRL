@@ -49,9 +49,7 @@ class Environment():
         frame = state.squeeze(0) * 255 #uncompress data from 0-1 to 0-255
         frame = frame[35:-2,2:-2,:] #crop frame
         frame = np.ascontiguousarray(frame, dtype=np.uint8) #ensure cropped data is not kept in memory
-        transforms = T.Compose([T.ToPILImage(),
-                                T.Grayscale(),
-                                T.ToTensor()])
+        transforms = T.Compose([T.ToPILImage(), T.Grayscale(), T.ToTensor()])
         frame = transforms(frame)
         # f = T.ToPILImage()(frame)
         # plt.imshow(f)

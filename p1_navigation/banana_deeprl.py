@@ -3,10 +3,7 @@ import numpy as np
 import torch
 import progressbar
 
-# from unityagents import UnityEnvironment
 from agent import Agent
-#import utils
-#from utils import load_environment, load_checkpoint, print_verbose_info, report_results, get_state, print_status, save_checkpoint
 from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
 
 from get_args import get_args
@@ -29,11 +26,12 @@ def main():
     https://github.com/whiterabbitobj/udacity-deep-reinforcement-learning/tree/master/p1_navigation
     """
 
-    """Sets up a few global variables to condense code:
-            args - arguments from command line, including defaults
-            sep - separator used for print statements
-            start_time - start time of program initialization
-            device - which device to run on (usually GPU)
+    """
+    Sets up a few global variables to condense code:
+        args - arguments from command line, including defaults
+        sep - separator used for print statements
+        start_time - start time of program initialization
+        device - which device to run on (usually GPU)
     """
     start_time = time.time()
     args = get_args()
