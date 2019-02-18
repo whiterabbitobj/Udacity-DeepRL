@@ -14,40 +14,39 @@ class Agent():
         #super(DQN_Agent, self).__init()
 
         #initialize agent parameters
-        self.nS = state_size
+        #self.nS = state_size
         self.nA = nA
         self.seed = 0#random.seed(seed)
         self.framestack = args.framestack
         self.device = args.device
         self.t_step = 0
-        self.optimizer = args.optimizer
         #initialize params from the command line args
         self.framework = args.framework
         self.batchsize = args.batchsize
-        self.buffersize = args.buffersize
+        #self.buffersize = args.buffersize
         self.C = args.C
-        self.dropout = args.dropout
+        #self.dropout = args.dropout
         self.epsilon = args.epsilon
         self.gamma = args.gamma
-        self.lr = args.learn_rate
+        #self.lr = args.learn_rate
         self.update_every = args.update_every
-        self.momentum = args.momentum
-        self.no_per = args.no_prioritized_replay
+        #self.momentum = args.momentum
+        #self.no_per = args.no_prioritized_replay
         self.train = args.train
         self.pixels = args.pixels
 
         #Initialize Q-Network
-        self.q = self._make_model(args.pixels)
-        self.qhat = self._make_model(args.pixels)
+        self.q = self._make_model(args.pixels, state_size, args.dropout)
+        self.qhat = self._make_model(args.pixels, state_size, args.dropout)
         self.qhat.load_state_dict(self.q.state_dict())
         self.qhat.eval()
-        self.optimizer = self._set_optimizer(self.q.parameters())
+        self.optimizer = self._set_optimizer(self.q.parameters(), args.optimizer, args.learn_rate, args.momentum)
 
         #initialize REPLAY buffer
-        if self.no_per:
-            self.memory = ReplayBuffer(self.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
+        if args.no_prioritized_replay:
+            self.memory = ReplayBuffer(args.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
         else:
-            self.memory = PERBuffer(self.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
+            self.memory = PERBuffer(args.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
             self.criterion = WeightedLoss()
 
     def act(self, state):
@@ -82,13 +81,17 @@ class Agent():
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
 
-    # def _memory_loaded(self):
-    #     """Determines whether it's safe to start learning because the memory is
-    #        sufficiently filled.
-    #     """
-    #     # if self.memory.type == "ReplayBuffer":
-    #     #     pass
-    #     return
+    def _memory_loaded(self):
+        """Determines whether it's safe to start learning because the memory is
+           sufficiently filled.
+        """
+        if self.memory.type == "ReplayBuffer":
+            if len(self.memory) >= self.batchsize:
+                return True
+        if self.memory.type == "PERBuffer":
+            if self.memory.tree.num_entries >= self.batchsize:
+                return True
+        return False
 
     def learn(self):
         """
@@ -138,19 +141,19 @@ class Agent():
     def update_epsilon(self, ed, em):
         self.epsilon = max(self.epsilon * ed, em)
 
-    def _set_optimizer(self, params):
-        if self.optimizer == "RMSprop":
-            return optim.RMSprop(params, lr=self.lr, momentum=self.momentum)
-        elif self.optimizer == "SGD":
-            return optim.SGD(params, lr=self.lr, momentum=self.momentum)
+    def _set_optimizer(self, params, optimizer, lr, momentum):
+        if optimizer == "RMSprop":
+            return optim.RMSprop(params, lr=lr, momentum=momentum)
+        elif optimizer == "SGD":
+            return optim.SGD(params, lr=lr, momentum=momentum)
         else:
-            return optim.Adam(params, lr=self.lr)
+            return optim.Adam(params, lr=lr)
 
-    def _make_model(self, use_cnn):
+    def _make_model(self, use_cnn, state_size, dropout):
         if use_cnn:
-            return QCNNetwork(self.nS, self.nA, self.seed).to(self.device)
+            return QCNNetwork(state_size, self.nA, self.seed).to(self.device)
         else:
-            return QNetwork(self.nS, self.nA, self.seed, self.dropout).to(self.device)
+            return QNetwork(state_size, self.nA, self.seed, dropout).to(self.device)
 
 
 
@@ -299,6 +302,7 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.alpha = alpha
         self.beta = beta
+        self.type = "PERBuffer"
         print("Using Priorized Experience Replay memory buffer.")
 
     def _leaf_values(self):

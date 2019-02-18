@@ -12,10 +12,6 @@ from collections import deque
 import torchvision.transforms as T
 
 
-# def anneal_parameter(param, anneal_rate, param_min):
-#     return min(param * anneal_rate, param_min)
-
-
 ##########
 ## Interact with the environment
 ##########
@@ -51,8 +47,7 @@ class Environment():
         frame = np.ascontiguousarray(frame, dtype=np.uint8) #ensure cropped data is not kept in memory
         transforms = T.Compose([T.ToPILImage(), T.Grayscale(), T.ToTensor()])
         frame = transforms(frame)
-        # f = T.ToPILImage()(frame)
-        # plt.imshow(f)
+        # plt.imshow(T.ToPILImage()(frame))
         # plt.show()
         return frame #add dimension for stacking
 
@@ -121,12 +116,11 @@ def generate_savename(agent_name, scores, print_every):
         ver = 1
     eps = len(scores)
     avg_score = np.mean(scores[-print_every:])
-
     return "{}{}_{}eps_{:.2f}score{}".format(savename, ver, eps, avg_score, ".pth")
 
 
 
-def save_checkpoint(agent, scores, args):
+def save_checkpoint(agent, scores, args, state_size):
     """Saves the current Agent's learning dict as well as important parameters
        involved in the latest training.
     """
@@ -135,7 +129,7 @@ def save_checkpoint(agent, scores, args):
 
     agent.q.to('cpu')
     checkpoint = {'agent_type': agent.framework,
-                  'state_size': agent.nS,
+                  'state_size': state_size,
                   'action_size': agent.nA,
                   'state_dict': agent.q.state_dict(),
                   'optimizer': agent.optimizer.state_dict(),
@@ -194,8 +188,6 @@ def load_filepath(sep):
             print("\nInput invalid...\n")
             load_filepath()
 
-
-
 ##########
 ## Print utilities
 ##########
@@ -216,7 +208,7 @@ def report_results(scores, start_time):
 
 
 
-def print_verbose_info(agent, args):
+def print_verbose_info(agent, args, state_size):
     """
     Prints extra data if --verbose flag is set.
     """
@@ -232,7 +224,7 @@ def print_verbose_info(agent, args):
     print("-"*5)
     print("Device: ", agent.device)
     print("Action Size: ", agent.nA)
-    print("Processed state looks like: ", agent.nS)
+    print("Processed state looks like: ", state_size)
     print("Number of Episodes: ", args.num_episodes)
     print("{1}\n{0}\n{1}".format(agent.q, args.sep))
 
@@ -245,7 +237,6 @@ def print_status(i_episode, scores, agent, args):
         if args.verbose:
             print("Epsilon: {}".format(agent.epsilon))
             print("Timesteps: ", agent.t_step, "\n\n")
-
 
 
 

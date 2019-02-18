@@ -5,15 +5,7 @@ import progressbar
 
 from agent import Agent
 from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
-
 from get_args import get_args
-
-#
-#
-#TO-DO LIST:
-#-check into implementing frame skipping for speedup and training fidelity, pull frames across 8-16 frames to stack four, instead of consecutive four frames
-#-make sure that sumtree is initialized properly and not full of 0 priorities
-#-review p_min "max weight" in PER buffer
 
 def main():
     """
@@ -38,12 +30,12 @@ def main():
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     args.print_every = np.clip(args.num_episodes//args.print_count, 2, 100)
     args.sep = "#"*50
-    #args.update_every = args.update_every * args.frameskip
 
     if not args.train:
         filepath = utils.load_filepath(args.sep) #prompt user before loading the env to avoid pop-over
         if filepath == None:
             return
+
     #wrap Banana environment in a Class for concise handling
     env = Environment(args)
 
@@ -53,14 +45,16 @@ def main():
     else:
         agent = load_checkpoint(filepath, args)
 
-    print_verbose_info(agent, args) #print extra info if flagged
+    print_verbose_info(agent, args, env.state_size) #print extra info if flagged
 
     #run the agent
     scores = run_agent(agent, env, args)
 
-    env.close() #close the environment
+    #close the environment
+    env.close()
 
-    report_results(scores, start_time) #report results
+    #report results
+    report_results(scores, start_time)
 
     return
 
@@ -92,7 +86,7 @@ def run_agent(agent, env, args):
                     if done:
                         next_state = None
                     else:
-                        next_state = self.state()
+                        next_state = env.state()
                     agent.step(state, action, reward, next_state)
                     state = next_state
 
@@ -107,7 +101,7 @@ def run_agent(agent, env, args):
             print_status(i_episode, scores, agent, args)
             progress_bar.update(i_episode % args.print_every+1)
 
-    save_checkpoint(agent, scores, args) #save a checkpoint if train=True
+    save_checkpoint(agent, scores, args, env.state_size) #save a checkpoint if train=True
 
     return scores
 
