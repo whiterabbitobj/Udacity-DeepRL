@@ -77,19 +77,19 @@ def run_agent(agent, env, args):
                 if counter % args.frameskip == 0:
                     #choose an action using current π
                     action = agent.act(state)
+
                 #use action in environment and observe results
-                # next_state, reward, done = env.step(action.item())
                 reward, done = env.step(action.item())
+                
+                if done:
+                    next_state = None
+                    agent.step(state, action, reward, next_state)
 
                 #initiate next timestep
-                if counter % args.frameskip == 0:
-                    if done:
-                        next_state = None
-                    else:
-                        next_state = env.state()
+                elif counter % args.frameskip == 0:
+                    next_state = env.state()
                     agent.step(state, action, reward, next_state)
                     state = next_state
-
                 counter += 1
                 score += reward
                 if done:
