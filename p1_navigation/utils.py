@@ -9,6 +9,7 @@ from agent import Agent
 from unityagents import UnityEnvironment
 #from PIL import Image
 from collections import deque
+import torchvision.transforms as T
 
 
 # def anneal_parameter(param, anneal_rate, param_min):
@@ -34,7 +35,6 @@ class Environment():
         self.brain_name = self.env.brain_names[0]
         brain = self.env.brains[self.brain_name]
 
-        #self.env_info = self.env.reset(train_mode=args.train)[self.brain_name]
         self.reset()
         self.nA = brain.vector_action_space_size
 
@@ -45,11 +45,24 @@ class Environment():
         else:
             self.state_size = len(self.env_info.vector_observations[0])
 
-    def process_frame(self, state):
-        frame = state.squeeze(0).transpose(2,0,1) #remove banana env extra dimension & transpose to tensor style encoding
-        frame = frame[0,5:-40,5:-5] #return red channel & crop frame
-        frame = np.ascontiguousarray(frame, dtype=np.float32)# / 255 #ensure cropped data is not kept in memory
-        return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
+    def process_frame(self, state): #GRAYSCALE IMPLEMENTATION
+        frame = state.squeeze(0) * 255 #uncompress data from 0-1 to 0-255
+        frame = frame[35:-2,2:-2,:] #crop frame
+        frame = np.ascontiguousarray(frame, dtype=np.uint8) #ensure cropped data is not kept in memory
+        transforms = T.Compose([T.ToPILImage(),
+                                T.Grayscale(),
+                                T.ToTensor()])
+        frame = transforms(frame)
+        # f = T.ToPILImage()(frame)
+        # plt.imshow(f)
+        # plt.show()
+        return frame #add dimension for stacking
+
+    # def process_frame(self, state): #RED CHANNEL IMPLEMENTATION
+    #     frame = state.squeeze(0).transpose(2,0,1) #remove banana env extra dimension & transpose to tensor style encoding
+    #     frame = frame[0,5:-40,5:-5] #return red channel & crop frame
+    #     frame = np.ascontiguousarray(frame, dtype=np.float32)# / 255 #ensure cropped data is not kept in memory
+    #     return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
 
     # def process_color_frame(self, state):
     #     frame = state.transpose(0,3,1,2) #remove banana env extra dimension & transpose to tensor style encoding
@@ -237,7 +250,7 @@ def print_status(i_episode, scores, agent, args):
                 i_episode, args.num_episodes, args.print_every, np.mean(scores[-args.print_every:])))
         if args.verbose:
             print("Epsilon: {}".format(agent.epsilon))
-            print("Timesteps: ", agent.t_step, "\n\n")        
+            print("Timesteps: ", agent.t_step, "\n\n")
 
 
 

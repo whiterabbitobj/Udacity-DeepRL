@@ -78,6 +78,7 @@ def run_agent(agent, env, args):
 
             # get the initial environment state
             state = env.state(reset=True)
+            
             while True:
                 #choose an action using current π
                 action = agent.act(state)

@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchvision.transforms as T
+# import torchvision.transforms as T
 
 class Agent():
     """Uses a classic Deep Q-Network to learn from the environment"""
@@ -60,8 +60,11 @@ class Agent():
             with torch.no_grad():
                 action_values = self.q(state)
             self.q.train()
-            return action_values.max(1)[1].view(1,1)
+            action = action_values.max(1)[1].view(1,1)
+            #print("Using greedy action:", action.item())
+            return action
         else:
+            #print("Using random action.")
             return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.long)
 
     def step(self, state, action, reward, next_state):
@@ -171,14 +174,15 @@ class QCNNetwork(nn.Module):
             seed (int): Random seed
         """
         super(QCNNetwork, self).__init__()
+        #print(len(state))
         chans, width, height = state
 
-        outs = [32, 64, 64]
-        kernels = [8, 4, 3]
-        strides = [4, 2, 1]
-        # outs = [128, 128, 128]
-        # kernels = [5, 5, 5]
-        # strides = [2, 2, 2]
+        # outs = [32, 64, 64]
+        # kernels = [8, 4, 3]
+        # strides = [4, 2, 1]
+        outs = [128, 128, 128]
+        kernels = [5, 5, 5]
+        strides = [2, 2, 2]
 
         self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
         self.bn1 = nn.BatchNorm2d(outs[0])
