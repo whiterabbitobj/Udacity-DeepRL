@@ -34,14 +34,19 @@ class Environment():
         self.reset()
         self.nA = brain.vector_action_space_size
 
-        if self.pixels:
-            state = self.env_info.visual_observations[0]
-            self.state_size = list(self.process_frame(state).shape)
-            self.state_size[0] = args.framestack
-        else:
-            self.state_size = len(self.env_info.vector_observations[0])
+        self.state_size = list(self.state(reset=True).shape)
+        print("STATE SIZE:", self.state_size)
+        # if self.pixels:
+        #     state = self.env_info.visual_observations[0]
+        #     # self.state_size = list(self.process_frame(state).shape)
+        #     # self.state_size[0] = args.framestack
+        #
+        # else:
+        #     self.state_size = len(self.env_info.vector_observations[0])
 
     def process_frame(self, state): #GRAYSCALE IMPLEMENTATION
+        # plt.imshow(state.squeeze(0))
+        # plt.show()
         frame = state.squeeze(0) * 255 #uncompress data from 0-1 to 0-255
         frame = frame[35:-2,2:-2,:] #crop frame
         frame = np.ascontiguousarray(frame, dtype=np.uint8) #ensure cropped data is not kept in memory
@@ -51,17 +56,11 @@ class Environment():
         # plt.show()
         return frame #add dimension for stacking
 
-    # def process_frame(self, state): #RED CHANNEL IMPLEMENTATION
-    #     frame = state.squeeze(0).transpose(2,0,1) #remove banana env extra dimension & transpose to tensor style encoding
-    #     frame = frame[0,5:-40,5:-5] #return red channel & crop frame
-    #     frame = np.ascontiguousarray(frame, dtype=np.float32)# / 255 #ensure cropped data is not kept in memory
-    #     return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
-
-    # def process_color_frame(self, state):
-    #     frame = state.transpose(0,3,1,2) #remove banana env extra dimension & transpose to tensor style encoding
-    #     frame = frame[:,:,5:-40,5:-5] #return red channel & crop frame
-    #     frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
-    #     return torch.from_numpy(frame).unsqueeze(0) #add dimension for stacking
+    def process_color_frame(self, state):
+        frame = state.transpose(0,3,1,2) * 255 #remove banana env extra dimension & transpose to tensor style encoding
+        frame = frame[:,:,35:-2,2:-2] # crop frame
+        frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
+        return torch.from_numpy(frame)#.unsqueeze(0) #add dimension for stacking
 
     def stack(self, frame, reset):
         if reset:
@@ -71,14 +70,22 @@ class Environment():
         return
 
     def get_stack(self):
-        return torch.cat(tuple(self.phi),dim=0).to(self.device)
+        stack = torch.cat(tuple(self.phi),dim=0)
+        #print(stack.shape)
+        stack = stack.transpose(1,0)#.unsqueeze(0)
+        #print(stack.shape)
+        return stack.to(self.device)
 
     def state(self, reset=False):
         if self.pixels:
             state = self.env_info.visual_observations[0]
-            frame = self.process_frame(state)
+            #frame = self.process_frame(state)
+            frame = self.process_color_frame(state)
             self.stack(frame, reset)
-            return self.get_stack().unsqueeze(0)
+            stack = self.get_stack().unsqueeze(0)
+            #stack = frame
+            #print(stack.shape)
+            return stack
         else:
             state = self.env_info.vector_observations[0]
             return torch.from_numpy(state).float().unsqueeze(0).to(self.device)
@@ -235,7 +242,9 @@ def print_status(i_episode, scores, agent, args):
         print("\nEpisode {}/{}, avg score for last {} episodes: {:3f}".format(
                 i_episode, args.num_episodes, args.print_every, np.mean(scores[-args.print_every:])))
         if args.verbose:
-            print("Epsilon: {}".format(agent.epsilon))
+            print("Epsilon: ", agent.epsilon)
+            if not args.no_prioritized_replay:
+                print("PER Beta:", agent.memory.beta)
             print("Timesteps: ", agent.t_step, "\n\n")
 
 

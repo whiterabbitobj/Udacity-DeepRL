@@ -44,7 +44,7 @@ class Agent():
 
         #initialize REPLAY buffer
         if args.no_prioritized_replay:
-            self.memory = ReplayBuffer(args.buffersize, self.batchsize, self.framestack, self.device, self.nS, self.pixels)
+            self.memory = ReplayBuffer(args.buffersize, self.framestack, self.device, state_size, self.pixels)
         else:
             self.memory = PERBuffer(args.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
             self.criterion = WeightedLoss()
@@ -74,24 +74,14 @@ class Agent():
         reward = torch.tensor([reward], device=self.device)
         self.memory.store(state, action, reward, next_state)
 
-        if len(self.memory) >= self.batchsize and self.t_step % self.update_every == 0:
+        if self._memory_loaded() and self.t_step % self.update_every == 0:
+            #print("Learning...")
             self.learn()
+            #self.lcounter += 1
         #update the target network every C steps
         if self.t_step % self.C == 0:
             self.qhat.load_state_dict(self.q.state_dict())
         self.t_step += 1
-
-    def _memory_loaded(self):
-        """Determines whether it's safe to start learning because the memory is
-           sufficiently filled.
-        """
-        if self.memory.type == "ReplayBuffer":
-            if len(self.memory) >= self.batchsize:
-                return True
-        if self.memory.type == "PERBuffer":
-            if self.memory.tree.num_entries >= self.batchsize:
-                return True
-        return False
 
     def learn(self):
         """
@@ -100,6 +90,7 @@ class Agent():
         """
         #If using standard ReplayBuffer, is_weights & tree_idx will return None
         batch, is_weights, tree_idx = self.memory.sample(self.batchsize)
+        #print(self.memory.beta)
 
         state_batch = torch.cat(batch.state) #[64,1]
         action_batch = torch.cat(batch.action) #[64,1]
@@ -155,6 +146,18 @@ class Agent():
         else:
             return QNetwork(state_size, self.nA, self.seed, dropout).to(self.device)
 
+    def _memory_loaded(self):
+        """Determines whether it's safe to start learning because the memory is
+           sufficiently filled.
+        """
+        if self.memory.type == "ReplayBuffer":
+            if len(self.memory) >= self.batchsize:
+                return True
+        if self.memory.type == "PERBuffer":
+            if self.memory.tree.num_entries >= self.batchsize:
+                return True
+        return False
+
 
 
 class WeightedLoss(nn.Module):
@@ -178,45 +181,68 @@ class QCNNetwork(nn.Module):
     Deep Q-Network CNN Model for use with learning from pixel data.
     Nonlinear estimator for Qπ
     """
-    def __init__(self, state, action_size, seed):
+    def __init__(self, state_size, action_size, seed):
         """
         Initialize parameters and build model.
         """
         super(QCNNetwork, self).__init__()
         #print(len(state))
-        chans, width, height = state
+        _, chans, depth, width, height = state_size
 
         # outs = [32, 64, 64]
         # kernels = [8, 4, 3]
         # strides = [4, 2, 1]
-        outs = [128, 128, 128]
-        kernels = [5, 5, 5]
-        strides = [2, 2, 2]
+        outs = [128, 128*2, 128*2]
+        kernels = [(1,3,3), (1,3,3), (4,3,3)]
+        strides = [(1,3,3), (1,3,3), (1,3,3)]
 
-        self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
-        self.bn1 = nn.BatchNorm2d(outs[0])
-        self.conv2 = nn.Conv2d(outs[0], outs[1], kernels[1], stride=strides[1])
-        self.bn2 = nn.BatchNorm2d(outs[1])
-        self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
-        self.bn3 = nn.BatchNorm2d(outs[2])
+        # self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
+        # self.bn1 = nn.BatchNorm2d(outs[0])
+        # self.conv2 = nn.Conv2d(outs[0], outs[1], kernels[1], stride=strides[1])
+        # self.bn2 = nn.BatchNorm2d(outs[1])
+        # self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
+        # self.bn3 = nn.BatchNorm2d(outs[2])
 
+        self.conv1 = nn.Conv3d(chans, outs[0], kernels[0], stride=strides[0])
+        self.bn1 = nn.BatchNorm3d(outs[0])
+        self.conv2 = nn.Conv3d(outs[0], outs[1], kernels[1], stride=strides[1])
+        self.bn2 = nn.BatchNorm3d(outs[1])
+        self.conv3 = nn.Conv3d(outs[1], outs[2], kernels[2], stride=strides[2])
+        self.bn3 = nn.BatchNorm3d(outs[2])
+        fc_in = self._get_conv_out_size(state_size)
         fc_hidden = 512
 
-        fc = np.array([width, height])
-        for _, kernel, stride in zip(outs, kernels, strides):
-            fc = (fc - (kernel - 1) - 1) // stride  + 1
-        fc_in = outs[-1] * fc[0] * fc[1]
+        # fc = np.array([width, height])
+        # for _, kernel, stride in zip(outs, kernels, strides):
+        #     fc = (fc - (kernel - 1) - 1) // stride  + 1
+        # fc_in = outs[-1] * fc[0] * fc[1]
         self.fc1 = nn.Linear(fc_in, fc_hidden)
         self.fc2 = nn.Linear(fc_hidden, action_size)
         self.seed = torch.manual_seed(seed)
 
-
-    def forward(self, state):
-        """Build a network that maps state -> action values."""
-        x = F.relu(self.bn1(self.conv1(state)))
+    def _cnn(self, x):
+        x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
+        return x
+
+    def _get_conv_out_size(self, shape):
+        x = torch.rand(shape)
+        x = self._cnn(x)
+        n_size = x.data.view(1, -1).size(1)
+        #print('Convolution output size:', n_size)
+        return n_size
+
+    def forward(self, state):
+        """Build a network that maps state -> action values."""
+        # x = F.relu(self.bn1(self.conv1(state)))
+        # x = F.relu(self.bn2(self.conv2(x)))
+        # x = F.relu(self.bn3(self.conv3(x)))
+        # x = x.view(x.size(0), -1)
+        # x = F.relu(self.fc1(x))
+        # x = self.fc2(x)
+        x = self._cnn(state)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
         return x
@@ -263,9 +289,8 @@ class ReplayBuffer:
     Standard replay buffer to hold memories for use in a DQN Agent. Returns
     random experiences with no consideration of their usefulness.
     """
-    def __init__(self, buffersize, batchsize, framestack, device, nS, pixels):
+    def __init__(self, buffersize, framestack, device, nS, pixels):
         self.buffer = deque(maxlen=buffersize)
-        self.batchsize = batchsize
         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
         self.device = device
         self.framestack = framestack
@@ -276,8 +301,8 @@ class ReplayBuffer:
         t = self.memory(state, action, reward, next_state)
         self.buffer.append(t)
 
-    def sample(self):
-        batch = random.sample(self.buffer, k=self.batchsize)
+    def sample(self, batchsize):
+        batch = random.sample(self.buffer, k=batchsize)
         return  self.memory(*zip(*batch)), None, None
 
     def __len__(self):
@@ -292,7 +317,7 @@ class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
     much learning is estimated to be possible from each memory.
     """
     priority_epsilon = 0.01  # Ensure no experiences end up with a 0-prob of being sampled
-    beta_incremement = 0.001
+    beta_incremement = 0.00001
     max_error = 1.0  # clipped abs error
 
     def __init__(self, capacity, batchsize, framestack, device, alpha, beta):

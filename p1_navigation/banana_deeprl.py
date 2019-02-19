@@ -71,31 +71,58 @@ def run_agent(agent, env, args):
 
             # get the initial environment state
             state = env.state(reset=True)
-
+            #counter = 0
+            #
+            #acounter = 0
+            #agent.lcounter = 0
+            #
             while True:
-                counter = 0
-                if counter % args.frameskip == 0:
+                #if counter % args.frameskip == 0:
                     #choose an action using current π
-                    action = agent.act(state)
-
+                action = agent.act(state)
+                    #acounter += 1
                 #use action in environment and observe results
                 reward, done = env.step(action.item())
-                
+
                 if done:
                     next_state = None
                     agent.step(state, action, reward, next_state)
 
                 #initiate next timestep
-                elif counter % args.frameskip == 0:
+                else:# counter % args.frameskip == 0:
                     next_state = env.state()
                     agent.step(state, action, reward, next_state)
                     state = next_state
-                counter += 1
+                #counter += 1
+                #print("counter: {} agent.timestep: {}".format(counter, agent.t_step))
                 score += reward
                 if done:
-                    break
+                    break                
+                # if counter % args.frameskip == 0:
+                #     #choose an action using current π
+                #     action = agent.act(state)
+                #     #acounter += 1
+                # #use action in environment and observe results
+                # reward, done = env.step(action.item())
+                #
+                # if done:
+                #     next_state = None
+                #     agent.step(state, action, reward, next_state)
+                #
+                # #initiate next timestep
+                # elif counter % args.frameskip == 0:
+                #     next_state = env.state()
+                #     agent.step(state, action, reward, next_state)
+                #     state = next_state
+                # counter += 1
+                # #print("counter: {} agent.timestep: {}".format(counter, agent.t_step))
+                # score += reward
+                # if done:
+                #     break
 
             #prepare for next episode
+            #print("Chose new action {} times this episode.".format(acounter))
+            #print("Learned {} times this episode.".format(agent.lcounter))
             agent.update_epsilon(args.epsilon_decay, args.epsilon_min)
             scores.append(score)
             print_status(i_episode, scores, agent, args)
