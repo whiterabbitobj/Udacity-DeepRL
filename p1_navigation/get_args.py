@@ -32,7 +32,7 @@ def get_args():
     parser.add_argument("-C",
             help="How many timesteps between updating Q' to match Q",
             type=int,
-            default=1024)
+            default=600)
     parser.add_argument("--continue",
             help="Continue training from a loaded file (can use in conjunction with --latest).",
             action="store_true")

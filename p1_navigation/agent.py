@@ -75,13 +75,25 @@ class Agent():
         self.memory.store(state, action, reward, next_state)
 
         if self._memory_loaded() and self.t_step % self.update_every == 0:
-            #print("Learning...")
             self.learn()
-            #self.lcounter += 1
+        # ------------------- update target network ------------------- #
+            # self._soft_update(self.q, self.qhat, 0.001)
         #update the target network every C steps
         if self.t_step % self.C == 0:
             self.qhat.load_state_dict(self.q.state_dict())
+
         self.t_step += 1
+
+
+
+    def _soft_update(self, local_model, target_model, tau):
+        """
+        Soft update model parameters.
+        """
+        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
+            target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
+
+
 
     def learn(self):
         """
@@ -125,14 +137,17 @@ class Agent():
         #backpropogate
         self.optimizer.zero_grad()
         loss.backward()
-        # for param in self.q.parameters():
-        #     param.grad.data.clamp_(-1, 1)
+        for param in self.q.parameters():
+            param.grad.data.clamp_(-1, 1)
         self.optimizer.step()
 
     def update_epsilon(self, ed, em):
         self.epsilon = max(self.epsilon * ed, em)
 
     def _set_optimizer(self, params, optimizer, lr, momentum):
+        """
+        Sets the optimizer based on command line choice. Defaults to Adam.
+        """
         if optimizer == "RMSprop":
             return optim.RMSprop(params, lr=lr, momentum=momentum)
         elif optimizer == "SGD":
@@ -141,6 +156,10 @@ class Agent():
             return optim.Adam(params, lr=lr)
 
     def _make_model(self, use_cnn, state_size, dropout):
+        """
+        Sets up the network model based on whether state data or pixel data is
+        provided.
+        """
         if use_cnn:
             return QCNNetwork(state_size, self.nA, self.seed).to(self.device)
         else:
@@ -187,29 +206,34 @@ class QCNNetwork(nn.Module):
         """
         super(QCNNetwork, self).__init__()
         #print(len(state))
-        _, chans, depth, width, height = state_size
+        if len(state_size) == 5:
+            _, chans, depth, width, height = state_size
+        else:
+            _, chans, width, height = state_size
 
-        # outs = [32, 64, 64]
-        # kernels = [8, 4, 3]
-        # strides = [4, 2, 1]
-        outs = [128, 128*2, 128*2]
-        kernels = [(1,3,3), (1,3,3), (4,3,3)]
-        strides = [(1,3,3), (1,3,3), (1,3,3)]
-
+        outs = [32, 64, 64]
+        kernels = [8, 4, 3]
+        strides = [2, 2, 1]
+        #
         # self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
         # self.bn1 = nn.BatchNorm2d(outs[0])
         # self.conv2 = nn.Conv2d(outs[0], outs[1], kernels[1], stride=strides[1])
         # self.bn2 = nn.BatchNorm2d(outs[1])
         # self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
         # self.bn3 = nn.BatchNorm2d(outs[2])
+        # self.pool = nn.MaxPool2d(2, 2)
 
+        outs = [128, 128*2, 128*2]
+        kernels = [(1,3,3), (1,3,3), (4,3,3)]
+        strides = [(1,3,3), (1,3,3), (1,3,3)]
         self.conv1 = nn.Conv3d(chans, outs[0], kernels[0], stride=strides[0])
         self.bn1 = nn.BatchNorm3d(outs[0])
         self.conv2 = nn.Conv3d(outs[0], outs[1], kernels[1], stride=strides[1])
         self.bn2 = nn.BatchNorm3d(outs[1])
         self.conv3 = nn.Conv3d(outs[1], outs[2], kernels[2], stride=strides[2])
         self.bn3 = nn.BatchNorm3d(outs[2])
-        fc_in = self._get_conv_out_size(state_size)
+
+        fc_in = self._get_fc_in(state_size)
         fc_hidden = 512
 
         # fc = np.array([width, height])
@@ -221,18 +245,20 @@ class QCNNetwork(nn.Module):
         self.seed = torch.manual_seed(seed)
 
     def _cnn(self, x):
+        # x = self.pool(F.relu(self.bn1(self.conv1(x))))
+        # x = self.pool(F.relu(self.bn2(self.conv2(x))))
+        # x = self.pool(F.relu(self.bn3(self.conv3(x))))
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
         x = x.view(x.size(0), -1)
         return x
 
-    def _get_conv_out_size(self, shape):
-        x = torch.rand(shape)
+    def _get_fc_in(self, state_size):
+        x = torch.rand(state_size)
         x = self._cnn(x)
-        n_size = x.data.view(1, -1).size(1)
-        #print('Convolution output size:', n_size)
-        return n_size
+        fc_in = x.data.view(1, -1).size(1)
+        return fc_in
 
     def forward(self, state):
         """Build a network that maps state -> action values."""
@@ -259,7 +285,7 @@ class QNetwork(nn.Module):
         Initialize parameters and build model.
         """
         super(QNetwork, self).__init__()
-
+        _, state_size = state_size
         self.seed = torch.manual_seed(seed)
         self.hidden_layers = nn.ModuleList([nn.Linear(state_size, layer_sizes[0])])
         self.output = nn.Linear(layer_sizes[-1], action_size)

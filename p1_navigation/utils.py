@@ -21,7 +21,7 @@ class Environment():
         self.device = args.device
         self.pixels = args.pixels
         self.training = args.train
-        self.phi = deque(maxlen=args.framestack)
+        self.phi = deque(maxlen=args.framestack*2)
 
         if self.pixels:
             unity_filename = "VisualBanana_Windows_x86_64/Banana.exe"
@@ -43,36 +43,22 @@ class Environment():
         #
         # else:
         #     self.state_size = len(self.env_info.vector_observations[0])
+        # plt.imshow(T.ToPILImage()(frame))
+        # plt.show()
 
     def process_frame(self, state): #GRAYSCALE IMPLEMENTATION
-        # plt.imshow(state.squeeze(0))
-        # plt.show()
         frame = state.squeeze(0) * 255 #uncompress data from 0-1 to 0-255
-        frame = frame[35:-2,2:-2,:] #crop frame
+        #frame = frame[35:-2,2:-2,:] #crop frame
         frame = np.ascontiguousarray(frame, dtype=np.uint8) #ensure cropped data is not kept in memory
         transforms = T.Compose([T.ToPILImage(), T.Grayscale(), T.ToTensor()])
         frame = transforms(frame)
-        # plt.imshow(T.ToPILImage()(frame))
-        # plt.show()
-        return frame #add dimension for stacking
+        return frame
 
     def process_color_frame(self, state):
-        frame = state.transpose(0,3,1,2) * 255 #remove banana env extra dimension & transpose to tensor style encoding
-        frame = frame[:,:,35:-2,2:-2] # crop frame
+        frame = state.transpose(0,3,1,2) * 255 #from NHWC to NCHW
+        #frame = frame[:,:,35:-2,2:-2] # crop frame
         frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
-        return torch.from_numpy(frame)#.unsqueeze(0) #add dimension for stacking
-
-    def stack(self, frame, reset):
-        if reset:
-            self.phi = deque([frame for i in range(self.phi.maxlen)], maxlen=self.phi.maxlen)
-        else:
-            self.phi.append(frame)
-        return
-
-    def get_stack(self):
-        stack = torch.cat(tuple(self.phi),dim=0)
-        stack = stack.transpose(1,0)
-        return stack.to(self.device)
+        return torch.from_numpy(frame)
 
     def state(self, reset=False):
         if self.pixels:
@@ -85,6 +71,19 @@ class Environment():
         else:
             state = self.env_info.vector_observations[0]
             return torch.from_numpy(state).float().unsqueeze(0).to(self.device)
+
+    def stack(self, frame, reset):
+        if reset:
+            self.phi = deque([frame for i in range(self.phi.maxlen)], maxlen=self.phi.maxlen)
+        else:
+            self.phi.append(frame)
+        return
+
+    def get_stack(self):
+        stack = torch.cat(list(self.phi)[::2],dim=0) #get the last frames over a timeperiod including skipped frames
+        stack = stack.transpose(1,0)
+        #print(stack.shape)
+        return stack.to(self.device)
 
     def step(self, action):
         self.env_info = self.env.step(action)[self.brain_name]
