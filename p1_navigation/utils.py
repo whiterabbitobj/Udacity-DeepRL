@@ -71,9 +71,7 @@ class Environment():
 
     def get_stack(self):
         stack = torch.cat(tuple(self.phi),dim=0)
-        #print(stack.shape)
-        stack = stack.transpose(1,0)#.unsqueeze(0)
-        #print(stack.shape)
+        stack = stack.transpose(1,0)
         return stack.to(self.device)
 
     def state(self, reset=False):
@@ -83,8 +81,6 @@ class Environment():
             frame = self.process_color_frame(state)
             self.stack(frame, reset)
             stack = self.get_stack().unsqueeze(0)
-            #stack = frame
-            #print(stack.shape)
             return stack
         else:
             state = self.env_info.vector_observations[0]
