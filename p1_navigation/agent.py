@@ -124,7 +124,9 @@ class Agent():
 
         expected_values = expected_values.unsqueeze(1) #[64,1]
         values = self.q(state_batch).gather(1, action_batch) #[64,1]
-
+        # print("EV: {}, NS: {}".format(expected_values.shape, next_states.shape))
+        # print("V: {}, S: {}".format(values.shape, state_batch.shape))
+        # print("ISWEIGHTS: ", is_weights)
 
         if is_weights is None:
             #Huber Loss provides better results than MSE
@@ -210,10 +212,10 @@ class QCNNetwork(nn.Module):
             _, chans, depth, width, height = state_size
         else:
             _, chans, width, height = state_size
-
-        outs = [32, 64, 64]
-        kernels = [8, 4, 3]
-        strides = [2, 2, 1]
+        print("STATESIZE FOR CNN:", state_size)
+        # outs = [32, 64, 64]
+        # kernels = [8, 4, 3]
+        # strides = [2, 2, 1]
         #
         # self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
         # self.bn1 = nn.BatchNorm2d(outs[0])
@@ -223,9 +225,15 @@ class QCNNetwork(nn.Module):
         # self.bn3 = nn.BatchNorm2d(outs[2])
         # self.pool = nn.MaxPool2d(2, 2)
 
-        outs = [128, 128*2, 128*2]
-        kernels = [(1,3,3), (1,3,3), (4,3,3)]
-        strides = [(1,3,3), (1,3,3), (1,3,3)]
+        # outs = [128, 128*2, 128*2]
+        # kernels = [(1,3,3), (1,3,3), (4,3,3)]
+        # strides = [(1,3,3), (1,3,3), (1,3,3)]
+        # outs = [64, 128, 256]
+        # kernels = [3, 3, 4]
+        # strides = [2, 2, 3]
+        outs = [64, 128, 256]
+        kernels = [(1,4,4), (1,3,3), (4,3,3)]
+        strides = [(1,2,2), (1,3,3), (1,3,3)]
         self.conv1 = nn.Conv3d(chans, outs[0], kernels[0], stride=strides[0])
         self.bn1 = nn.BatchNorm3d(outs[0])
         self.conv2 = nn.Conv3d(outs[0], outs[1], kernels[1], stride=strides[1])

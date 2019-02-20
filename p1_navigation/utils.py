@@ -55,9 +55,9 @@ class Environment():
         return frame
 
     def process_color_frame(self, state):
-        frame = state.transpose(0,3,1,2) * 255 #from NHWC to NCHW
+        frame = state.transpose(0,3,1,2)# * 255 #from NHWC to NCHW
         #frame = frame[:,:,35:-2,2:-2] # crop frame
-        frame = np.ascontiguousarray(frame, dtype=np.float32) / 255 #ensure cropped data is not kept in memory
+        frame = np.ascontiguousarray(frame, dtype=np.float32)# / 255 #ensure cropped data is not kept in memory
         return torch.from_numpy(frame)
 
     def state(self, reset=False):
