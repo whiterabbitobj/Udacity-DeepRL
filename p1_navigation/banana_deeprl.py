@@ -63,32 +63,31 @@ def main():
 def run_agent(agent, env, args):
     """Trains selected agent in the environment."""
     scores = []
+    frames = 1
+
     with progressbar.ProgressBar(max_value=args.print_every) as progress_bar:
         for i_episode in range(1, args.num_episodes+1):
             score = 0
+            done = False
             # reset the scenario
             env.reset()
 
             # get the initial environment state
             state = env.state(reset=True)
 
-            while True:
+            while not done:
                 #choose an action using current π
                 action = agent.act(state)
-                #use action in environment and observe results
                 reward, done = env.step(action.item())
 
                 if done:
                     next_state = None
                 else:
                     next_state = env.state()
-                    
+
                 agent.step(state, action, reward, next_state)
                 state = next_state
-
                 score += reward
-                if done:
-                    break
 
             #prepare for next episode
             #print("Chose new action {} times this episode.".format(acounter))

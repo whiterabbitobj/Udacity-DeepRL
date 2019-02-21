@@ -4,8 +4,9 @@ import argparse
 def get_args():
     parser = argparse.ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment",
             usage="EXAMPLE COMMAND:\n\
-                   python banana_deeprl.py --train --pixels --verbose --framework DDQN -ed .999 -em .05 -lr .00025 -C 2000 -u 3 -buffer 10000 -num 2000")
-
+                   python banana_deeprl.py --train --pixels --verbose --framework DDQN -ed .999 -em .05 -lr .00025 -C 2000 -u 3 -buffer 10000 -num 2000\
+                   python banana_deeprl.py --train --verbose -no_per -ed .991 -em 0.01 -lr 0.0005 -C 2000 -buffer 30000 --pixels\
+                   ")
     parser.add_argument("-f", "--framework",
             help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
             type=str,

@@ -11,6 +11,7 @@ from PIL import Image
 import torchvision.transforms as T
 from collections import namedtuple, deque
 
-x = [1,2,3,4,5,6,7,8,9]
-y = x[::2]
-print(y)
+for i in range(4):
+    print("hello world")
+    if i == 2:
+        break
