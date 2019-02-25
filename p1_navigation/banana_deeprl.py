@@ -7,6 +7,15 @@ from agent import Agent
 from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
 from get_args import get_args
 
+
+#
+#
+# TO DO:
+# -remove all data from tensors/gpu until sample time
+#
+#
+
+
 def main():
     """
     Primary code for training or testing an agent using one of several
