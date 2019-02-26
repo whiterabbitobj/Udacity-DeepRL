@@ -26,7 +26,8 @@ class Environment:
         self.reset()
 
         self.action_size = self.brain.vector_action_space_size
-        self.state_size = self.state.shape[1]
+        self.state_size = self.states.shape[1]
+        self.agent_count = len(self.env_info.agents)
 
     def reset(self):
         self.env_info = self.env.reset(train_mode=self.train)[self.brain_name]
@@ -34,6 +35,13 @@ class Environment:
     def close(self):
         self.env.close()
 
+    def step(self, actions):
+        self.env_info = self.env.step(actions)[self.brain_name]
+        rewards = self.env_info.rewards
+        dones = self.env_info.local_done
+        return rewards, dones
+
+
     @property
-    def state(self):
+    def states(self):
         return self.env_info.vector_observations
