@@ -15,3 +15,22 @@ for i in range(4):
     print("hello world")
     if i == 2:
         break
+
+5e4
+
+
+
+5**0
+
+
+class ReplayBuffer:
+    def __init__(self):
+        pass
+    def print(self, statement):
+        print(statement)
+
+
+x = ReplayBuffer()
+print(x)
+x.print("howdy")
+print(x.__class__.__name__)

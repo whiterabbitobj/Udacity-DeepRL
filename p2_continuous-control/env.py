@@ -41,7 +41,6 @@ class Environment:
         dones = self.env_info.local_done
         return rewards, dones
 
-
     @property
     def states(self):
         return self.env_info.vector_observations
