@@ -21,7 +21,7 @@ class D4PG_Agent: #(Base_Agent):
 
         self.memory = ReplayBuffer()
 
-        # self.actor = models.actor_net
+        self.actor = models.ActorNet(state_size, action_size)
         # self.critic = models.critic_net
         # self.actor_target = models.copy_actor
         # self.critic_target = models.copy_critic
@@ -42,7 +42,8 @@ class D4PG_Agent: #(Base_Agent):
         # Copy the actor network K times and launch via multiprocessing
         return
 
-    def select_action(self):
+    def act(self, states):
+        actions = self.actor(states).detach()
         return
 
 

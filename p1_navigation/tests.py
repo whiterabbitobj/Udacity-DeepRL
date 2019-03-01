@@ -10,7 +10,8 @@ from get_args import get_args
 from PIL import Image
 import torchvision.transforms as T
 from collections import namedtuple, deque
-
+from progress.bar import Bar
+from progress.spinner import Spinner
 for i in range(4):
     print("hello world")
     if i == 2:
@@ -34,3 +35,9 @@ x = ReplayBuffer()
 print(x)
 x.print("howdy")
 print(x.__class__.__name__)
+
+
+spinner = Spinner("Loading ")
+for _ in range(20):
+    spinner.next()
+    time.sleep(0.1)

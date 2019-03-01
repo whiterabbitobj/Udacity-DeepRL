@@ -9,10 +9,15 @@ def get_args():
             help="Size of each batch between learning updates",
             type=int,
             default=64)
+    parser.add_argument("-pre", "--pretrain",
+            help="How many trajectories to randomly sample into the ReplayBuffer\
+                  before training begins.",
+            type=int,
+            default=1000)
     parser.add_argument("-buffer", "--buffersize",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=25000)
+            default=100000)
     parser.add_argument("-e", "--epsilon",
             help="Starting value of Epsilon.",
             type=float,
@@ -109,4 +114,9 @@ def get_args():
     #         help="Beta parameter of the Prioritized Experience Replay.",
     #         type=float,
     #         default=0.4)
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    assert args.pretrain >= args.batchsize, "PRETRAIN less than BATCHSIZE."
+
+
+    return

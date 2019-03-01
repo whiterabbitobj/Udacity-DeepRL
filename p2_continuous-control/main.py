@@ -4,7 +4,7 @@ import torch
 import progressbar
 from unityagents import UnityEnvironment
 import numpy as np
-
+from logger import Logger
 
 # from agent import Agent
 # from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
@@ -18,15 +18,18 @@ def main():
     """
     args = get_args()
 
+    # logger = Logger()
+
     env = Environment(args)
 
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
                        env.agent_count,
                        args.rollout)
-    # agent.launch_k_actors
 
-    agent.initialize_memory(args.batchsize, env)
+    # Run through the environment until the replay buffer has collected a
+    # minimum number of trajectories for training
+    agent.initialize_memory(args.pretrain, env)
 
     ### NO NEED FOR MULTIPLE CODED AGENTS, AS ENVIRONMENT PROVIDES 20 ACTORS
     # while len(agent.replay_memory) < config.batch_size:
@@ -34,27 +37,19 @@ def main():
     #     agent.store_experiences
 
     env.reset()
-    
-    for episode in range(args.num_episodes):
 
+    for episode in range(args.num_episodes):
+        states = env.states
         for t in range(args.max_time):
-            trajectory = agent.collect_trajectory(env, args.rollout)
-            agent.memory.add(trajectory)
+            actions = agent.act(states)
+            rewards, done = env.step(actions)
+            next_states = env.states
+
+            agent.step(states, actions, rewards, next_states, dones)
+
             agent.learn()
 
-
-            batch = agent.memory.sample(args.batchsize)
-            action = agent.act()
-            rewards, done = env.step(action)
-
-
-            for n in range(args.rollout_num):
-
-            states, actions, rewards, next_states, dones = batch
-
-
-
-
+            states = next_states
 
     return
 
