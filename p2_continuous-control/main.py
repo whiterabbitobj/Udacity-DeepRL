@@ -42,10 +42,9 @@ def main():
         states = env.states
         for t in range(args.max_time):
             actions = agent.act(states)
-            rewards, done = env.step(actions)
-            next_states = env.states
+            rewards, next_states, dones = env.step(actions)
 
-            agent.step(states, actions, rewards, next_states, dones)
+            agent.save_experience(states, actions, rewards, next_states, dones)
 
             agent.learn()
 

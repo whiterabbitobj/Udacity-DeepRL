@@ -1,17 +1,24 @@
 import numpy as np
+import copy
 # import random
 from collections import namedtuple, deque
 #
 # import torch
 # import torch.nn as nn
 # import torch.nn.functional as F
-# import torch.optim as optim
+import torch.optim as optim
 
 from buffers import ReplayBuffer, nStepBuffer
 
 
 class D4PG_Agent: #(Base_Agent):
-    def __init__(self, state_size, action_size, agent_count, rollout=5):
+    def __init__(self,
+                 state_size,
+                 action_size,
+                 agent_count,
+                 rollout=5,
+                 a_lr = 1e-4,
+                 c_lr = 1e-3):
         #super().__init__(self)
 
         self.state_size = state_size
@@ -22,9 +29,12 @@ class D4PG_Agent: #(Base_Agent):
         self.memory = ReplayBuffer()
 
         self.actor = models.ActorNet(state_size, action_size)
-        # self.critic = models.critic_net
-        # self.actor_target = models.copy_actor
-        # self.critic_target = models.copy_critic
+        self.critic = models.CriticNet(state_size, action_size)
+        self.actor_target = copy.deepcopy(self.actor)
+        self.critic_target = copy.deepcopy(self.critic)
+
+        self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
+        self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr)
 
         return
 
@@ -48,6 +58,9 @@ class D4PG_Agent: #(Base_Agent):
 
 
     def save_experience(self):
+        pass
+
+    def learn(self):
         pass
 
     def initialize_memory(self, batchsize, env):
