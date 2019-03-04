@@ -55,8 +55,8 @@ class CriticNet(nn.Module):
                  layer_sizes = [400,300],
                  weight_low = -3e-3,
                  weight_high = 3e-3,
-                 v_min = -1,
-                 v_max = 1):
+                 v_min = -10,
+                 v_max = 10):
         super(CriticNet, self).__init__()
 
         #currently errors if user were to provide a custom layer_sizes array
@@ -67,6 +67,7 @@ class CriticNet(nn.Module):
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
         self.logits = nn.Linear(fc2, n_atoms)
         self.atoms = torch.linspace(v_min, v_max, n_atoms)
+        self.atom_delta = (v_max - v_min) / (n_atoms - 1)
         initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state, actions):
@@ -84,4 +85,4 @@ class CriticNet(nn.Module):
         #dist = torch.distributions.Categorical(logits=x)
         #print(dist)
         #x = dist
-        return Q_val #, probs, log_probs
+        return Q_val, probs

@@ -5,7 +5,7 @@ from collections import namedtuple, deque
 from models import ActorNet, CriticNet
 #
 import torch
-# import torch.nn as nn
+import torch.nn as nn
 # import torch.nn.functional as F
 import torch.optim as optim
 
