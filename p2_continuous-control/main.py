@@ -6,21 +6,29 @@ from unityagents import UnityEnvironment
 import numpy as np
 from logger import Logger
 
-# from agent import Agent
+from agent import D4PG_Agent
+from environment import Environment
 # from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
 # from get_args import get_args
 
 
 def main():
     """
-    D4PG Agent for Udacity's Continuous Control project found at:
+    Algorithm implementation based on the original paper/research by
+    Barth-Maron, Hoffman, et al: https://arxiv.org/abs/1804.08617
+
+    D4PG Agent for Udacity's Continuous Control project:
     https://github.com/udacity/deep-reinforcement-learning/tree/master/p2_continuous-control
+
+    This environment utilizes 20 actors built into the environment for parallel
+    training. This specific code therefore has no implementation of K-Actors
+    training that is discussed in the original D4PG paper.
     """
     args = get_args()
 
-    # logger = Logger()
-
     env = Environment(args)
+
+    logger = Logger(env)
 
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
@@ -31,25 +39,31 @@ def main():
     # minimum number of trajectories for training
     agent.initialize_memory(args.pretrain, env)
 
-    ### NO NEED FOR MULTIPLE CODED AGENTS, AS ENVIRONMENT PROVIDES 20 ACTORS
-    # while len(agent.replay_memory) < config.batch_size:
-    #     agent.launch_k_actors
-    #     agent.store_experiences
-
+    # Ensure that the environment is in it's starting state before training
     env.reset()
 
-    for episode in range(args.num_episodes):
+    #Begin training loop
+    for episode in range(1, args.num_episodes+1):
         states = env.states
+
+        # Gather experience for a maximum amount of steps, or until Done,
+        # whichever comes first
         for t in range(args.max_time):
             actions = agent.act(states)
-            rewards, next_states, dones = env.step(actions)
-
-            agent.save_experience(states, actions, rewards, next_states, dones)
-
-            agent.learn()
-
+            next_states, rewards, dones = env.step(actions)
+            agent.step(states, actions, rewards, next_states)
             states = next_states
 
+            logger.rewards += rewards
+            if np.any(dones):
+                break
+
+        logger.log_score()
+
+
+    env.close()
+    logger.report()
+    #logger.print_results()
     return
 
 

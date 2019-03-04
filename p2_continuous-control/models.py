@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
+# import torch.optim as optim
 import numpy as np
 
 def initialize_weights(net, low, high):
@@ -78,10 +78,10 @@ class CriticNet(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.logits(x)
         probs = F.softmax(x, dim=-1)
-        log_probs = F.log_softmax(x, dim=-1)
+        #log_probs = F.log_softmax(x, dim=-1)
         #self.z = F.softmax(x, dim=1)
-        #self.Q_val = (y * self.atoms).sum()
+        Q_val = (probs * self.atoms).sum(-1)
         #dist = torch.distributions.Categorical(logits=x)
         #print(dist)
         #x = dist
-        return probs, log_probs
+        return Q_val #, probs, log_probs
