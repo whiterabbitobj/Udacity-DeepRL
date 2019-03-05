@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 
 class Logger:
     def __init__(self, env):
@@ -12,14 +13,15 @@ class Logger:
     def add(self, log):
         self.current_log += str(log)
 
-    def log_score(self):
-        self.scores.append(logger.score())
+    # def log_score(self):
+    #     self.scores.append(logger.score())
 
     def report(self):
         print("Score for last episode:", self.scores[-1])
 
     def score(self):
         score = self.rewards.mean()
+        print("Episode return: ", score)
         self.scores.append(score)
         self._reset_rewards()
 

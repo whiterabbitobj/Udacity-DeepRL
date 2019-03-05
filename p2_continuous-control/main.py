@@ -8,8 +8,8 @@ from logger import Logger
 
 from agent import D4PG_Agent
 from environment import Environment
-# from utils import Environment, load_checkpoint, print_verbose_info, report_results, print_status, save_checkpoint
-# from get_args import get_args
+from utils import save_checkpoint
+from get_args import get_args
 
 
 def main():
@@ -25,15 +25,19 @@ def main():
     training that is discussed in the original D4PG paper.
     """
     args = get_args()
+    for arg in vars(args):
+        print("{}: {}".format(arg.upper(), getattr(args, arg)))
 
     env = Environment(args)
-
-    logger = Logger(env)
 
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
                        env.agent_count,
                        args.rollout)
+
+    logger = Logger(env)
+    saver = Saver(agent)
+
 
     # Run through the environment until the replay buffer has collected a
     # minimum number of trajectories for training
@@ -61,12 +65,14 @@ def main():
                 break
 
         agent.reset_nstep_memory()
-
-        logger.log_score()
-
+        print("Episode {}/{}".format(episode, args.num_episodes))
+        logger.score()
+        print(actions[0])
+        # if episode % args.save_every == 0:
+        #     save_checkpoint(agent)
 
     env.close()
-    logger.report()
+    #logger.report()
     #logger.print_results()
     return
 

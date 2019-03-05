@@ -35,8 +35,10 @@ class ActorNet(nn.Module):
         """
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
-        x = self.output(x).tanh()
-        return x
+        logits = self.output(x)
+        action = logits.tanh()
+        #log_prob = logits.log_prob(action)
+        return action#, log_prob
 
 
 
@@ -65,7 +67,7 @@ class CriticNet(nn.Module):
 
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
-        self.logits = nn.Linear(fc2, n_atoms)
+        self.output = nn.Linear(fc2, n_atoms)
         self.atoms = torch.linspace(v_min, v_max, n_atoms)
         self.atom_delta = (v_max - v_min) / (n_atoms - 1)
         initialize_weights(self, weight_low, weight_high)
@@ -77,6 +79,8 @@ class CriticNet(nn.Module):
         x = F.relu(self.fc1(state))
         x = torch.cat([x, actions], dim=1)
         x = F.relu(self.fc2(x))
-        x = self.logits(x)
-        probs = F.softmax(x, dim=-1)
-        return probs
+        logits = self.output(x)
+        probs = F.softmax(logits, dim=-1)
+        log_probs = F.log_softmax(logits, dim=-1)
+
+        return probs, log_probs

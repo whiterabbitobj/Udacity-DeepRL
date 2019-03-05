@@ -15,7 +15,7 @@ class ReplayBuffer:
 
     where n=ROLLOUT.
     """
-    def __init__(self, buffersize=50000):
+    def __init__(self, buffersize=100000):
         self.buffer = deque(maxlen=buffersize)
         self.experience = namedtuple("experience", field_names=['state','action','reward','next_state'])
 

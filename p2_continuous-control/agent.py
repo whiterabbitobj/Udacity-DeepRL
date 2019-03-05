@@ -5,7 +5,7 @@ from collections import namedtuple, deque
 from progressbar import ProgressBar
 import torch
 import torch.nn as nn
-# import torch.nn.functional as F
+import torch.nn.functional as F
 import torch.optim as optim
 
 from buffers import ReplayBuffer
@@ -18,7 +18,7 @@ class D4PG_Agent: #(Base_Agent):
                  action_size,
                  agent_count,
                  rollout=5,
-                 a_lr = 1e-4,
+                 a_lr = 1e-3,
                  c_lr = 1e-3,
                  gamma = 0.99,
                  C = 1000,
@@ -51,6 +51,7 @@ class D4PG_Agent: #(Base_Agent):
         implementation but may be added as a future TODO item.
         """
 
+        self.framework = "D4PG"
         self.t_step = 0
         self.state_size = state_size
         self.action_size = action_size
@@ -61,18 +62,19 @@ class D4PG_Agent: #(Base_Agent):
         self.e = .3
         self.e_decay = 0.9999
         self.batch_size = 64
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         # Set up memory buffers, one for Replay Buffer and one to handle
         # collecting data for n-step returns
         self.memory = ReplayBuffer()
         self.reset_nstep_memory()
 
-        self.actor = ActorNet(state_size, action_size)
-        self.actor_target = copy.deepcopy(self.actor)
+        self.actor = ActorNet(state_size, action_size).to(self.device)
+        self.actor_target = copy.deepcopy(self.actor).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
 
-        self.critic = CriticNet(state_size, action_size)
-        self.critic_target = copy.deepcopy(self.critic)
+        self.critic = CriticNet(state_size, action_size).to(self.device)
+        self.critic_target = copy.deepcopy(self.critic).to(self.device)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr)
         self.critic_loss = nn.CrossEntropyLoss()
 
@@ -97,13 +99,15 @@ class D4PG_Agent: #(Base_Agent):
         while len(self.memory) < pretrain_length:
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_states, rewards, dones = env.step(actions)
+            print("Taking step...")
             self.step(states, actions, rewards, next_states, pretrain=True)
             states = next_states
-            # if len(self.memory) % 100 == 0:
-                # print("Memory: {}/{}".format(len(self.memory), pretrain_length))
+        print("Done!")
 
     def act(self, states):
-        actions = self.actor(states).detach().numpy()
+        states = states.to(self.device)
+        actions = self.actor(states).detach().cpu()
+        actions = actions.numpy() #.astype(np.float32)
         noise = self._gauss_noise(actions.shape)
         actions += noise
         actions = np.clip(actions, -1, 1)
@@ -112,14 +116,15 @@ class D4PG_Agent: #(Base_Agent):
     def step(self, states, actions, rewards, next_states, pretrain=False):
         # Current SARS' tuple is used with last ROLLOUT steps to generate a new
         # memory
-        self._store_memories(zip(states, actions, rewards, next_states))
+        memory = zip(states, actions, rewards, next_states)
+        self._store_memories(memory)
 
         if pretrain:
             return
 
         self._learn()
         self.t_step += 1
-        self.e *= self.e_decay
+        #self.e *= self.e_decay
 
     def _store_memories(self, experiences):
         """
@@ -136,6 +141,8 @@ class D4PG_Agent: #(Base_Agent):
         # Unpacks and stores the SARS' tuple for each actor in the environment
         # thus, each timestep actually adds K_ACTORS memories to the buffer,
         # for the Udacity environment this means 20 memories each timestep.
+        print("About to store memories, current length:", len(self.memory))
+        print("nstep memory len:", len(self.n_step_memory))
         for actor in zip(*self.n_step_memory):
             states, actions, rewards, next_states = zip(*actor)
             n_steps = self.rollout - 1
@@ -143,40 +150,49 @@ class D4PG_Agent: #(Base_Agent):
             rewards = rewards.sum()
             # store the current state, current action, cumulative discounted
             # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-            self.memory.store(states[0].unsqueeze(0), torch.from_numpy(actions[0]).unsqueeze(0), torch.tensor([rewards]), next_states[-1].unsqueeze(0))
+            states = states[0].unsqueeze(0)
+            actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
+            rewards = torch.tensor([rewards])
+            next_states = next_states[-1].unsqueeze(0)
+            self.memory.store(states, actions, rewards, next_states)
+            print("Stored new memory, new length is:", len(self.memory))
+
+        # print("Stored new memories, new length is:", len(self.memory))
 
     def _learn(self):
         batch = self.memory.sample(self.batch_size)
         #states, actions, rewards, next_states = batch
-        states = torch.cat(batch.state)
-        actions = torch.cat(batch.action)
-        rewards = torch.cat(batch.reward)
-        next_states = torch.cat(batch.next_state)
+        states = torch.cat(batch.state).to(self.device)
+        actions = torch.cat(batch.action).float().to(self.device)
+        rewards = torch.cat(batch.reward).to(self.device)
+        next_states = torch.cat(batch.next_state).to(self.device)
 
 
-        # states.to
-        # next_states.to(self.device)
 
         # Calculate Yᵢ from target networks using θ' and W'
-        target = self._get_targets(rewards, next_states)
+        target = self._get_targets(rewards, next_states).detach()
         # Calculate value distribution for current state using weights W
-        current_value_dist = self.critic(states, actions)
+        predicted_dist, log_probs = self.critic(states, actions)
         # Predict action for actor network loss calculation using θ
-        current_action_prediction = self.actor(states)
-        new_value_dist = self.critic(states, current_action_prediction)
+        predicted_action = self.actor(states)
+        expected_reward, _ = self.critic(states, predicted_action)
 
-        # Calculate LOSSES
-        critic_loss = self.critic_loss(target, current_value_dist)
-        actor_loss = (current_action_prediction * new_value_dist).mean()
+        ####################
+        # Calculate LOSSES #
+
+        #critic_loss = self.critic_loss(current_value_dist, target)
+        critic_loss = -(target * log_probs).sum(-1).mean()
+        #critic_loss = nn.CrossEntropyLoss(predicted_dist, target)
+
+        actor_loss = -(expected_reward).mean()
 
         # Perform gradient descent
         self.actor_optim.zero_grad()
-        self.critic_optim.zero_grad()
-
         actor_loss.backward()
-        critic_loss.backward()
-
         self.actor_optim.step()
+
+        self.critic_optim.zero_grad()
+        critic_loss.backward()
         self.critic_optim.step()
 
         ### Soft-update like in original DDPG
@@ -184,9 +200,9 @@ class D4PG_Agent: #(Base_Agent):
         #self._soft_update(self.actor_target, self.actor, self.tau)
 
         ### Hard update as in DQN and implied by D4PG paper
-        if  self.t_step % self.C == 0:
-            self.critic_target.load_state_dict(self.critic.state_dict())
-            self.actor_target.load_state_dict(self.critic.state_dict())
+        # if  self.t_step % self.C == 0:
+        #     self.critic_target.load_state_dict(self.critic.state_dict())
+        #     self.actor_target.load_state_dict(self.critic.state_dict())
 
     def _categorical(self,
                     rewards,
@@ -198,8 +214,8 @@ class D4PG_Agent: #(Base_Agent):
         Returns the projected value distribution for the input state/action pair
         """
 
-        rewards = torch.tensor(rewards).unsqueeze(-1)
-        atoms = torch.linspace(vmin, vmax, num_atoms)
+        rewards = rewards.unsqueeze(-1)
+        atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
         projected_atoms = rewards + self.gamma**self.rollout * atoms.view(1,-1)
@@ -211,22 +227,26 @@ class D4PG_Agent: #(Base_Agent):
         m_lower = (upper_bound + (lower_bound == upper_bound).float() - b) * probs
         m_upper = (b - lower_bound) * probs
 
-        projected_probs = torch.tensor(np.zeros(probs.size))
+        projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
         for idx in range(probs.size(0)):
-            projected_probs[idx].index_add_(0, lower_bound[idx], m_lower[idx].double())
-            projected_probs[idx].index_add_(0, upper_bound[idx], m_lower[idx].double())
+            projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
+            projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
 
-        return projected_probs
+        return projected_probs.float()
 
     def _soft_update(self, target, active):
         for t_param, param in zip(target.parameters(), active.parameters()):
             t_param.data.copy_(tau*param.data + (1-tau)*t_param.data)
 
     def _get_targets(self, rewards, next_states):
-        target_actions = self.actor_target(next_states).detach()
-        target_probs = self.critic_target(next_states, target_actions).detach()
+        target_actions = self.actor_target(next_states)#.detach()
+        target_probs, _ = self.critic_target(next_states, target_actions)#.detach()
+        #print("TARGET PROBS: {}".format(target_probs.size))
+        #print(target_probs.shape, target_probs.requires_grad)
         projected_probs = self._categorical(rewards, target_probs)
-        return rewards + projected_probs
+        #print(projected_probs.shape, projected_probs.requires_grad)
+        #return rewards + projected_probs
+        return projected_probs
 
     def _gauss_noise(self, shape):
         n = np.random.normal(0, 1, shape)
