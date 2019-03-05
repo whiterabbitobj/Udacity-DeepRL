@@ -38,12 +38,14 @@ def main():
     # Run through the environment until the replay buffer has collected a
     # minimum number of trajectories for training
     agent.initialize_memory(args.pretrain, env)
-    #agent.collect_experience #(add this in initialize_memory, which would jsut become a loop)
-    # Ensure that the environment is in it's starting state before training
-    env.reset()
 
     #Begin training loop
     for episode in range(1, args.num_episodes+1):
+
+        # Begin each episode with a clean environment
+        env.reset()
+
+        # Get initial state
         states = env.states
 
         # Gather experience for a maximum amount of steps, or until Done,
@@ -57,6 +59,8 @@ def main():
             logger.rewards += rewards
             if np.any(dones):
                 break
+
+        agent.reset_nstep_memory()
 
         logger.log_score()
 
