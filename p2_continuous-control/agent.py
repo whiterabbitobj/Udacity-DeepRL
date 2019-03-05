@@ -17,12 +17,15 @@ class D4PG_Agent: #(Base_Agent):
                  state_size,
                  action_size,
                  agent_count,
-                 rollout=5,
-                 a_lr = 1e-3,
-                 c_lr = 1e-3,
-                 gamma = 0.99,
+                 a_lr = 1e-4,
+                 c_lr = 1e-4,
+                 batch_size = 128,
+                 buffer_size = 1000000,
                  C = 1000,
-                 batch_size = 64):
+                 gamma = 0.99,
+                 tau = 0.0005,
+                 rollout = 5,
+                 weight_decay = 0.0001):
         """
         Implementation of D4PG:
         "Distributed Distributional Deterministic Policy Gradients"
@@ -53,37 +56,43 @@ class D4PG_Agent: #(Base_Agent):
 
         self.framework = "D4PG"
         self.t_step = 0
+
+        self.batch_size = batch_size
+        self.C = C
+        self.e = .3
+        self.e_decay = 0.9999
         self.state_size = state_size
         self.action_size = action_size
         self.agent_count = agent_count
         self.rollout = rollout
         self.gamma = gamma
-        self.C = C
-        self.e = .3
-        self.e_decay = 0.9999
-        self.batch_size = 64
+        self.tau = tau
+
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
         # Set up memory buffers, one for Replay Buffer and one to handle
         # collecting data for n-step returns
-        self.memory = ReplayBuffer()
-        self.reset_nstep_memory()
+        self.memory = ReplayBuffer(buffer_size)
 
+        # Initialize ACTOR networks
         self.actor = ActorNet(state_size, action_size).to(self.device)
         self.actor_target = copy.deepcopy(self.actor).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
 
+        # Initialize CRITIC networks
         self.critic = CriticNet(state_size, action_size).to(self.device)
         self.critic_target = copy.deepcopy(self.critic).to(self.device)
-        self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr)
-        self.critic_loss = nn.CrossEntropyLoss()
+        self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr, weight_decay=weight_decay)
+        #self.critic_loss = nn.CrossEntropyLoss()
+
+        self.new_episode()
 
 
-    def reset_nstep_memory(self):
+    def new_episode(self):
         """
-        Creates (or recreates to zero an existing) deque to handle nstep returns.
+        Handle any cleanup or steps to begin a new episode of training.
         """
-        self.n_step_memory = deque(maxlen=self.rollout)
+        self._reset_nstep_memory()
 
     def initialize_memory(self, pretrain_length, env):
         """
@@ -99,10 +108,12 @@ class D4PG_Agent: #(Base_Agent):
         while len(self.memory) < pretrain_length:
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_states, rewards, dones = env.step(actions)
-            print("Taking step...")
             self.step(states, actions, rewards, next_states, pretrain=True)
+            print("Taking pretrain step... {}, memory filled: {}/{}".format(self.t_step, len(self.memory), pretrain_length))
+
             states = next_states
         print("Done!")
+        self.t_step = 0
 
     def act(self, states):
         states = states.to(self.device)
@@ -116,14 +127,14 @@ class D4PG_Agent: #(Base_Agent):
     def step(self, states, actions, rewards, next_states, pretrain=False):
         # Current SARS' tuple is used with last ROLLOUT steps to generate a new
         # memory
-        memory = zip(states, actions, rewards, next_states)
+        memory = list(zip(states, actions, rewards, next_states))
+        #print("memories len:", len(memory))
         self._store_memories(memory)
-
+        self.t_step += 1
         if pretrain:
             return
 
         self._learn()
-        self.t_step += 1
         #self.e *= self.e_decay
 
     def _store_memories(self, experiences):
@@ -133,16 +144,13 @@ class D4PG_Agent: #(Base_Agent):
         """
         self.n_step_memory.append(experiences)
 
-        # If ROLLOUT steps haven't been taken in a new episode, then don't store
-        # a SARS' tuple yet
+        # Abort if ROLLOUT steps haven't been taken in a new episode
         if len(self.n_step_memory) < self.rollout:
             return
 
         # Unpacks and stores the SARS' tuple for each actor in the environment
         # thus, each timestep actually adds K_ACTORS memories to the buffer,
         # for the Udacity environment this means 20 memories each timestep.
-        print("About to store memories, current length:", len(self.memory))
-        print("nstep memory len:", len(self.n_step_memory))
         for actor in zip(*self.n_step_memory):
             states, actions, rewards, next_states = zip(*actor)
             n_steps = self.rollout - 1
@@ -155,9 +163,6 @@ class D4PG_Agent: #(Base_Agent):
             rewards = torch.tensor([rewards])
             next_states = next_states[-1].unsqueeze(0)
             self.memory.store(states, actions, rewards, next_states)
-            print("Stored new memory, new length is:", len(self.memory))
-
-        # print("Stored new memories, new length is:", len(self.memory))
 
     def _learn(self):
         batch = self.memory.sample(self.batch_size)
@@ -173,17 +178,13 @@ class D4PG_Agent: #(Base_Agent):
         target = self._get_targets(rewards, next_states).detach()
         # Calculate value distribution for current state using weights W
         predicted_dist, log_probs = self.critic(states, actions)
+        critic_loss = -(target * log_probs).sum(-1).mean()
+        #critic_loss = nn.CrossEntropyLoss(predicted_dist, target)
+        #critic_loss = self.critic_loss(current_value_dist, target)
+
         # Predict action for actor network loss calculation using θ
         predicted_action = self.actor(states)
         expected_reward, _ = self.critic(states, predicted_action)
-
-        ####################
-        # Calculate LOSSES #
-
-        #critic_loss = self.critic_loss(current_value_dist, target)
-        critic_loss = -(target * log_probs).sum(-1).mean()
-        #critic_loss = nn.CrossEntropyLoss(predicted_dist, target)
-
         actor_loss = -(expected_reward).mean()
 
         # Perform gradient descent
@@ -199,10 +200,10 @@ class D4PG_Agent: #(Base_Agent):
         #self._soft_update(self.critic_target, self.critic, self.tau)
         #self._soft_update(self.actor_target, self.actor, self.tau)
 
-        ### Hard update as in DQN and implied by D4PG paper
-        # if  self.t_step % self.C == 0:
-        #     self.critic_target.load_state_dict(self.critic.state_dict())
-        #     self.actor_target.load_state_dict(self.critic.state_dict())
+        ## Hard update as in DQN and implied by D4PG paper
+        if  self.t_step % self.C == 0:
+            self.critic_target.load_state_dict(self.critic.state_dict())
+            self.actor_target.load_state_dict(self.actor.state_dict())
 
     def _categorical(self,
                     rewards,
@@ -241,13 +242,16 @@ class D4PG_Agent: #(Base_Agent):
     def _get_targets(self, rewards, next_states):
         target_actions = self.actor_target(next_states)#.detach()
         target_probs, _ = self.critic_target(next_states, target_actions)#.detach()
-        #print("TARGET PROBS: {}".format(target_probs.size))
-        #print(target_probs.shape, target_probs.requires_grad)
         projected_probs = self._categorical(rewards, target_probs)
-        #print(projected_probs.shape, projected_probs.requires_grad)
         #return rewards + projected_probs
         return projected_probs
 
     def _gauss_noise(self, shape):
         n = np.random.normal(0, 1, shape)
         return self.e*n
+
+    def _reset_nstep_memory(self):
+        """
+        Creates (or recreates to zero an existing) deque to handle nstep returns.
+        """
+        self.n_step_memory = deque(maxlen=self.rollout)

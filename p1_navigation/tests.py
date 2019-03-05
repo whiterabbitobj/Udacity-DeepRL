@@ -17,27 +17,25 @@ for i in range(4):
     if i == 2:
         break
 
-5e4
+
+n = deque(maxlen=5)
+
+n.append("a")
+n.append("b")
+n.append("c")
+n.append("d")
+n.append("e")
+
+print(n)
 
 
-
-5**0
-
-
-class ReplayBuffer:
-    def __init__(self):
-        pass
-    def print(self, statement):
-        print(statement)
+n.append("f")
+print(n)
 
 
-x = ReplayBuffer()
-print(x)
-x.print("howdy")
-print(x.__class__.__name__)
+for letter in n:
+    print(letter)
 
-
-spinner = Spinner("Loading ")
-for _ in range(20):
-    spinner.next()
-    time.sleep(0.1)
+n.appendleft("g")
+for letter in n:
+    print(letter)
