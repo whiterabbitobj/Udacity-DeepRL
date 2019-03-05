@@ -38,7 +38,7 @@ def main():
     # Run through the environment until the replay buffer has collected a
     # minimum number of trajectories for training
     agent.initialize_memory(args.pretrain, env)
-
+    #agent.collect_experience #(add this in initialize_memory, which would jsut become a loop)
     # Ensure that the environment is in it's starting state before training
     env.reset()
 

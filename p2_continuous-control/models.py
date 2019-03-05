@@ -81,8 +81,8 @@ class CriticNet(nn.Module):
         probs = F.softmax(x, dim=-1)
         #log_probs = F.log_softmax(x, dim=-1)
         #self.z = F.softmax(x, dim=1)
-        Q_val = (probs * self.atoms).sum(-1)
+        #Q_val = (probs * self.atoms).sum(-1)
         #dist = torch.distributions.Categorical(logits=x)
         #print(dist)
         #x = dist
-        return Q_val, probs
+        return probs
