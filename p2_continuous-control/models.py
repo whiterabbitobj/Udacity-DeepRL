@@ -79,10 +79,4 @@ class CriticNet(nn.Module):
         x = F.relu(self.fc2(x))
         x = self.logits(x)
         probs = F.softmax(x, dim=-1)
-        #log_probs = F.log_softmax(x, dim=-1)
-        #self.z = F.softmax(x, dim=1)
-        #Q_val = (probs * self.atoms).sum(-1)
-        #dist = torch.distributions.Categorical(logits=x)
-        #print(dist)
-        #x = dist
         return probs

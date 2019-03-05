@@ -140,6 +140,9 @@ class D4PG_Agent: #(Base_Agent):
         batch = self.memory.sample()
         states, actions, rewards, next_states = batch
 
+        # states.to
+        # next_states.to(self.device)
+
         # Calculate Yᵢ from target networks using θ' and W'
         target = self._get_targets(rewards, next_states)
         # Calculate value distribution for current state using weights W
@@ -148,9 +151,11 @@ class D4PG_Agent: #(Base_Agent):
         current_action_prediction = self.actor(states)
         new_value_dist = self.critic(states, current_action_prediction)
 
+        # Calculate LOSSES
         critic_loss = self.critic_loss(target, current_value_dist)
         actor_loss = (current_action_prediction * new_value_dist).mean()
 
+        # Perform gradient descent
         self.actor_optim.zero_grad()
         self.critic_optim.zero_grad()
 
@@ -160,11 +165,11 @@ class D4PG_Agent: #(Base_Agent):
         self.actor_optim.step()
         self.critic_optim.step()
 
-        ### Either soft-update like in original DDPG
+        ### Soft-update like in original DDPG
         #self._soft_update(self.critic_target, self.critic, self.tau)
         #self._soft_update(self.actor_target, self.actor, self.tau)
 
-        ### Or hard update as in DQN and implied by D4PG paper
+        ### Hard update as in DQN and implied by D4PG paper
         if  self.t_step % self.C == 0:
             self.critic_target.load_state_dict(self.critic.state_dict())
             self.actor_target.load_state_dict(self.critic.state_dict())
@@ -205,60 +210,11 @@ class D4PG_Agent: #(Base_Agent):
             t_param.data.copy_(tau*param.data + (1-tau)*t_param.data)
 
     def _get_target(self, rewards, next_states):
-        target_actions = self.actor_target(next_states)
-        target_probs = self.critic_target(next_states, target_actions)
+        target_actions = self.actor_target(next_states).detach()
+        target_probs = self.critic_target(next_states, target_actions).detach()
         projected_probs = self._categorical(rewards, target_probs, gamma=self.gamma**self.rollout)
         return rewards + projected_probs
-
-    # def _get_target(self, batch):
-    #     states, actions, rewards, next_states = batch
-    #     for i in range(1, self.rollout+1):
-    #         actions_calc = self.actor_target(next_states).detach()
-    #         rewards += gamma**i *  self.critic_target(next_states, actions_calc)
-    #     return rewards
-
-
 
     def _gauss_noise(self, shape):
         n = np.random.normal(0, 1, shape)
         return self.e*n
-
-    # def initialize_memory(self, pretrain_length, env):
-    #     """
-    #     Fills ReplayBuffer to at least the size of BATCHSIZE so that training
-    #     can begin. Stacks each experience with ROLLOUT number of frames.
-    #
-    #     This method uses some finnicky zips/unzips to handle data. It takes in
-    #     SARS' data as N-row arrays (N=20 for Udacity Reacher environment), it
-    #     changes this into N-row array of 4 columns (SARS') and stacks it in a
-    #     deque of height=ROLLOUT (default 5) to collect rollout trajectories.
-    #
-    #     Once the rollout length has been reached, it unpacks this deque into an
-    #     experience trajectory that can be stored and processed in the main
-    #     ReplayBuffer. Since there are 20 actors, 20 trajectories are stored at
-    #     each timestep. Therefore, 20x [4, 5, [33, 4, 1, 33]] are stored, where
-    #     each trajectory contains:
-    #     STATES [5, 33]
-    #     ACTIONS [5, 4]
-    #     REWARDS [5, 1]
-    #     NEXT_STATES [5, 33]
-    #     """
-    #     n_step_memory = nStepBuffer(size=self.rollout)
-    #
-    #     # Take random actions and observe environment until replay memory has
-    #     # enough stored experiences to fill a batch for processing
-    #     states = env.states
-    #     while len(self.memory) < pretain_length:
-    #         # Actions are bound [-1, 1]
-    #         actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-    #         next_states, rewards, dones = env.step(actions)
-    #         agents = [n_step_memory.experience(*i) for i in zip(states, actions, rewards, next_states)]
-    #         n_step_memory.store(agents)
-    #
-    #         # Once ROLLOUT consecutive actions/observations have been collected,
-    #         # We can store experiences in the main replay buffer for learning
-    #         if len(n_step_memory) == n_step_memory.buffer.maxlen:
-    #             for agent in zip(*n_step_memory.buffer):
-    #                 self.memory.store(*zip(*agent))
-    #         states = next_states
-    #     return
