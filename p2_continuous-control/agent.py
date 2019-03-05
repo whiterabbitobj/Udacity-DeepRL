@@ -2,14 +2,14 @@ import numpy as np
 import copy
 # import random
 from collections import namedtuple, deque
-from models import ActorNet, CriticNet
-#
+from progressbar import ProgressBar
 import torch
 import torch.nn as nn
 # import torch.nn.functional as F
 import torch.optim as optim
 
-from buffers import ReplayBuffer, nStepBuffer
+from buffers import ReplayBuffer
+from models import ActorNet, CriticNet
 
 
 class D4PG_Agent: #(Base_Agent):
@@ -21,7 +21,8 @@ class D4PG_Agent: #(Base_Agent):
                  a_lr = 1e-4,
                  c_lr = 1e-3,
                  gamma = 0.99,
-                 C = 1000):
+                 C = 1000,
+                 batch_size = 64):
         """
         Implementation of D4PG:
         "Distributed Distributional Deterministic Policy Gradients"
@@ -59,11 +60,12 @@ class D4PG_Agent: #(Base_Agent):
         self.C = C
         self.e = .3
         self.e_decay = 0.9999
+        self.batch_size = 64
 
         # Set up memory buffers, one for Replay Buffer and one to handle
         # collecting data for n-step returns
         self.memory = ReplayBuffer()
-        self.reset_n_step_memory()
+        self.reset_nstep_memory()
 
         self.actor = ActorNet(state_size, action_size)
         self.actor_target = copy.deepcopy(self.actor)
@@ -81,17 +83,24 @@ class D4PG_Agent: #(Base_Agent):
         """
         self.n_step_memory = deque(maxlen=self.rollout)
 
-    def initialize_memory(self, pretrain_length):
+    def initialize_memory(self, pretrain_length, env):
         """
         Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
         before training begins.
         """
+        if len(self.memory) >= pretrain_length:
+            print("Memory already filled, length: {}".format(len(self.memory)))
+            return
+
+        print("Initializing memory buffer.")
         states = env.states
         while len(self.memory) < pretrain_length:
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_states, rewards, dones = env.step(actions)
-            self.step(state, action, reward, next_state, pretrain=True)
+            self.step(states, actions, rewards, next_states, pretrain=True)
             states = next_states
+            # if len(self.memory) % 100 == 0:
+                # print("Memory: {}/{}".format(len(self.memory), pretrain_length))
 
     def act(self, states):
         actions = self.actor(states).detach().numpy()
@@ -103,12 +112,12 @@ class D4PG_Agent: #(Base_Agent):
     def step(self, states, actions, rewards, next_states, pretrain=False):
         # Current SARS' tuple is used with last ROLLOUT steps to generate a new
         # memory
-        agent._store_memories(zip(states, actions, rewards, next_states))
+        self._store_memories(zip(states, actions, rewards, next_states))
 
         if pretrain:
             return
 
-        agent.learn()
+        self._learn()
         self.t_step += 1
         self.e *= self.e_decay
 
@@ -130,15 +139,20 @@ class D4PG_Agent: #(Base_Agent):
         for actor in zip(*self.n_step_memory):
             states, actions, rewards, next_states = zip(*actor)
             n_steps = self.rollout - 1
-            rewards = np.fromiter((rewards[i] * gamma**i for i in range(n_steps)), float, count=n_steps)
+            rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
             rewards = rewards.sum()
             # store the current state, current action, cumulative discounted
             # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-            self.memory.store(states[0], actions[0], rewards, next_states[-1])
+            self.memory.store(states[0].unsqueeze(0), torch.from_numpy(actions[0]).unsqueeze(0), torch.tensor([rewards]), next_states[-1].unsqueeze(0))
 
-    def learn(self):
-        batch = self.memory.sample()
-        states, actions, rewards, next_states = batch
+    def _learn(self):
+        batch = self.memory.sample(self.batch_size)
+        #states, actions, rewards, next_states = batch
+        states = torch.cat(batch.state)
+        actions = torch.cat(batch.action)
+        rewards = torch.cat(batch.reward)
+        next_states = torch.cat(batch.next_state)
+
 
         # states.to
         # next_states.to(self.device)
@@ -179,8 +193,7 @@ class D4PG_Agent: #(Base_Agent):
                     probs,
                     vmin = -10,
                     vmax = 10,
-                    num_atoms = 51,
-                    gamma = self.gamma):
+                    num_atoms = 51):
         """
         Returns the projected value distribution for the input state/action pair
         """
@@ -189,7 +202,7 @@ class D4PG_Agent: #(Base_Agent):
         atoms = torch.linspace(vmin, vmax, num_atoms)
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
-        projected_atoms = rewards + gamma * atoms.view(1,-1)
+        projected_atoms = rewards + self.gamma**self.rollout * atoms.view(1,-1)
         b = (projected_atoms - vmin) / delta_z
 
         lower_bound = b.floor()
@@ -209,10 +222,10 @@ class D4PG_Agent: #(Base_Agent):
         for t_param, param in zip(target.parameters(), active.parameters()):
             t_param.data.copy_(tau*param.data + (1-tau)*t_param.data)
 
-    def _get_target(self, rewards, next_states):
+    def _get_targets(self, rewards, next_states):
         target_actions = self.actor_target(next_states).detach()
         target_probs = self.critic_target(next_states, target_actions).detach()
-        projected_probs = self._categorical(rewards, target_probs, gamma=self.gamma**self.rollout)
+        projected_probs = self._categorical(rewards, target_probs)
         return rewards + projected_probs
 
     def _gauss_noise(self, shape):

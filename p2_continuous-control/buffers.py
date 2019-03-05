@@ -17,7 +17,7 @@ class ReplayBuffer:
     """
     def __init__(self, buffersize=50000):
         self.buffer = deque(maxlen=buffersize)
-        self.experience = namedtuple("experience", field_names=['states','actions','rewards','next_states'])
+        self.experience = namedtuple("experience", field_names=['state','action','reward','next_state'])
 
     def store(self, state, action, reward, next_state):
         experience = self.experience(state, action, reward, next_state)
