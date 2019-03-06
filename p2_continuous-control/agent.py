@@ -87,35 +87,6 @@ class D4PG_Agent: #(Base_Agent):
 
         self.new_episode()
 
-
-    def new_episode(self):
-        """
-        Handle any cleanup or steps to begin a new episode of training.
-        """
-        self._reset_nstep_memory()
-        self.episode += 1
-
-    def initialize_memory(self, pretrain_length, env):
-        """
-        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
-        before training begins.
-        """
-        if len(self.memory) >= pretrain_length:
-            print("Memory already filled, length: {}".format(len(self.memory)))
-            return
-
-        print("Initializing memory buffer.")
-        states = env.states
-        while len(self.memory) < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-            next_states, rewards, dones = env.step(actions)
-            self.step(states, actions, rewards, next_states, pretrain=True)
-            print("Taking pretrain step... {}, memory filled: {}/{}".format(self.t_step, len(self.memory), pretrain_length))
-
-            states = next_states
-        print("Done!")
-        self.t_step = 0
-
     def act(self, states):
         states = states.to(self.device)
         actions = self.actor(states).detach().cpu()
@@ -135,38 +106,10 @@ class D4PG_Agent: #(Base_Agent):
         if pretrain:
             return
 
-        self._learn()
+        self.learn()
         self.e *= self.e_decay
 
-    def _store_memories(self, experiences):
-        """
-        Once the n_step_memory holds ROLLOUT number of sars' tuples, then a full
-        memory can be added to the ReplayBuffer.
-        """
-        self.n_step_memory.append(experiences)
-
-        # Abort if ROLLOUT steps haven't been taken in a new episode
-        if len(self.n_step_memory) < self.rollout:
-            return
-
-        # Unpacks and stores the SARS' tuple for each actor in the environment
-        # thus, each timestep actually adds K_ACTORS memories to the buffer,
-        # for the Udacity environment this means 20 memories each timestep.
-        for actor in zip(*self.n_step_memory):
-            states, actions, rewards, next_states = zip(*actor)
-            n_steps = self.rollout - 1
-            rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
-            rewards = rewards.sum()
-            #print("Rewards:", rewards)
-            # store the current state, current action, cumulative discounted
-            # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-            states = states[0].unsqueeze(0)
-            actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
-            rewards = torch.tensor([rewards])
-            next_states = next_states[-1].unsqueeze(0)
-            self.memory.store(states, actions, rewards, next_states)
-
-    def _learn(self):
+    def learn(self):
         batch = self.memory.sample(self.batch_size)
         #states, actions, rewards, next_states = batch
         states = torch.cat(batch.state).to(self.device)
@@ -210,6 +153,34 @@ class D4PG_Agent: #(Base_Agent):
         #     self.critic_target.load_state_dict(self.critic.state_dict())
         #     self.actor_target.load_state_dict(self.actor.state_dict())
 
+    def initialize_memory(self, pretrain_length, env):
+        """
+        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
+        before training begins.
+        """
+        if len(self.memory) >= pretrain_length:
+            print("Memory already filled, length: {}".format(len(self.memory)))
+            return
+
+        print("Initializing memory buffer.")
+        states = env.states
+        while len(self.memory) < pretrain_length:
+            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
+            next_states, rewards, dones = env.step(actions)
+            self.step(states, actions, rewards, next_states, pretrain=True)
+            print("Taking pretrain step... {}, memory filled: {}/{}".format(self.t_step, len(self.memory), pretrain_length))
+
+            states = next_states
+        print("Done!")
+        self.t_step = 0
+
+    def new_episode(self):
+        """
+        Handle any cleanup or steps to begin a new episode of training.
+        """
+        self._reset_nstep_memory()
+        self.episode += 1
+                
     def _categorical(self,
                     rewards,
                     probs,
@@ -241,10 +212,6 @@ class D4PG_Agent: #(Base_Agent):
 
         return projected_probs.float()
 
-    def _soft_update(self, target, active):
-        for t_param, param in zip(target.parameters(), active.parameters()):
-            t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
-
     def _get_targets(self, rewards, next_states):
         target_actions = self.actor_target(next_states)#.detach()
         target_probs, t_logs = self.critic_target(next_states, target_actions)#.detach()
@@ -256,6 +223,39 @@ class D4PG_Agent: #(Base_Agent):
     def _gauss_noise(self, shape):
         n = np.random.normal(0, 1, shape)
         return self.e*n
+
+    def _soft_update(self, target, active):
+        for t_param, param in zip(target.parameters(), active.parameters()):
+            t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
+
+    def _store_memories(self, experiences):
+        """
+        Once the n_step_memory holds ROLLOUT number of sars' tuples, then a full
+        memory can be added to the ReplayBuffer.
+        """
+        self.n_step_memory.append(experiences)
+
+        # Abort if ROLLOUT steps haven't been taken in a new episode
+        if len(self.n_step_memory) < self.rollout:
+            return
+
+        # Unpacks and stores the SARS' tuple for each actor in the environment
+        # thus, each timestep actually adds K_ACTORS memories to the buffer,
+        # for the Udacity environment this means 20 memories each timestep.
+        for actor in zip(*self.n_step_memory):
+            states, actions, rewards, next_states = zip(*actor)
+            n_steps = self.rollout - 1
+            rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
+            rewards = rewards.sum()
+            #print("Rewards:", rewards)
+            # store the current state, current action, cumulative discounted
+            # reward from t -> t+n-1, and the next_state at t+n (S't+n)
+            states = states[0].unsqueeze(0)
+            actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
+            rewards = torch.tensor([rewards])
+            next_states = next_states[-1].unsqueeze(0)
+            self.memory.store(states, actions, rewards, next_states)
+
 
     def _reset_nstep_memory(self):
         """

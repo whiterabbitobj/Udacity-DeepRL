@@ -3,6 +3,7 @@ p1_navigation/Banana_Windows_x86_64/
 *.pth
 p1_navigation/tests.py
 */_ARCHIVE/
+*/saves/
 
 
 # Mac OS
