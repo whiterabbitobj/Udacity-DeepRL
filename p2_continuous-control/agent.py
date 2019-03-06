@@ -1,8 +1,8 @@
 import numpy as np
 import copy
-# import random
-from collections import namedtuple, deque
-from progressbar import ProgressBar
+# from collections import namedtuple, deque
+from collections import deque
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,7 +12,7 @@ from buffers import ReplayBuffer
 from models import ActorNet, CriticNet
 
 
-class D4PG_Agent: #(Base_Agent):
+class D4PG_Agent:
     def __init__(self,
                  state_size,
                  action_size,
@@ -86,7 +86,7 @@ class D4PG_Agent: #(Base_Agent):
         #                                                                      #
 
         # Set up memory buffers, currently only standard replay is implemented
-        self.memory = ReplayBuffer(buffer_size)
+        self.memory = ReplayBuffer(self.device, buffer_size)
 
         #                                                                      #
         ########################################################################
@@ -133,7 +133,7 @@ class D4PG_Agent: #(Base_Agent):
         #self.e *= self.e_decay
 
     def learn(self):
-        batch = self.memory.sample(self.batch_size, self.device)
+        batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states = batch
 
         # Calculate Yᵢ from target networks using θ' and W'
@@ -194,7 +194,8 @@ class D4PG_Agent: #(Base_Agent):
         """
         Handle any cleanup or steps to begin a new episode of training.
         """
-        self._reset_nstep_memory()
+        #self._reset_nstep_memory()
+        self.memory.init_n_step(self.rollout)
         self.episode += 1
 
     def _categorical(self,
@@ -263,19 +264,22 @@ class D4PG_Agent: #(Base_Agent):
 
     def _store_memories(self, experiences):
         """
-        Once the n_step_memory holds ROLLOUT number of sars' tuples, then a full
+        Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
         memory can be added to the ReplayBuffer.
         """
-        self.n_step_memory.append(experiences)
+        #self.n_step_memory.append(experiences)
+        self.memory.n_step.append(experiences)
 
         # Abort if ROLLOUT steps haven't been taken in a new episode
-        if len(self.n_step_memory) < self.rollout:
+        # if len(self.n_step_memory) < self.rollout:
+        if len(self.memory.n_step) < self.rollout:
             return
 
         # Unpacks and stores the SARS' tuple for each actor in the environment
         # thus, each timestep actually adds K_ACTORS memories to the buffer,
         # for the Udacity environment this means 20 memories each timestep.
-        for actor in zip(*self.n_step_memory):
+        # for actor in zip(*self.n_step_memory):
+        for actor in zip(*self.memory.n_step):
             states, actions, rewards, next_states = zip(*actor)
             n_steps = self.rollout - 1
             rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
@@ -290,8 +294,8 @@ class D4PG_Agent: #(Base_Agent):
             self.memory.store(states, actions, rewards, next_states)
 
 
-    def _reset_nstep_memory(self):
-        """
-        Creates (or recreates to zero an existing) deque to handle nstep returns.
-        """
-        self.n_step_memory = deque(maxlen=self.rollout)
+    # def _reset_nstep_memory(self):
+    #     """
+    #     Creates (or recreates to zero an existing) deque to handle nstep returns.
+    #     """
+    #     self.n_step_memory = deque(maxlen=self.rollout)

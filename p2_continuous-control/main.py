@@ -1,16 +1,15 @@
-import time
+# import time
 import numpy as np
-import torch
-import progressbar
-from unityagents import UnityEnvironment
-import numpy as np
-from logger import Logger
+# import torch
 
+# from unityagents import UnityEnvironment
+from logger import Logger
+# import os
 from agent import D4PG_Agent
 from environment import Environment
 from utils import Saver
-from get_args import get_args
-
+# from get_args import get_args
+from meta import Meta
 
 def main():
     """
@@ -25,10 +24,9 @@ def main():
     training that is discussed in the original D4PG paper.
     """
 
-    #meta = Meta()
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    meta = Meta()
 
-    args = get_args()
+    args = meta.args
 
     env = Environment(args)
 
@@ -40,26 +38,17 @@ def main():
                        batch_size = args.batch_size,
                        buffer_size = args.buffer_size,
                        C = args.C,
-                       device = device,
+                       device = args.device,
                        gamma = args.gamma,
                        rollout = args.rollout)
 
-    #meta.load_agent()
     saver = Saver(agent, args)
+    if meta.load_file: meta.load_agent(agent)
 
-    #if args.filename != None or args.latest:
     if args.eval:
-        saver.load_agent(agent)
         eval(args, env, agent)
-
-    elif args.train:
-        train(agent, args, env, saver)
-
     else:
-        print("Somehow, neither Train or Eval modes were set. Something \
-               serious must have gone wrong!")
-
-    saver.quit()
+        train(agent, args, env, saver)
 
     return True
 
@@ -104,7 +93,7 @@ def train(agent, args, env, saver):
 
     env.close()
     saver.save_final(agent)
-    logger.report(args.save_dir)
+    #logger.report(args.save_dir)
     #logger.print_results()
     return True
 

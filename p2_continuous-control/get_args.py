@@ -1,8 +1,8 @@
-import argparse
+from argparse import ArgumentParser
 from utils import print_bracketing
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
+    parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
             usage="")
 
     parser.add_argument("-alr", "--actor_learn_rate",
@@ -167,6 +167,9 @@ def get_args():
             arg_statement = "{}: {}".format(arg.upper(), getattr(args, arg))
             arg_print.append(arg_statement)
         print_bracketing(arg_print)
+
+
+
 
 
     return args

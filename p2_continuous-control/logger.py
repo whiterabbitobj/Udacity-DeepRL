@@ -15,7 +15,6 @@ class Logger:
 
         self._log_agent_details(agent)
         self._reset_rewards()
-        #self.t_step = 1
 
     def add(self, log):
         self.current_log += str(log)
