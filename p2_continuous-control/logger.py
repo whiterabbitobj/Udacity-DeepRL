@@ -10,11 +10,10 @@ class Logger:
         self.full_log = ''
         self.agent_count = env.agent_count
         self.scores = []
-        self.agent_details = []
         self.save_dir = args.save_dir
 
-        self._log_agent_details(agent)
         self._reset_rewards()
+        #with open()
 
     def add(self, log):
         self.current_log += str(log)
@@ -26,6 +25,7 @@ class Logger:
         self.start_time = time.time()
 
     def step(self, eps):
+
         print("\nEpisode {}/{}... RUNTIME: {}".format(eps, self.max_eps, self._runtime()))
         self._update_score()
         self._reset_rewards()
@@ -43,11 +43,6 @@ class Logger:
     def _reset_rewards(self):
         self.rewards = np.zeros(self.agent_count)
 
-    def _log_agent_details(self, agent):
-        for arg in vars(agent):
-            x = "{}: {}".format(arg.upper(), getattr(agent, arg))
-            self.agent_details.append(x)
-
     def print(self):
         # flushlen = len(self.current_log)
         # sys.stdout.write(self.current_log)
@@ -59,5 +54,4 @@ class Logger:
     def report(self, save_dir):
         for detail in self.agent_details:
             print(detail)
-
         pass

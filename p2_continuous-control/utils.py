@@ -29,13 +29,18 @@ class Saver:
     def __init__(self, agent, args):
         self.file_ext = ".agent"
         self.save_dir = args.save_dir
-        self.latest = args.latest
-        self.user_quit_message = "User quit process before loading a file."
 
-        if not args.eval:
-            self.filename = self.generate_savename(agent.framework)
-            self._check_dir(self.save_dir)
-            print_bracketing("Saving to base filename: " + self.filename)
+        self.filename = self.generate_savename(agent.framework)
+        self._check_dir(os.path.join(self.save_dir, self.filename))
+        self._write_init_log(agent)
+        print_bracketing("Saving to base filename: " + self.filename)
+
+    def _write_init_log(self, agent):
+        file = os.path.join(self.save_dir, self.filename, self.filename) + "_LOG.txt"
+        with open(file, 'w') as f:
+            for arg in vars(agent):
+                f.write("{}: {}\n".format(arg.upper(), getattr(agent, arg)))
+        print("Logfile saved to: {}".format(file))
 
     def generate_savename(self, agent_name):
         """Generates an automatic savename for training files, will version-up as

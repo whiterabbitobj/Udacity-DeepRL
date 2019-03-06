@@ -20,15 +20,16 @@ class D4PG_Agent:
                  a_lr = 1e-4,
                  c_lr = 1e-4,
                  batch_size = 128,
-                 buffer_size = 1000000,
+                 buffer_size = 300000,
                  C = 3000,
                  device = "cpu",
                  e = 0.3,
                  e_decay = 0.99999,
+                 e_min = 0.05,
                  gamma = 0.99,
                  num_atoms = 51,
                  vmin = 0,
-                 vmax = 0.1,
+                 vmax = 0.2,
                  rollout = 5,
                  tau = 0.0005,
                  l2_decay = 0.0001,
@@ -69,6 +70,7 @@ class D4PG_Agent:
         self.C = C
         self.e = e
         self.e_decay = e_decay
+        self.e_min = e_min
         self.state_size = state_size
         self.action_size = action_size
         self.agent_count = agent_count
@@ -130,7 +132,10 @@ class D4PG_Agent:
             return
 
         self.learn()
-        #self.e *= self.e_decay
+        self._update_action_epsilon()
+
+    def _update_action_epsilon(self):
+        self.e = max(self.e_min, self.e * self.e_decay)
 
     def learn(self):
         batch = self.memory.sample(self.batch_size)

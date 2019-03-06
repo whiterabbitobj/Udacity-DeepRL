@@ -103,7 +103,7 @@ class Meta():
         parser.add_argument("-alr", "--actor_learn_rate",
                 help="Alpha (Learning Rate).",
                 type=float,
-                default=1e-4)
+                default=1e-3)
         parser.add_argument("-clr", "--critic_learn_rate",
                 help="Alpha (Learning Rate).",
                 type=float,
@@ -115,11 +115,11 @@ class Meta():
         parser.add_argument("-buffer", "--buffer_size",
                 help="How many past timesteps to keep in memory.",
                 type=int,
-                default=100000)
+                default=300000)
         parser.add_argument("-C", "--C",
                 help="How many timesteps between hard network updates.",
                 type=int,
-                default=4000)
+                default=1000)
         parser.add_argument("-eval", "--eval",
                 help="Run in evalutation mode. Otherwise, will utilize training mode.",
                 action="store_true")
@@ -127,7 +127,7 @@ class Meta():
                 help="Gamma (Discount rate).",
                 type=float,
                 default=0.99)
-        parser.add_argument("-max", "--max_time",
+        parser.add_argument("-max", "--max_steps",
                 help="How many timesteps to explore each episode, if a Terminal \
                       state is not reached first",
                 type=int,
@@ -138,12 +138,12 @@ class Meta():
         parser.add_argument("-num", "--num_episodes",
                 help="How many episodes to train?",
                 type=int,
-                default=500)
+                default=100)
         parser.add_argument("-pre", "--pretrain",
                 help="How many trajectories to randomly sample into the ReplayBuffer\
                       before training begins.",
                 type=int,
-                default=1000)
+                default=5000)
         parser.add_argument("--quiet",
                 help="Print less while running the agent.",
                 action="store_true")

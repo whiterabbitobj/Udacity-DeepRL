@@ -42,22 +42,24 @@ def main():
                        gamma = args.gamma,
                        rollout = args.rollout)
 
-    saver = Saver(agent, args)
+    # saver = Saver(agent, args)
     if meta.load_file: meta.load_agent(agent)
 
     if args.eval:
         eval(args, env, agent)
     else:
-        train(agent, args, env, saver)
+        train(agent, args, env)
 
     return True
 
 
 
-def train(agent, args, env, saver):
+def train(agent, args, env):
     """
     Train the agent.
     """
+
+    saver = Saver(agent, args)
 
     logger = Logger(agent, args, env)
 
@@ -73,8 +75,8 @@ def train(agent, args, env, saver):
         # Get initial state
         states = env.states
 
-        # Gather experience until done or max_time is reached
-        for t in range(args.max_time):
+        # Gather experience until done or max_steps is reached
+        for t in range(args.max_steps):
             actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             agent.step(states, actions, rewards, next_states)
@@ -111,8 +113,8 @@ def eval(args, env, agent):
         # Get initial state
         states = env.states
 
-        # Gather experience until done or max_time is reached
-        for t in range(args.max_time):
+        # Gather experience until done or max_steps is reached
+        for t in range(args.max_steps):
             actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             states = next_states
