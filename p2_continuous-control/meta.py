@@ -6,11 +6,16 @@ from utils import print_bracketing
 
 class Meta():
     def __init__(self):
-        self.Saver =
         self.args = self.get_args()
+        
+        process_args()
+
+        self.saver =
+
+
         pass
 
-    def
+    # def
 
 
     def process_args(self):

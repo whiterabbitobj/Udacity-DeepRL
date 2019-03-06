@@ -43,7 +43,7 @@ def get_args():
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=1500)
+            default=500)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the ReplayBuffer\
                   before training begins.",

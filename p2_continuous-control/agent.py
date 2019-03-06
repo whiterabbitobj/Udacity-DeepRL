@@ -107,7 +107,7 @@ class D4PG_Agent: #(Base_Agent):
             return
 
         self.learn()
-        self.e *= self.e_decay
+        #self.e *= self.e_decay
 
     def learn(self):
         batch = self.memory.sample(self.batch_size)
@@ -168,7 +168,9 @@ class D4PG_Agent: #(Base_Agent):
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_states, rewards, dones = env.step(actions)
             self.step(states, actions, rewards, next_states, pretrain=True)
-            print("Taking pretrain step... {}, memory filled: {}/{}".format(self.t_step, len(self.memory), pretrain_length))
+            if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
+                print("Taking pretrain step {}... memory filled: {}/{}\
+                      ".format(self.t_step, len(self.memory), pretrain_length))
 
             states = next_states
         print("Done!")
@@ -180,12 +182,12 @@ class D4PG_Agent: #(Base_Agent):
         """
         self._reset_nstep_memory()
         self.episode += 1
-                
+
     def _categorical(self,
                     rewards,
                     probs,
                     vmin = 0,
-                    vmax = 1,
+                    vmax = 0.1,
                     num_atoms = 51):
         """
         Returns the projected value distribution for the input state/action pair

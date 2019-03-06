@@ -16,11 +16,11 @@ class Environment:
     main body code a bit more neat and allows for easier access to certain
     params elsewhere.
     """
-    def __init__(self, args):
+    def __init__(self, args, id=0):
 
         self.train = args.train
 
-        self.env = UnityEnvironment(file_name='Reacher_Windows_x86_64/Reacher.exe', no_graphics=args.nographics)
+        self.env = UnityEnvironment(file_name='Reacher_Windows_x86_64/Reacher.exe', worker_id=id, no_graphics=args.nographics)
         self.brain_name = self.env.brain_names[0]
         self.brain = self.env.brains[self.brain_name]
 

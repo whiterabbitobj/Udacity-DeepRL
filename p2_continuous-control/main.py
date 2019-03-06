@@ -24,6 +24,9 @@ def main():
     training. This specific code therefore has no implementation of K-Actors
     training that is discussed in the original D4PG paper.
     """
+
+    #meta = Meta()
+
     args = get_args()
 
     env = Environment(args)
@@ -39,15 +42,21 @@ def main():
                        gamma = args.gamma,
                        rollout = args.rollout)
 
-    # if args.file != None or args.latest:
-    #     loader = Loader(args)
-    #     loader.load(agent)
+    #meta.load_agent()
+
+    if args.file != None or args.latest:
+        loader = Loader(args)
+        loader.load(agent)
 
     if args.train:
         train(args, env, agent)
 
-    if args.eval:
+    elif args.eval:
         eval(args, env, agent)
+
+    else:
+        print("Somehow, neither Train nor Eval modes were set. Something serious \
+               must have gone wrong!")
 
     return True
 

@@ -27,7 +27,7 @@ class ActorNet(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1, fc2)
         self.output = nn.Linear(fc2, action_size)
-        initialize_weights(self, weight_low, weight_high)
+        #initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state):
         """
@@ -38,7 +38,7 @@ class ActorNet(nn.Module):
         logits = self.output(x)
         action = logits.tanh()
         #log_prob = logits.log_prob(action)
-        return action#, log_prob
+        return action
 
 
 
@@ -68,10 +68,7 @@ class CriticNet(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
         self.output = nn.Linear(fc2, n_atoms)
-
-        # self.atoms = torch.linspace(v_min, v_max, n_atoms)
-        # self.atom_delta = (v_max - v_min) / (n_atoms - 1)
-        initialize_weights(self, weight_low, weight_high)
+        #initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state, actions):
         """

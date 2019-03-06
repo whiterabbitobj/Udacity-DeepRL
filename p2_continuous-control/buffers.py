@@ -23,8 +23,8 @@ class ReplayBuffer:
         experience = self.experience(state, action, reward, next_state)
         self.buffer.append(experience)
 
-    def sample(self, batchsize):
-        batch = random.sample(self.buffer, k=batchsize)
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, k=batch_size)
         return  self.experience(*zip(*batch))
 
     def __len__(self):
