@@ -43,7 +43,6 @@ def main():
     logger = Logger(env, args.num_episodes)
     saver = Saver(agent)
 
-
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
 
@@ -67,11 +66,12 @@ def main():
             if np.any(dones):
                 break
 
+        saver.save_checkpoint(agent, args.save_every)
         agent.new_episode()
         logger.step(episode)
-        saver.save_checkpoint(agent, episode, args.save_every)
 
     env.close()
+    saver.save_final(agent)
     #logger.report()
     #logger.print_results()
     return

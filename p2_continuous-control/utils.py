@@ -17,29 +17,36 @@ import torchvision.transforms as T
 ## Saving & Loading
 ##########
 
+def print_bracketing(statement):
+    #mult = max(len(statement), 50)
+    mult = 50
+    bracket = "#"
+    upper = ("{0}\n{1}{2}{1}\n".format(bracket*mult, bracket, " "*(mult-2)))
+    lower = ("\n{1}{2}{1}\n{0}".format(bracket*mult, bracket, " "*(mult-2)))
+    print("{}{}{}".format(upper, statement.center(mult), lower))
+
 class Saver:
     def __init__(self, agent):
         # self.state_size = agent.state_size
         # self.action_size = agent.action_size
         self.file_ext = ".agent"
-        self.save_dir = "./checkpoints/"
-        self._check_dir()
+        self.save_dir = "saves"
+        self._check_dir(self.save_dir)
         self.filename = self.generate_savename(agent.framework)
-        print("Saving to base filename:", self.filename)
+        print_bracketing("Saving to base filename: " + self.filename)
         #self.version = self.get_version()
 
-    def _check_dir(self):
-        if not os.path.isdir(self.save_dir):
-            os.mkdir(self.save_dir)
+    def _check_dir(self, dir):
+        if not os.path.isdir(dir):
+            os.mkdir(dir)
 
     def generate_savename(self, agent_name):
         """Generates an automatic savename for training files, will version-up as
            needed.
         """
         t = time.localtime()
-        savename = "{}_{}{}{}_v".format(agent_name, t.tm_year, t.tm_mon, t.tm_mday)
-
-        files = [f for f in os.listdir(self.save_dir) if os.path.isfile(f) and os.path.splitext(f)[1] == self.file_ext]
+        savename = "{}_{}_v".format(agent_name, time.strftime("%Y%m%d", time.localtime()))
+        files = [f for f in os.listdir(self.save_dir)]# if os.path.isfile(self.save_dir+f)]# and os.path.splitext(f)[1] == self.file_ext]
         files = [f for f in files if savename in f]
         if len(files)>0:
             ver = [int(re.search("_v(\d+)", file).group(1)) for file in files]
@@ -48,20 +55,33 @@ class Saver:
             ver = 1
         return "{}{}".format(savename, ver)
 
-    def save_checkpoint(self, agent, episode, save_every):
+    def save_checkpoint(self, agent, save_every):
         """
         Saves the current Agent networks to checkpoint files.
         """
-        if episode % save_every:
+        if agent.episode % save_every:
             return
-
-        save_name = self.save_dir
-        save_name += "{}_eps{}_ckpt{}".format(self.filename, episode, self.file_ext)
+        checkpoint_dir = os.path.join(self.save_dir, self.filename)
+        self._check_dir(checkpoint_dir)
+        save_name = "{}_eps{}_ckpt{}".format(self.filename, agent.episode, self.file_ext)
+        save_name = os.path.join(checkpoint_dir, save_name).replace('\\','/')
+        statement = "Saving Agent checkpoint to: {}".format(save_name)
+        print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         torch.save(self._get_save_dict(agent), save_name)
-        print("{0}\nSaved agent checkpoint to: {1}\{0}".format("#"*50, save_name))
+
+    def save_final(self, agent):
+        """
+        Saves a checkpoint after training has finished.
+        """
+        save_name = "{}_eps{}_FINAL{}".format(self.filename, agent.episode-1, self.file_ext)
+        save_name = os.path.join(self.save_dir, save_name).replace('\\','/')
+        statement = "Saved final Agent weights to: {}".format(save_name)
+        print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
+        torch.save(self._get_save_dict(agent), save_name)
 
     def load_checkpoint(filepath, args):
-        """Loads a checkpoint from an earlier trained agent.
+        """
+        Loads a checkpoint from an earlier trained agent.
         """
         checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
 

@@ -56,7 +56,7 @@ class D4PG_Agent: #(Base_Agent):
 
         self.framework = "D4PG"
         self.t_step = 0
-
+        self.episode = 0
         self.batch_size = batch_size
         self.C = C
         self.e = .3
@@ -93,7 +93,8 @@ class D4PG_Agent: #(Base_Agent):
         Handle any cleanup or steps to begin a new episode of training.
         """
         self._reset_nstep_memory()
-
+        self.episode += 1
+        
     def initialize_memory(self, pretrain_length, env):
         """
         Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences

@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 import time
+from utils import print_bracketing
 
 class Logger:
     def __init__(self, env, max_eps):
@@ -15,12 +16,10 @@ class Logger:
     def add(self, log):
         self.current_log += str(log)
 
-    # def report(self):
-    #     print("Score for last episode:", self.scores[-1])
-
     def start_clock(self):
         t = time.localtime()
-        print("Start time: {}:{}:{}".format(t.tm_hour, t.tm_min, t.tm_sec))
+        statement = "Starting training at: {}".format(time.strftime("%H:%M:%S", time.localtime()))
+        print_bracketing(statement)
         self.start_time = time.time()
 
     def step(self, eps):
@@ -35,8 +34,11 @@ class Logger:
 
     def _update_score(self):
         score = self.rewards.mean()
-        print("...Episode return: ", score)
+        print("{}Return: {}".format("."*10, score))
         self.scores.append(score)
+
+    def _reset_rewards(self):
+        self.rewards = np.zeros(self.agent_count)
 
     def print(self):
         # flushlen = len(self.current_log)
@@ -46,5 +48,5 @@ class Logger:
         # sys.stdout.flush()
         pass
 
-    def _reset_rewards(self):
-        self.rewards = np.zeros(self.agent_count)
+    # def report(self):
+    #     print("Score for last episode:", self.scores[-1])

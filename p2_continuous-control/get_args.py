@@ -1,5 +1,5 @@
 import argparse
-
+from utils import print_bracketing
 
 def get_args():
     parser = argparse.ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
@@ -148,12 +148,14 @@ def get_args():
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
 
     if not args.quiet:
-        print("#"*50)
-        print("#"," "*46, "#")
+        # print("#"*50)
+        # print("#"," "*46, "#")
+        arg_print = ''
         for arg in vars(args):
             if arg == "quiet": continue
-            print(" "*12, "{}: {}".format(arg.upper(), getattr(args, arg)))
-        print("#"," "*46, "#")
-        print("#"*50)
+            arg_print += " "*12 + "{}: {}\n".format(arg.upper(), getattr(args, arg))
+        # print("#"," "*46, "#")
+        # print("#"*50)
+        print_bracketing(arg_print[:-1])
 
     return args
