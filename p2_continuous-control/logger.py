@@ -23,8 +23,8 @@ class Logger:
         self.start_time = time.time()
 
     def step(self, eps):
+        print("\nEpisode {}/{}... RUNTIME: {}".format(eps, self.max_eps, self._runtime()))
         self._update_score()
-        print("Episode {}/{}... RUNTIME: {}".format(eps, self.max_eps, self._runtime()))
         self._reset_rewards()
 
     def _runtime(self):

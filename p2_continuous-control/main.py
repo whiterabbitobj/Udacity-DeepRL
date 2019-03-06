@@ -8,7 +8,7 @@ from logger import Logger
 
 from agent import D4PG_Agent
 from environment import Environment
-from utils import Saver#, Loader
+from utils import Saver, load_agent
 from get_args import get_args
 
 
@@ -44,9 +44,10 @@ def main():
 
     #meta.load_agent()
 
-    if args.file != None or args.latest:
-        loader = Loader(args)
-        loader.load(agent)
+    if args.filename != None or args.latest:
+        success = load_agent(agent, args)
+        if not success:
+            print("Could not load agent. No files in provided save directory: {}".format(args.save_dir))
 
     if args.train:
         train(args, env, agent)
@@ -55,8 +56,8 @@ def main():
         eval(args, env, agent)
 
     else:
-        print("Somehow, neither Train nor Eval modes were set. Something serious \
-               must have gone wrong!")
+        print("Somehow, neither Train or Eval modes were set. Something \
+               serious must have gone wrong!")
 
     return True
 
@@ -96,6 +97,9 @@ def train(args, env, agent):
         saver.save_checkpoint(agent, args.save_every)
         agent.new_episode()
         logger.step(episode)
+        # PRINT DEBUGGING INFO AFTER EACH EPISODE
+        print("A LOSS: ", agent.actor_loss)
+        print("C LOSS: ", agent.critic_loss)
 
     env.close()
     saver.save_final(agent)

@@ -71,7 +71,7 @@ def get_args():
     parser.add_argument("-file", "--filename",
             help="Path agent weights file to load. ",
             type=str,
-            default="")
+            default=None)
     parser.add_argument("-savedir", "--save_dir",
             help="Directory to find saved agent weights.",
             type=str,

@@ -23,9 +23,13 @@ class D4PG_Agent: #(Base_Agent):
                  buffer_size = 1000000,
                  C = 1000,
                  gamma = 0.99,
-                 tau = 0.0005,
+                 num_atoms = 51,
+                 vmin = 0,
+                 vmax = 0.1,
                  rollout = 5,
-                 weight_decay = 0.0001):
+                 tau = 0.0005,
+                 weight_decay = 0.0001,
+                 update_type = "hard"):
         """
         Implementation of D4PG:
         "Distributed Distributional Deterministic Policy Gradients"
@@ -67,8 +71,13 @@ class D4PG_Agent: #(Base_Agent):
         self.rollout = rollout
         self.gamma = gamma
         self.tau = tau
+        self.update_type = update_type
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.vmin = vmin
+        self.vmax = vmax
+        self.num_atoms = num_atoms
+        self.atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
 
         # Set up memory buffers, one for Replay Buffer and one to handle
         # collecting data for n-step returns
@@ -76,12 +85,18 @@ class D4PG_Agent: #(Base_Agent):
 
         # Initialize ACTOR networks
         self.actor = ActorNet(state_size, action_size).to(self.device)
-        self.actor_target = copy.deepcopy(self.actor).to(self.device)
+        self.actor_target = ActorNet(state_size, action_size).to(self.device)
+        self._hard_update(self.actor, self.actor_target)
+
+        #self.actor_target = copy.deepcopy(self.actor).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
 
         # Initialize CRITIC networks
         self.critic = CriticNet(state_size, action_size).to(self.device)
-        self.critic_target = copy.deepcopy(self.critic).to(self.device)
+        self.critic_target = CriticNet(state_size, action_size).to(self.device)
+        self._hard_update(self.actor, self.actor_target)
+
+        #self.critic_target = copy.deepcopy(self.critic).to(self.device)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr, weight_decay=weight_decay)
         #self.critic_loss = nn.CrossEntropyLoss()
 
@@ -119,18 +134,21 @@ class D4PG_Agent: #(Base_Agent):
 
         # Calculate Yᵢ from target networks using θ' and W'
         target_dist = self._get_targets(rewards, next_states).detach()
-        # Calculate value distribution for current state using weights W
-        predicted_dist, log_probs = self.critic(states, actions)
+        # Calculate value DISTRIBUTION for current state using weights W
+        _, log_probs = self.critic(states, actions)
+        # predicted_dist, log_probs = self.critic(states, actions)
+
+        # Calculate the critic network LOSS
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
-        #print("target_dist: {}   log_probs: {}".format(target_dist, log_probs))
-        # print((target_dist * log_probs).sum(-1))
-        # print((target_dist * log_probs).sum())
         #critic_loss = nn.CrossEntropyLoss(predicted_dist, target)
         #critic_loss = self.critic_loss(current_value_dist, target)
 
         # Predict action for actor network loss calculation using θ
         predicted_action = self.actor(states)
         expected_reward, _ = self.critic(states, predicted_action)
+        expected_reward = (expected_reward * self.atoms.unsqueeze(0)).sum(-1)
+
+        # Calculate the actor network LOSS
         actor_loss = -(expected_reward).mean()
         # actor_loss = expected_reward.mean()
 
@@ -144,14 +162,11 @@ class D4PG_Agent: #(Base_Agent):
         critic_loss.backward()
         self.critic_optim.step()
 
-        ### Soft-update like in original DDPG
-        self._soft_update(self.critic_target, self.critic)
-        self._soft_update(self.actor_target, self.actor)
+        self._update_networks()
 
-        ## Hard update as in DQN and implied by D4PG paper
-        # if  self.t_step % self.C == 0:
-        #     self.critic_target.load_state_dict(self.critic.state_dict())
-        #     self.actor_target.load_state_dict(self.actor.state_dict())
+        self.actor_loss = actor_loss.item()
+        self.critic_loss = critic_loss.item()
+
 
     def initialize_memory(self, pretrain_length, env):
         """
@@ -185,19 +200,20 @@ class D4PG_Agent: #(Base_Agent):
 
     def _categorical(self,
                     rewards,
-                    probs,
-                    vmin = 0,
-                    vmax = 0.1,
-                    num_atoms = 51):
+                    probs):
         """
         Returns the projected value distribution for the input state/action pair
         """
+        vmin = self.vmin
+        vmax = self.vmax
+        atoms = self.atoms
+        num_atoms = self.num_atoms
 
         rewards = rewards.unsqueeze(-1)
-        atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
+        #atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
-        projected_atoms = rewards + self.gamma**self.rollout * atoms.view(1,-1)
+        projected_atoms = rewards + self.gamma**self.rollout * atoms.unsqueeze(0)#.view(1,-1)
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
 
@@ -226,9 +242,25 @@ class D4PG_Agent: #(Base_Agent):
         n = np.random.normal(0, 1, shape)
         return self.e*n
 
-    def _soft_update(self, target, active):
+    def _update_networks(self):
+        """
+        Updates the network using either DDPG-style soft updates (w/ param \
+        TAU), or using a DQN/D4PG style hard update every C timesteps.
+        """
+        if self.update_type == "soft":
+            self._soft_update(self.actor, self.actor_target)
+            self._soft_update(self.critic, self.critic_target)
+        elif self.t_step % self.C == 0:
+            self._hard_update(self.actor, self.actor_target)
+            self._hard_update(self.critic, self.critic_target)
+
+
+    def _soft_update(self, active, target):
         for t_param, param in zip(target.parameters(), active.parameters()):
             t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
+
+    def _hard_update(self, active, target):
+        target.load_state_dict(active.state_dict())
 
     def _store_memories(self, experiences):
         """

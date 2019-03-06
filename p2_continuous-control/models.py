@@ -56,9 +56,7 @@ class CriticNet(nn.Module):
                  n_atoms = 51,
                  layer_sizes = [400,300],
                  weight_low = -3e-3,
-                 weight_high = 3e-3,
-                 v_min = -10,
-                 v_max = 10):
+                 weight_high = 3e-3):
         super(CriticNet, self).__init__()
 
         #currently errors if user were to provide a custom layer_sizes array
@@ -80,5 +78,5 @@ class CriticNet(nn.Module):
         logits = self.output(x)
         probs = F.softmax(logits, dim=-1)
         log_probs = F.log_softmax(logits, dim=-1)
-
+        #q =
         return probs, log_probs
