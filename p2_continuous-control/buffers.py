@@ -23,38 +23,15 @@ class ReplayBuffer:
         experience = self.experience(state, action, reward, next_state)
         self.buffer.append(experience)
 
-    def sample(self, batch_size):
+    def sample(self, batch_size, device):
         batch = random.sample(self.buffer, k=batch_size)
-        return  self.experience(*zip(*batch))
+        states, actions, rewards, next_states = zip(*batch)
+        states = torch.cat(states).to(self.device)
+        actions = torch.cat(actions).float().to(self.device)
+        rewards = torch.cat(rewards).to(self.device)
+        next_states = torch.cat(next_states).to(self.device)
+        # return  self.experience(*zip(*batch))
+        return (states, actions, rewards, next_states)
 
     def __len__(self):
         return len(self.buffer)
-
-
-
-
-
-
-
-
-
-#
-# class nStepBuffer:
-#     """
-#     Holds frames for rollout length stacking.
-#     """
-#     def __init__(self, size=5):
-#         self.buffer = deque(maxlen=size)
-#         self.experience = namedtuple("experience", field_names=['state','action','reward','next_state'])
-#
-#     def store(self, frame):
-#         self.buffer.append(frame)
-#
-#     def __len__(self):
-#         return len(self.buffer)
-#     #
-#     # def __iter__(self):
-#     #     return self
-#     #
-#     # def __next__(self):
-#     #     return self

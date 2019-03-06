@@ -7,7 +7,7 @@ from utils import print_bracketing
 class Meta():
     def __init__(self):
         self.args = self.get_args()
-        
+
         process_args()
 
         self.saver =
@@ -35,7 +35,7 @@ class Meta():
 
 
     def get_args():
-        parser = argparse.ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
+        parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
                 usage="")
 
         parser.add_argument("-alr", "--actor_learn_rate",
@@ -76,7 +76,7 @@ class Meta():
         parser.add_argument("-num", "--num_episodes",
                 help="How many episodes to train?",
                 type=int,
-                default=1500)
+                default=500)
         parser.add_argument("-pre", "--pretrain",
                 help="How many trajectories to randomly sample into the ReplayBuffer\
                       before training begins.",
@@ -104,7 +104,7 @@ class Meta():
         parser.add_argument("-file", "--filename",
                 help="Path agent weights file to load. ",
                 type=str,
-                default="")
+                default=None)
         parser.add_argument("-savedir", "--save_dir",
                 help="Directory to find saved agent weights.",
                 type=str,

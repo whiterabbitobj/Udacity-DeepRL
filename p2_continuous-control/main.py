@@ -8,7 +8,7 @@ from logger import Logger
 
 from agent import D4PG_Agent
 from environment import Environment
-from utils import Saver, load_agent
+from utils import Saver
 from get_args import get_args
 
 
@@ -26,6 +26,7 @@ def main():
     """
 
     #meta = Meta()
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     args = get_args()
 
@@ -39,37 +40,37 @@ def main():
                        batch_size = args.batch_size,
                        buffer_size = args.buffer_size,
                        C = args.C,
+                       device = device,
                        gamma = args.gamma,
                        rollout = args.rollout)
 
     #meta.load_agent()
+    saver = Saver(agent, args)
 
-    if args.filename != None or args.latest:
-        success = load_agent(agent, args)
-        if not success:
-            print("Could not load agent. No files in provided save directory: {}".format(args.save_dir))
-
-    if args.train:
-        train(args, env, agent)
-
-    elif args.eval:
+    #if args.filename != None or args.latest:
+    if args.eval:
+        saver.load_agent(agent)
         eval(args, env, agent)
+
+    elif args.train:
+        train(agent, args, env, saver)
 
     else:
         print("Somehow, neither Train or Eval modes were set. Something \
                serious must have gone wrong!")
 
+    saver.quit()
+
     return True
 
 
 
-def train(args, env, agent):
+def train(agent, args, env, saver):
     """
     Train the agent.
     """
 
-    logger = Logger(env, args.num_episodes)
-    saver = Saver(agent, args.save_dir)
+    logger = Logger(agent, args, env)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
@@ -103,7 +104,7 @@ def train(args, env, agent):
 
     env.close()
     saver.save_final(agent)
-    #logger.report()
+    logger.report(args.save_dir)
     #logger.print_results()
     return True
 
@@ -111,6 +112,9 @@ def eval(args, env, agent):
     """
     Evaluate the performance of an agent using a saved weights file.
     """
+
+    #logger = Logger(agent, args, env)
+
     #Begin training loop
     for episode in range(1, args.num_episodes+1):
         # Begin each episode with a clean environment
@@ -123,11 +127,11 @@ def eval(args, env, agent):
             actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             states = next_states
-            logger.rewards += rewards
+            #logger.rewards += rewards
             if np.any(dones):
                 break
         agent.new_episode()
-        logger.step(episode)
+        #logger.step(episode)
 
     env.close()
     return True

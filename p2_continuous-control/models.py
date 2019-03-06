@@ -4,6 +4,10 @@ import torch.nn.functional as F
 # import torch.optim as optim
 import numpy as np
 
+LAYER_SIZES = [400,300]
+WEIGHT_LOW = -3e-3
+WEIGHT_HIGH = 3e-3
+
 def initialize_weights(net, low, high):
     for param in net.parameters():
         param.data.uniform_(low, high)
@@ -15,9 +19,9 @@ class ActorNet(nn.Module):
     def __init__(self,
                  state_size,
                  action_size,
-                 layer_sizes = [400,300],
-                 weight_low = -3e-3,
-                 weight_high = 3e-3):
+                 layer_sizes = LAYER_SIZES,
+                 weight_low = WEIGHT_LOW,
+                 weight_high = WEIGHT_HIGH):
         super(ActorNet, self).__init__()
 
         #currently errors if user were to provide a custom layer_sizes array
@@ -54,9 +58,9 @@ class CriticNet(nn.Module):
                  state_size,
                  action_size,
                  n_atoms = 51,
-                 layer_sizes = [400,300],
-                 weight_low = -3e-3,
-                 weight_high = 3e-3):
+                 layer_sizes = LAYER_SIZES,
+                 weight_low = WEIGHT_LOW,
+                 weight_high = WEIGHT_HIGH):
         super(CriticNet, self).__init__()
 
         #currently errors if user were to provide a custom layer_sizes array

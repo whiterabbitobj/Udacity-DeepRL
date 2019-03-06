@@ -21,14 +21,17 @@ class D4PG_Agent: #(Base_Agent):
                  c_lr = 1e-4,
                  batch_size = 128,
                  buffer_size = 1000000,
-                 C = 1000,
+                 C = 3000,
+                 device = "cpu",
+                 e = 0.3,
+                 e_decay = 0.99999,
                  gamma = 0.99,
                  num_atoms = 51,
                  vmin = 0,
                  vmax = 0.1,
                  rollout = 5,
                  tau = 0.0005,
-                 weight_decay = 0.0001,
+                 l2_decay = 0.0001,
                  update_type = "hard"):
         """
         Implementation of D4PG:
@@ -57,14 +60,15 @@ class D4PG_Agent: #(Base_Agent):
         stability of learning. Thus, it too has been left out of this
         implementation but may be added as a future TODO item.
         """
+        self.device = device
 
         self.framework = "D4PG"
         self.t_step = 0
         self.episode = 0
         self.batch_size = batch_size
         self.C = C
-        self.e = .3
-        self.e_decay = 0.99999
+        self.e = e
+        self.e_decay = e_decay
         self.state_size = state_size
         self.action_size = action_size
         self.agent_count = agent_count
@@ -73,39 +77,43 @@ class D4PG_Agent: #(Base_Agent):
         self.tau = tau
         self.update_type = update_type
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.vmin = vmin
         self.vmax = vmax
         self.num_atoms = num_atoms
         self.atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
 
-        # Set up memory buffers, one for Replay Buffer and one to handle
-        # collecting data for n-step returns
+        ########################################################################
+        #                                                                      #
+
+        # Set up memory buffers, currently only standard replay is implemented
         self.memory = ReplayBuffer(buffer_size)
+
+        #                                                                      #
+        ########################################################################
+        ########################################################################
+        #                                                                      #
 
         # Initialize ACTOR networks
         self.actor = ActorNet(state_size, action_size).to(self.device)
         self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
-
-        #self.actor_target = copy.deepcopy(self.actor).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
 
         # Initialize CRITIC networks
         self.critic = CriticNet(state_size, action_size).to(self.device)
         self.critic_target = CriticNet(state_size, action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
+        self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr, weight_decay=l2_decay)
 
-        #self.critic_target = copy.deepcopy(self.critic).to(self.device)
-        self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr, weight_decay=weight_decay)
-        #self.critic_loss = nn.CrossEntropyLoss()
+        #                                                                      #
+        ########################################################################
 
         self.new_episode()
 
     def act(self, states):
         states = states.to(self.device)
         actions = self.actor(states).detach().cpu()
-        actions = actions.numpy() #.astype(np.float32)
+        actions = actions.numpy()
         noise = self._gauss_noise(actions.shape)
         actions += noise
         actions = np.clip(actions, -1, 1)
@@ -125,23 +133,16 @@ class D4PG_Agent: #(Base_Agent):
         #self.e *= self.e_decay
 
     def learn(self):
-        batch = self.memory.sample(self.batch_size)
-        #states, actions, rewards, next_states = batch
-        states = torch.cat(batch.state).to(self.device)
-        actions = torch.cat(batch.action).float().to(self.device)
-        rewards = torch.cat(batch.reward).to(self.device)
-        next_states = torch.cat(batch.next_state).to(self.device)
+        batch = self.memory.sample(self.batch_size, self.device)
+        states, actions, rewards, next_states = batch
 
         # Calculate Yᵢ from target networks using θ' and W'
         target_dist = self._get_targets(rewards, next_states).detach()
         # Calculate value DISTRIBUTION for current state using weights W
         _, log_probs = self.critic(states, actions)
-        # predicted_dist, log_probs = self.critic(states, actions)
-
         # Calculate the critic network LOSS
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
-        #critic_loss = nn.CrossEntropyLoss(predicted_dist, target)
-        #critic_loss = self.critic_loss(current_value_dist, target)
+
 
         # Predict action for actor network loss calculation using θ
         predicted_action = self.actor(states)
@@ -150,9 +151,7 @@ class D4PG_Agent: #(Base_Agent):
 
         # Calculate the actor network LOSS
         actor_loss = -(expected_reward).mean()
-        # actor_loss = expected_reward.mean()
 
-        #print("Critic Loss: {}   Actor Loss: {}:".format(critic_loss, actor_loss))
         # Perform gradient descent
         self.actor_optim.zero_grad()
         actor_loss.backward()
