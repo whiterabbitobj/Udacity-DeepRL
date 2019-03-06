@@ -68,8 +68,9 @@ class CriticNet(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
         self.output = nn.Linear(fc2, n_atoms)
-        self.atoms = torch.linspace(v_min, v_max, n_atoms)
-        self.atom_delta = (v_max - v_min) / (n_atoms - 1)
+
+        # self.atoms = torch.linspace(v_min, v_max, n_atoms)
+        # self.atom_delta = (v_max - v_min) / (n_atoms - 1)
         initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state, actions):

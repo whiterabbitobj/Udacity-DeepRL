@@ -26,11 +26,11 @@ def print_bracketing(statement):
     print("{}{}{}".format(upper, statement.center(mult), lower))
 
 class Saver:
-    def __init__(self, agent):
+    def __init__(self, agent, save_dir):
         # self.state_size = agent.state_size
         # self.action_size = agent.action_size
         self.file_ext = ".agent"
-        self.save_dir = "saves"
+        self.save_dir = save_dir
         self._check_dir(self.save_dir)
         self.filename = self.generate_savename(agent.framework)
         print_bracketing("Saving to base filename: " + self.filename)
@@ -79,21 +79,6 @@ class Saver:
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         torch.save(self._get_save_dict(agent), save_name)
 
-    def load_checkpoint(filepath, args):
-        """
-        Loads a checkpoint from an earlier trained agent.
-        """
-        checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
-
-        if checkpoint['agent_type'] == 'DQN':
-            agent = Agent(checkpoint['state_size'], checkpoint['action_size'], args)
-        if checkpoint['agent_type'] == 'D2DQN':
-            agent = Agent(checkpoint['state_size'], checkpoint['action_size'], args)
-        agent.q.load_state_dict(checkpoint['state_dict'])
-        agent.optimizer.load_state_dict(checkpoint['optimizer'])
-        args.num_episodes = 3
-        return agent
-
     def _get_save_dict(self, agent):
         #agent.q.to('cpu')
         checkpoint = {'state_size': agent.state_size,
@@ -103,33 +88,59 @@ class Saver:
                       }
         return checkpoint
 
-# def load_filepath(sep):
-#     """Prompts the user about what save to load, or uses the last modified save.
-#     """
-#     files = [str(f) for f in os.listdir('.') if os.path.isfile(f) and os.path.splitext(f)[1] == '.pth']
-#     if len(files) == 0:
-#         print("Oops! Couldn't find any save files in the current directory.")
-#         return None
+
+# class Loader:
+#     def __init__(self, args):
+#         self.save_dir = args.save_dir
+#         self.avail_files = self._get_files()
+#         self.load_latest = args.latest
+#         pass
 #
-#     files = sorted(files, key=lambda x: os.path.getmtime(x))
-#     if args.latest:
-#         print("{0}Proceeding with file: {1}\n{0}".format(sep, files[-1]))
-#         return files[-1]
-#     else:
-#         message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
-#         message = '\n'.join(message)
-#         message = sep + message + " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
-#         save_file = input(message)
-#         if save_file.lower() == "q" or save_file.lower() == "quit":
-#             print("Quit before loading a file.")
+#     def _get_files(self):
+#         files = [str(f) for f in os.listdir(self.save_dir) if os.path.isfile(f)]
+#         if len(files) == 0:
+#             print("Oops! Couldn't find any save files in the current directory.")
 #             return None
-#         try:
-#             file_index = len(files) - int(save_file)
-#             if file_index < 0:
-#                 raise Exception()
-#             save_file = files[file_index]
-#             print("{0}\nProceeding with file: {1}\n{0}".format(sep, save_file))
-#             return save_file
-#         except:
-#             print("\nInput invalid...\n")
-#             load_filepath()
+#         return sorted(self.avail_files, key=lambda x: os.path.getmtime(x))
+#
+#     def load(self, agent):
+#         if self.load_latest:
+#
+#
+#     def load_checkpoint(self, filepath, args):
+#         """
+#         Loads a checkpoint from an earlier trained agent.
+#         """
+#         checkpoint = torch.load(filepath, map_location=lambda storage, loc: storage)
+#
+#         agent.q.load_state_dict(checkpoint['state_dict'])
+#         agent.optimizer.load_state_dict(checkpoint['optimizer'])
+#         args.num_episodes = 3
+#         return agent
+#
+#     def load_filepath(self,):
+#         """
+#         Prompts the user about what save to load, or uses the last modified save.
+#         """
+#
+#         if args.latest:
+#             print("{0}Proceeding with file: {1}\n{0}".format(sep, files[-1]))
+#             return files[-1]
+#         else:
+#             message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
+#             message = '\n'.join(message)
+#             message = sep + message + " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
+#             save_file = input(message)
+#             if save_file.lower() == "q" or save_file.lower() == "quit":
+#                 print("Quit before loading a file.")
+#                 return None
+#             try:
+#                 file_index = len(files) - int(save_file)
+#                 if file_index < 0:
+#                     raise Exception()
+#                 save_file = files[file_index]
+#                 print("{0}\nProceeding with file: {1}\n{0}".format(sep, save_file))
+#                 return save_file
+#             except:
+#                 print("\nInput invalid...\n")
+#                 load_filepath()

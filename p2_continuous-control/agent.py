@@ -60,7 +60,7 @@ class D4PG_Agent: #(Base_Agent):
         self.batch_size = batch_size
         self.C = C
         self.e = .3
-        self.e_decay = 0.9999
+        self.e_decay = 0.99999
         self.state_size = state_size
         self.action_size = action_size
         self.agent_count = agent_count
@@ -94,7 +94,7 @@ class D4PG_Agent: #(Base_Agent):
         """
         self._reset_nstep_memory()
         self.episode += 1
-        
+
     def initialize_memory(self, pretrain_length, env):
         """
         Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
@@ -126,17 +126,17 @@ class D4PG_Agent: #(Base_Agent):
         return actions
 
     def step(self, states, actions, rewards, next_states, pretrain=False):
-        # Current SARS' tuple is used with last ROLLOUT steps to generate a new
-        # memory
+        # Current SARS' stored in short term memory, then stacked for NStep
         memory = list(zip(states, actions, rewards, next_states))
-        #print("memories len:", len(memory))
         self._store_memories(memory)
+
         self.t_step += 1
+
         if pretrain:
             return
 
         self._learn()
-        #self.e *= self.e_decay
+        self.e *= self.e_decay
 
     def _store_memories(self, experiences):
         """
@@ -157,6 +157,7 @@ class D4PG_Agent: #(Base_Agent):
             n_steps = self.rollout - 1
             rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
             rewards = rewards.sum()
+            #print("Rewards:", rewards)
             # store the current state, current action, cumulative discounted
             # reward from t -> t+n-1, and the next_state at t+n (S't+n)
             states = states[0].unsqueeze(0)
@@ -173,13 +174,14 @@ class D4PG_Agent: #(Base_Agent):
         rewards = torch.cat(batch.reward).to(self.device)
         next_states = torch.cat(batch.next_state).to(self.device)
 
-
-
         # Calculate Yᵢ from target networks using θ' and W'
-        target = self._get_targets(rewards, next_states).detach()
+        target_dist = self._get_targets(rewards, next_states).detach()
         # Calculate value distribution for current state using weights W
         predicted_dist, log_probs = self.critic(states, actions)
-        critic_loss = -(target * log_probs).sum(-1).mean()
+        critic_loss = -(target_dist * log_probs).sum(-1).mean()
+        #print("target_dist: {}   log_probs: {}".format(target_dist, log_probs))
+        # print((target_dist * log_probs).sum(-1))
+        # print((target_dist * log_probs).sum())
         #critic_loss = nn.CrossEntropyLoss(predicted_dist, target)
         #critic_loss = self.critic_loss(current_value_dist, target)
 
@@ -187,7 +189,9 @@ class D4PG_Agent: #(Base_Agent):
         predicted_action = self.actor(states)
         expected_reward, _ = self.critic(states, predicted_action)
         actor_loss = -(expected_reward).mean()
+        # actor_loss = expected_reward.mean()
 
+        #print("Critic Loss: {}   Actor Loss: {}:".format(critic_loss, actor_loss))
         # Perform gradient descent
         self.actor_optim.zero_grad()
         actor_loss.backward()
@@ -198,19 +202,19 @@ class D4PG_Agent: #(Base_Agent):
         self.critic_optim.step()
 
         ### Soft-update like in original DDPG
-        #self._soft_update(self.critic_target, self.critic, self.tau)
-        #self._soft_update(self.actor_target, self.actor, self.tau)
+        self._soft_update(self.critic_target, self.critic)
+        self._soft_update(self.actor_target, self.actor)
 
         ## Hard update as in DQN and implied by D4PG paper
-        if  self.t_step % self.C == 0:
-            self.critic_target.load_state_dict(self.critic.state_dict())
-            self.actor_target.load_state_dict(self.actor.state_dict())
+        # if  self.t_step % self.C == 0:
+        #     self.critic_target.load_state_dict(self.critic.state_dict())
+        #     self.actor_target.load_state_dict(self.actor.state_dict())
 
     def _categorical(self,
                     rewards,
                     probs,
-                    vmin = -10,
-                    vmax = 10,
+                    vmin = 0,
+                    vmax = 1,
                     num_atoms = 51):
         """
         Returns the projected value distribution for the input state/action pair
@@ -221,6 +225,7 @@ class D4PG_Agent: #(Base_Agent):
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
         projected_atoms = rewards + self.gamma**self.rollout * atoms.view(1,-1)
+        projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
 
         lower_bound = b.floor()
@@ -238,11 +243,12 @@ class D4PG_Agent: #(Base_Agent):
 
     def _soft_update(self, target, active):
         for t_param, param in zip(target.parameters(), active.parameters()):
-            t_param.data.copy_(tau*param.data + (1-tau)*t_param.data)
+            t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
 
     def _get_targets(self, rewards, next_states):
         target_actions = self.actor_target(next_states)#.detach()
-        target_probs, _ = self.critic_target(next_states, target_actions)#.detach()
+        target_probs, t_logs = self.critic_target(next_states, target_actions)#.detach()
+        #print("target_probs: {}   t_log_probs: {}".format(target_probs[0], t_logs[0]))
         projected_probs = self._categorical(rewards, target_probs)
         #return rewards + projected_probs
         return projected_probs

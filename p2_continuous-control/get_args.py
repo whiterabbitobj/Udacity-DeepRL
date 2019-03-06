@@ -8,11 +8,11 @@ def get_args():
     parser.add_argument("-alr", "--actor_learn_rate",
             help="Alpha (Learning Rate).",
             type=float,
-            default=1e-3)
+            default=1e-4)
     parser.add_argument("-clr", "--critic_learn_rate",
             help="Alpha (Learning Rate).",
             type=float,
-            default=1e-3)
+            default=1e-4)
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
@@ -64,6 +64,18 @@ def get_args():
             help="Soft network update weighting.",
             type=float,
             default=0.0005)
+    parser.add_argument("--latest",
+            help="Use this flag to automatically use the latest save file to \
+                  run in DEMO mode (instead of choosing from a prompt).",
+            action="store_true")
+    parser.add_argument("-file", "--filename",
+            help="Path agent weights file to load. ",
+            type=str,
+            default="")
+    parser.add_argument("-savedir", "--save_dir",
+            help="Directory to find saved agent weights.",
+            type=str,
+            default="saves")
     # parser.add_argument("-e", "--epsilon",
     #         help="Starting value of Epsilon.",
     #         type=float,
@@ -76,12 +88,6 @@ def get_args():
     #         help="Minimum value for epsilon.",
     #         type=float,
     #         default=0.01)
-
-    # parser.add_argument("--latest",
-    #         help="Use this flag to automatically use the latest save file to \
-    #               run in DEMO mode (instead of choosing from a prompt).",
-    #         action="store_true")
-
     # parser.add_argument("-m", "--momentum",
     #         help="Momentum for use in specific optimizers like SGD",
     #         type=float,
@@ -117,15 +123,10 @@ def get_args():
     # parser.add_argument("--pixels",
     #         help="Train the network using visual data instead of states from the engine.",
     #         action="store_true")
-    # parser.add_argument("-tau",
-    #         help="Tau",
-    #         type=float,
-    #         default=1e-3)
     # parser.add_argument("-u", "--update_every",
     #         help="Timesteps between updating the network parameters.",
     #         type=int,
     #         default=4)
-
     # parser.add_argument("-f", "--framework",
     #         help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
     #         type=str,
@@ -147,15 +148,15 @@ def get_args():
     args.train = not args.eval
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
 
+    if args.eval and args.num_episodes > 10:
+        print("In eval mode, num_episodes is set to not more than 10.")
+        args.num_episodes = 10
+
     if not args.quiet:
-        # print("#"*50)
-        # print("#"," "*46, "#")
         arg_print = ''
         for arg in vars(args):
             if arg == "quiet": continue
             arg_print += " "*12 + "{}: {}\n".format(arg.upper(), getattr(args, arg))
-        # print("#"," "*46, "#")
-        # print("#"*50)
         print_bracketing(arg_print[:-1])
 
     return args
