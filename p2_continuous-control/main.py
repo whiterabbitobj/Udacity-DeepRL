@@ -1,54 +1,45 @@
-# import time
 import numpy as np
-# import torch
 
-# from unityagents import UnityEnvironment
 from logger import Logger
-# import os
 from agent import D4PG_Agent
 from environment import Environment
-from utils import Saver
-# from get_args import get_args
 from meta import Meta
+from utils import Saver
+
 
 def main():
     """
-    Algorithm implementation based on the original paper/research by
-    Barth-Maron, Hoffman, et al: https://arxiv.org/abs/1804.08617
-
-    D4PG Agent for Udacity's Continuous Control project:
+    Originall written for Udacity's Continuous Control project:
     https://github.com/udacity/deep-reinforcement-learning/tree/master/p2_continuous-control
 
     This environment utilizes 20 actors built into the environment for parallel
-    training. This specific code therefore has no implementation of K-Actors
-    training that is discussed in the original D4PG paper.
+    training. This specific code therefore has no implementation of distributed
+    K-Actors training, but it would be straightforward to roll it into this
+    training loop as needed.
     """
 
     meta = Meta()
 
-    args = meta.args
-
-    env = Environment(args)
+    env = Environment(meta.args)
 
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
                        env.agent_count,
-                       a_lr = args.actor_learn_rate,
-                       c_lr = args.critic_learn_rate,
-                       batch_size = args.batch_size,
-                       buffer_size = args.buffer_size,
-                       C = args.C,
-                       device = args.device,
-                       gamma = args.gamma,
-                       rollout = args.rollout)
+                       a_lr = meta.args.actor_learn_rate,
+                       c_lr = meta.args.critic_learn_rate,
+                       batch_size = meta.args.batch_size,
+                       buffer_size = meta.args.buffer_size,
+                       C = meta.args.C,
+                       device = meta.args.device,
+                       gamma = meta.args.gamma,
+                       rollout = meta.args.rollout)
 
-    # saver = Saver(agent, args)
     if meta.load_file: meta.load_agent(agent)
 
-    if args.eval:
-        eval(args, env, agent)
+    if meta.args.eval:
+        eval(agent, meta.args, env)
     else:
-        train(agent, args, env)
+        train(agent, meta.args, env)
 
     return True
 
@@ -99,7 +90,7 @@ def train(agent, args, env):
     #logger.print_results()
     return True
 
-def eval(args, env, agent):
+def eval(agent, args, env):
     """
     Evaluate the performance of an agent using a saved weights file.
     """

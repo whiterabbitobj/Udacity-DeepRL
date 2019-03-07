@@ -1,14 +1,9 @@
 import os.path
-import time
 import re
+import time
 
 import torch
-# import matplotlib.pyplot as plt
-# import numpy as np
-# from agent import D4PG_Agent
-# from unityagents import UnityEnvironment
-#from PIL import Image
-# import torchvision.transforms as T
+
 
 
 def print_bracketing(info=None, do_upper=True, do_lower=True):
@@ -35,12 +30,6 @@ class Saver:
         self._write_init_log(agent)
         print_bracketing("Saving to base filename: " + self.filename)
 
-    def _write_init_log(self, agent):
-        file = os.path.join(self.save_dir, self.filename, self.filename) + "_LOG.txt"
-        with open(file, 'w') as f:
-            for arg in vars(agent):
-                f.write("{}: {}\n".format(arg.upper(), getattr(agent, arg)))
-        print("Logfile saved to: {}".format(file))
 
     def generate_savename(self, agent_name):
         """Generates an automatic savename for training files, will version-up as
@@ -48,7 +37,7 @@ class Saver:
         """
         t = time.localtime()
         savename = "{}_{}_v".format(agent_name, time.strftime("%Y%m%d", time.localtime()))
-        files = [f for f in os.listdir(self.save_dir)]# if os.path.isfile(self.save_dir+f)]# and os.path.splitext(f)[1] == self.file_ext]
+        files = [f for f in os.listdir(self.save_dir)]
         files = [f for f in files if savename in f]
         if len(files)>0:
             ver = [int(re.search("_v(\d+)", file).group(1)) for file in files]
@@ -92,3 +81,12 @@ class Saver:
                       'critic_dict': agent.critic.state_dict()
                       }
         return checkpoint
+
+    def _write_init_log(self, agent):
+        """
+        """
+        file = os.path.join(self.save_dir, self.filename, self.filename) + "_LOG.txt"
+        with open(file, 'w') as f:
+            for arg in vars(agent):
+                f.write("{}: {}\n".format(arg.upper(), getattr(agent, arg)))
+        print("Logfile saved to: {}".format(file))

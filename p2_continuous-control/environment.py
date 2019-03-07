@@ -63,5 +63,4 @@ class Environment:
         Returns the STATES as a tensor.
         """
         states = self.env_info.vector_observations
-        #states = self._normalize_states(states)
         return torch.from_numpy(states).float()

@@ -29,21 +29,25 @@ class D4PG_Agent:
                  gamma = 0.99,
                  num_atoms = 51,
                  vmin = 0,
-                 vmax = 0.2,
+                 vmax = 0.3,
                  rollout = 5,
                  tau = 0.0005,
                  l2_decay = 0.0001,
                  update_type = "hard"):
         """
-        Implementation of D4PG:
+        PyTorch Implementation of D4PG:
         "Distributed Distributional Deterministic Policy Gradients"
+        (Barth-Maron, Hoffman, et al., 2018)
         As described in the paper at: https://arxiv.org/pdf/1804.08617.pdf
 
         Much thanks also to the original DDPG paper:
+        "Continuous Control with Deep Reinforcement Learning"
+        (Lillicrap, Hunt, et al., 2016)
         https://arxiv.org/pdf/1509.02971.pdf
 
-        And to the work of Bellemare et al:
+        And to:
         "A Distributional Perspective on Reinforcement Learning"
+        (Bellemare, Dabney, et al., 2017)
         https://arxiv.org/pdf/1707.06887.pdf
 
         D4PG utilizes distributional value estimation, n-step returns,
@@ -54,7 +58,8 @@ class D4PG_Agent:
         This version of the Agent is written to interact with Udacity's
         Continuous Control robotic arm manipulation environment which provides
         20 simultaneous actors, negating the need for K-actor implementation.
-        Thus, this code has no multiprocessing functionality.
+        Thus, this code has no multiprocessing functionality. It could be easily
+        added as part of the main.py script.
 
         In the original D4PG paper, it is suggested in the data that PER does
         not have significant (or perhaps any at all) effect on the speed or
@@ -68,7 +73,7 @@ class D4PG_Agent:
         self.episode = 0
         self.batch_size = batch_size
         self.C = C
-        self.e = e
+        self._e = e
         self.e_decay = e_decay
         self.e_min = e_min
         self.state_size = state_size
@@ -84,84 +89,95 @@ class D4PG_Agent:
         self.num_atoms = num_atoms
         self.atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
 
-        ########################################################################
-        #                                                                      #
 
-        # Set up memory buffers, currently only standard replay is implemented
+        # Set up memory buffers, currently only standard replay is implemented #
         self.memory = ReplayBuffer(self.device, buffer_size)
 
-        #                                                                      #
-        ########################################################################
-        ########################################################################
-        #                                                                      #
-
-        # Initialize ACTOR networks
+        #                    Initialize ACTOR networks                         #
         self.actor = ActorNet(state_size, action_size).to(self.device)
         self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
 
-        # Initialize CRITIC networks
+        #                   Initialize CRITIC networks                         #
         self.critic = CriticNet(state_size, action_size).to(self.device)
         self.critic_target = CriticNet(state_size, action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr, weight_decay=l2_decay)
 
-        #                                                                      #
-        ########################################################################
-
         self.new_episode()
 
     def act(self, states):
+        """
+        Predict an action using a policy/ACTOR network π.
+        Scaled noise N (gaussian distribution) is added to all actions todo
+        encourage exploration.
+        """
+
         states = states.to(self.device)
-        actions = self.actor(states).detach().cpu()
-        actions = actions.numpy()
+        actions = self.actor(states).detach().cpu().numpy()
         noise = self._gauss_noise(actions.shape)
         actions += noise
-        actions = np.clip(actions, -1, 1)
-        return actions
+        return np.clip(actions, -1, 1)
 
     def step(self, states, actions, rewards, next_states, pretrain=False):
+        """
+        Add the current SARS' tuple into the short term memory, then learn
+        """
         # Current SARS' stored in short term memory, then stacked for NStep
         memory = list(zip(states, actions, rewards, next_states))
         self._store_memories(memory)
-
         self.t_step += 1
 
+        # Don't do any learning if the network is initializing the memory
         if pretrain:
             return
 
         self.learn()
-        self._update_action_epsilon()
-
-    def _update_action_epsilon(self):
-        self.e = max(self.e_min, self.e * self.e_decay)
 
     def learn(self):
+        """
+        Performs a distributional Actor/Critic calculation and update.
+        Actor πθ and πθ'
+        Critic Zw and Zw' (categorical distribution)
+        """
+        # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
+        # Already calculated before storing in the replay buffer.
+        # NEXT_STATES are ROLLOUT steps ahead of STATES
         batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states = batch
 
-        # Calculate Yᵢ from target networks using θ' and W'
+        # Calculate Yᵢ from target networks using πθ' and Zw'
+        # These tensors are not needed for backpropogation, so detach from the
+        # calculation graph (literally doubles runtime if this is not detached)
         target_dist = self._get_targets(rewards, next_states).detach()
-        # Calculate value DISTRIBUTION for current state using weights W
+        # Calculate value DISTRIBUTION using Zw w.r.t. stored historical actions
         _, log_probs = self.critic(states, actions)
-        # Calculate the critic network LOSS
+        # Calculate the critic network LOSS (Cross Entropy)
+        # sum across columns to get Q values, then take the mean across the
+        # batch and multiply in the negative to calculate CrossEntropy loss
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
 
 
-        # Predict action for actor network loss calculation using θ
+        # Predict action for actor network loss calculation using πθ
         predicted_action = self.actor(states)
-        expected_reward, _ = self.critic(states, predicted_action)
-        expected_reward = (expected_reward * self.atoms.unsqueeze(0)).sum(-1)
+        # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
+        probs, _ = self.critic(states, predicted_action)
+        # Multiply probabilities by atom values and sum across columns to get
+        # Q-Value
+        expected_reward = (probs * self.atoms.unsqueeze(0)).sum(-1)
 
-        # Calculate the actor network LOSS
+        # Calculate the actor network LOSS (Policy Gradient)
+        # Take the mean across the batch and multiply in the negative to
+        # perform gradient ascent
         actor_loss = -(expected_reward).mean()
 
-        # Perform gradient descent
+        # Perform gradient ascent
         self.actor_optim.zero_grad()
         actor_loss.backward()
         self.actor_optim.step()
 
+        # Perform gradient descent
         self.critic_optim.zero_grad()
         critic_loss.backward()
         self.critic_optim.step()
@@ -203,19 +219,18 @@ class D4PG_Agent:
         self.memory.init_n_step(self.rollout)
         self.episode += 1
 
-    def _categorical(self,
-                    rewards,
-                    probs):
+    def _categorical(self, rewards, probs):
         """
         Returns the projected value distribution for the input state/action pair
         """
+
+        # Create function local vars to keep code more concise
         vmin = self.vmin
         vmax = self.vmax
         atoms = self.atoms
         num_atoms = self.num_atoms
 
         rewards = rewards.unsqueeze(-1)
-        #atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
         projected_atoms = rewards + self.gamma**self.rollout * atoms.unsqueeze(0)#.view(1,-1)
@@ -232,18 +247,25 @@ class D4PG_Agent:
         for idx in range(probs.size(0)):
             projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
-
         return projected_probs.float()
 
     def _get_targets(self, rewards, next_states):
-        target_actions = self.actor_target(next_states)#.detach()
-        target_probs, t_logs = self.critic_target(next_states, target_actions)#.detach()
-        #print("target_probs: {}   t_log_probs: {}".format(target_probs[0], t_logs[0]))
+        """
+        Calculate Yᵢ from target networks using πθ' and Zw'
+        """
+
+        target_actions = self.actor_target(next_states)
+        target_probs, _ = self.critic_target(next_states, target_actions)
+        # Project the categorical distribution onto the supports
         projected_probs = self._categorical(rewards, target_probs)
-        #return rewards + projected_probs
         return projected_probs
 
     def _gauss_noise(self, shape):
+        """
+        Returns the epsilon scaled noise distribution for adding to Actor
+        calculated action policy.
+        """
+
         n = np.random.normal(0, 1, shape)
         return self.e*n
 
@@ -252,6 +274,7 @@ class D4PG_Agent:
         Updates the network using either DDPG-style soft updates (w/ param \
         TAU), or using a DQN/D4PG style hard update every C timesteps.
         """
+
         if self.update_type == "soft":
             self._soft_update(self.actor, self.actor_target)
             self._soft_update(self.critic, self.critic_target)
@@ -298,9 +321,13 @@ class D4PG_Agent:
             next_states = next_states[-1].unsqueeze(0)
             self.memory.store(states, actions, rewards, next_states)
 
-
-    # def _reset_nstep_memory(self):
-    #     """
-    #     Creates (or recreates to zero an existing) deque to handle nstep returns.
-    #     """
-    #     self.n_step_memory = deque(maxlen=self.rollout)
+    @property
+    def e(self):
+        """
+        This property ensures that the annealing process is run every time that
+        E is called.
+        Anneals the epsilon rate down to a specified minimum to ensure there is
+        always some noisiness to the policy actions. Returns as a property.
+        """
+        self._e = max(self.e_min, self._e * self.e_decay)
+        return self._e

@@ -1,9 +1,4 @@
-#import Logger
-#import Saver
 import os.path
-# import re
-# import time
-
 import torch
 from argparse import ArgumentParser
 from utils import print_bracketing
@@ -11,10 +6,13 @@ from utils import print_bracketing
 
 class Meta():
     def __init__(self):
+        """
+        Initialization wrapper for Deep Reinforcement Learning tasks.
+        """
+
         self.args = self._get_args()
         self._process_args(self.args)
-        self.user_quit_message = "User quit process before loading a file."
-        self.no_files_found = "Could not find any files in: {}".format(self.args.save_dir)
+        self._generate_print_statements()
 
         self.load_file = self._get_agent_file(self.args)
 
@@ -24,19 +22,42 @@ class Meta():
         """
         Loads a checkpoint from an earlier trained agent.
         """
-        file = self.load_file
-        checkpoint = torch.load(file, map_location=lambda storage, loc: storage)
+
+        checkpoint = torch.load(self.load_file, map_location=lambda storage, loc: storage)
         agent.actor.load_state_dict(checkpoint['actor_dict'])
         agent.critic.load_state_dict(checkpoint['critic_dict'])
         agent._hard_update(agent.actor, agent.actor_target)
         agent._hard_update(agent.critic, agent.critic_target)
-        statement = "Successfully loaded file: {}".format(file)
+        statement = "Successfully loaded file: {}".format(self.load_file)
         print_bracketing(statement)
 
+    def _generate_print_statements(self):
+        """
+        Creates class properties to hold arbitrary print statements necessary
+        throughout the class. Used a a central repository to change these
+        statements easily from one location.
+        """
+
+        self.user_quit_message = "User quit process before loading a file."
+        self.no_files_found = "Could not find any files in: \
+                {}".format(self.args.save_dir)
+        self.invalid_filename = "Requested filename is invalid."
+        self.load_file_prompt = " (LATEST)\n\nPlease choose a saved Agent \
+                training file (or: q/quit): "
+
     def _get_agent_file(self, args):
+        """
+        Checks to see what sort of loading, if any, to do.
+        Returns one of:
+            -FILENAME... if flagged with a specific filename on the cmdline
+            -LASTEST FILE... if flagged to load the most recently saved weights
+            -USER FILE... a user selected file from a list prompt
+            -FALSE... if no loading is needed, return false and skip loading
+        """
+
         if args.resume or args.eval:
             if args.filename is not None:
-                assert os.path.isfile(args.filename), "Requested filename is invalid."
+                assert os.path.isfile(args.filename), self.invalid_filename
                 return args.filename
             files = self._get_files(args.save_dir)
             assert len(files) > 0, self.no_files_found
@@ -48,6 +69,10 @@ class Meta():
             return False
 
     def _get_files(self, save_dir):
+        """
+        Returns a list of files in a given directory, sorted by last-modified.
+        """
+
         file_list = []
         for root, _, files in os.walk(save_dir):
             for file in files:
@@ -58,10 +83,10 @@ class Meta():
         """
         Prompts the user about what save to load, or uses the last modified save.
         """
-        prompt = " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
+
         message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
         message = '\n'.join(message).replace('\\', '/')
-        message = message + prompt
+        message = message + self.load_file_prompt
         save_file = input(message)
         if save_file.lower() in ("q", "quit"):
             raise KeyboardInterrupt(self.user_quit_message)
@@ -84,9 +109,12 @@ class Meta():
         # Always use GPU if available
         args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         # Don't allow the user to run EVAL mode for more than 10 episodes
-        if args.eval and args.num_episodes > 10:
-            print("In eval mode, num_episodes is set to not more than 10.")
-            args.num_episodes = 10
+        # if args.eval: and args.num_episodes > 10:
+        #     print("In eval mode, num_episodes is set to not more than 10.")
+        #     args.num_episodes = 10
+        if args.eval and not args.force_eval:
+            args.num_episodes = 1
+            args.max_steps = 1000
         # Default to printing all the ARGS info to the command line for review
         if not args.quiet:
             arg_print = []
@@ -97,6 +125,9 @@ class Meta():
             print_bracketing(arg_print)
 
     def _get_args(self):
+        """
+        Generate arguments passed from the command line.
+        """
         parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
                 usage="")
 
@@ -121,15 +152,21 @@ class Meta():
                 type=int,
                 default=1000)
         parser.add_argument("-eval", "--eval",
-                help="Run in evalutation mode. Otherwise, will utilize training mode.",
+                help="Run in evalutation mode. Otherwise, will utilize \
+                      training mode. In default EVAL mode, NUM_EPISODES is set \
+                      to 1 and MAX_STEPS to 1000.",
+                action="store_true")
+        parser.add_argument("-feval", "--force_eval",
+                help="Force evaluation mode to run with specified NUM_EPISODES \
+                      and MAX_STEPS param.",
                 action="store_true")
         parser.add_argument("-gamma",
                 help="Gamma (Discount rate).",
                 type=float,
                 default=0.99)
         parser.add_argument("-max", "--max_steps",
-                help="How many timesteps to explore each episode, if a Terminal \
-                      state is not reached first",
+                help="How many timesteps to explore each episode, if a \
+                      Terminal state is not reached first",
                 type=int,
                 default=1000)
         parser.add_argument("--nographics",
@@ -140,8 +177,8 @@ class Meta():
                 type=int,
                 default=100)
         parser.add_argument("-pre", "--pretrain",
-                help="How many trajectories to randomly sample into the ReplayBuffer\
-                      before training begins.",
+                help="How many trajectories to randomly sample into the \
+                      ReplayBuffer before training begins.",
                 type=int,
                 default=5000)
         parser.add_argument("--quiet",
@@ -163,8 +200,8 @@ class Meta():
                 type=float,
                 default=0.0005)
         parser.add_argument("--latest",
-                help="Use this flag to automatically use the latest save file to \
-                      run in DEMO mode (instead of choosing from a prompt).",
+                help="Use this flag to automatically use the latest save file \
+                      to run in DEMO mode (instead of choosing from a prompt).",
                 action="store_true")
         parser.add_argument("-file", "--filename",
                 help="Path agent weights file to load. ",
