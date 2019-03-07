@@ -1,16 +1,15 @@
-import time
+# import time
 import numpy as np
-import torch
-import progressbar
-from unityagents import UnityEnvironment
-import numpy as np
-from logger import Logger
+# import torch
 
+# from unityagents import UnityEnvironment
+from logger import Logger
+# import os
 from agent import D4PG_Agent
 from environment import Environment
-from utils import Saver, load_agent
-from get_args import get_args
-
+from utils import Saver
+# from get_args import get_args
+from meta import Meta
 
 def main():
     """
@@ -25,9 +24,9 @@ def main():
     training that is discussed in the original D4PG paper.
     """
 
-    #meta = Meta()
+    meta = Meta()
 
-    args = get_args()
+    args = meta.args
 
     env = Environment(args)
 
@@ -39,37 +38,30 @@ def main():
                        batch_size = args.batch_size,
                        buffer_size = args.buffer_size,
                        C = args.C,
+                       device = args.device,
                        gamma = args.gamma,
                        rollout = args.rollout)
 
-    #meta.load_agent()
+    # saver = Saver(agent, args)
+    if meta.load_file: meta.load_agent(agent)
 
-    if args.filename != None or args.latest:
-        success = load_agent(agent, args)
-        if not success:
-            print("Could not load agent. No files in provided save directory: {}".format(args.save_dir))
-
-    if args.train:
-        train(args, env, agent)
-
-    elif args.eval:
+    if args.eval:
         eval(args, env, agent)
-
     else:
-        print("Somehow, neither Train or Eval modes were set. Something \
-               serious must have gone wrong!")
+        train(agent, args, env)
 
     return True
 
 
 
-def train(args, env, agent):
+def train(agent, args, env):
     """
     Train the agent.
     """
 
-    logger = Logger(env, args.num_episodes)
-    saver = Saver(agent, args.save_dir)
+    saver = Saver(agent, args)
+
+    logger = Logger(agent, args, env)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
@@ -83,8 +75,8 @@ def train(args, env, agent):
         # Get initial state
         states = env.states
 
-        # Gather experience until done or max_time is reached
-        for t in range(args.max_time):
+        # Gather experience until done or max_steps is reached
+        for t in range(args.max_steps):
             actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             agent.step(states, actions, rewards, next_states)
@@ -103,7 +95,7 @@ def train(args, env, agent):
 
     env.close()
     saver.save_final(agent)
-    #logger.report()
+    #logger.report(args.save_dir)
     #logger.print_results()
     return True
 
@@ -111,6 +103,9 @@ def eval(args, env, agent):
     """
     Evaluate the performance of an agent using a saved weights file.
     """
+
+    #logger = Logger(agent, args, env)
+
     #Begin training loop
     for episode in range(1, args.num_episodes+1):
         # Begin each episode with a clean environment
@@ -118,16 +113,16 @@ def eval(args, env, agent):
         # Get initial state
         states = env.states
 
-        # Gather experience until done or max_time is reached
-        for t in range(args.max_time):
+        # Gather experience until done or max_steps is reached
+        for t in range(args.max_steps):
             actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             states = next_states
-            logger.rewards += rewards
+            #logger.rewards += rewards
             if np.any(dones):
                 break
         agent.new_episode()
-        logger.step(episode)
+        #logger.step(episode)
 
     env.close()
     return True

@@ -1,13 +1,12 @@
-import os.path
-import time
-import re
+# import os.path
+# import time
+# import re
 
 import torch
-import matplotlib.pyplot as plt
-import numpy as np
+# import matplotlib.pyplot as plt
+# import numpy as np
 from unityagents import UnityEnvironment
-from collections import deque
-# import torchvision.transforms as T
+from utils import print_bracketing
 
 
 class Environment:
@@ -18,9 +17,14 @@ class Environment:
     """
     def __init__(self, args, id=0):
 
-        self.train = args.train
-
+        self.train = not args.eval
+        mult = 50
+        bracket = "#"
+        upper = ("{0}\n{1}{2}{1}\n".format(bracket*mult, bracket, " "*(mult-2)))
+        lower = ("\n{1}{2}{1}\n{0}".format(bracket*mult, bracket, " "*(mult-2)))
+        print_bracketing(do_lower=False)
         self.env = UnityEnvironment(file_name='Reacher_Windows_x86_64/Reacher.exe', worker_id=id, no_graphics=args.nographics)
+        print_bracketing(do_upper=False)
         self.brain_name = self.env.brain_names[0]
         self.brain = self.env.brains[self.brain_name]
 
@@ -35,7 +39,7 @@ class Environment:
         """
         Resets the environment.
         """
-        self.env_info = self.env.reset(train_mode=self.train)[self.brain_name]
+        self.env_info = self.env.reset(train_mode = self.train)[self.brain_name]
 
     def close(self):
         """

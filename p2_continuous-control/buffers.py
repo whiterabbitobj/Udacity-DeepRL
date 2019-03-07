@@ -1,5 +1,6 @@
 from collections import deque, namedtuple
 import random
+import torch
 
 class ReplayBuffer:
     """
@@ -15,8 +16,9 @@ class ReplayBuffer:
 
     where n=ROLLOUT.
     """
-    def __init__(self, buffer_size=100000):
+    def __init__(self, device, buffer_size=100000):
         self.buffer = deque(maxlen=buffer_size)
+        self.device = device
         self.experience = namedtuple("experience", field_names=['state','action','reward','next_state'])
 
     def store(self, state, action, reward, next_state):
@@ -25,36 +27,20 @@ class ReplayBuffer:
 
     def sample(self, batch_size):
         batch = random.sample(self.buffer, k=batch_size)
-        return  self.experience(*zip(*batch))
+        states, actions, rewards, next_states = zip(*batch)
+        states = torch.cat(states).to(self.device)
+        actions = torch.cat(actions).float().to(self.device)
+        rewards = torch.cat(rewards).to(self.device)
+        next_states = torch.cat(next_states).to(self.device)
+        # return  self.experience(*zip(*batch))
+        return (states, actions, rewards, next_states)
+
+    def init_n_step(self, length):
+        """
+        Creates (or recreates to zero an existing) deque to handle nstep returns.
+        """
+        self.n_step = deque(maxlen=length)
+
 
     def __len__(self):
         return len(self.buffer)
-
-
-
-
-
-
-
-
-
-#
-# class nStepBuffer:
-#     """
-#     Holds frames for rollout length stacking.
-#     """
-#     def __init__(self, size=5):
-#         self.buffer = deque(maxlen=size)
-#         self.experience = namedtuple("experience", field_names=['state','action','reward','next_state'])
-#
-#     def store(self, frame):
-#         self.buffer.append(frame)
-#
-#     def __len__(self):
-#         return len(self.buffer)
-#     #
-#     # def __iter__(self):
-#     #     return self
-#     #
-#     # def __next__(self):
-#     #     return self

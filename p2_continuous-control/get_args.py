@@ -1,8 +1,8 @@
-import argparse
+from argparse import ArgumentParser
 from utils import print_bracketing
 
 def get_args():
-    parser = argparse.ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
+    parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
             usage="")
 
     parser.add_argument("-alr", "--actor_learn_rate",
@@ -145,18 +145,31 @@ def get_args():
 
 
     args = parser.parse_args()
+
     args.train = not args.eval
+
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
 
     if args.eval and args.num_episodes > 10:
-        print("In eval mode, num_episodes is set to not more than 10.")
+        print("Setting NUM_EPISODES to 10 because Agent is running in EVAL \
+               mode.")
         args.num_episodes = 10
 
     if not args.quiet:
-        arg_print = ''
+        # arg_print = ''
+        # for arg in vars(args):
+        #     if arg == "quiet": continue
+        #     arg_print += " "*12 + "{}: {}\n".format(arg.upper(), getattr(args, arg))
+        # print_bracketing(arg_print[:-1])
+        arg_print = []
         for arg in vars(args):
             if arg == "quiet": continue
-            arg_print += " "*12 + "{}: {}\n".format(arg.upper(), getattr(args, arg))
-        print_bracketing(arg_print[:-1])
+            arg_statement = "{}: {}".format(arg.upper(), getattr(args, arg))
+            arg_print.append(arg_statement)
+        print_bracketing(arg_print)
+
+
+
+
 
     return args

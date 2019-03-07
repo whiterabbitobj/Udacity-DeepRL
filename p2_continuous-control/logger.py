@@ -4,14 +4,16 @@ import time
 from utils import print_bracketing
 
 class Logger:
-    def __init__(self, env, max_eps):
-        self.max_eps = max_eps
+    def __init__(self, agent, args, env):
+        self.max_eps = args.num_episodes
         self.current_log = ''
         self.full_log = ''
         self.agent_count = env.agent_count
         self.scores = []
+        self.save_dir = args.save_dir
+
         self._reset_rewards()
-        self.t_step = 1
+        #with open()
 
     def add(self, log):
         self.current_log += str(log)
@@ -23,6 +25,7 @@ class Logger:
         self.start_time = time.time()
 
     def step(self, eps):
+
         print("\nEpisode {}/{}... RUNTIME: {}".format(eps, self.max_eps, self._runtime()))
         self._update_score()
         self._reset_rewards()
@@ -48,5 +51,7 @@ class Logger:
         # sys.stdout.flush()
         pass
 
-    # def report(self):
-    #     print("Score for last episode:", self.scores[-1])
+    def report(self, save_dir):
+        for detail in self.agent_details:
+            print(detail)
+        pass
