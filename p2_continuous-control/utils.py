@@ -89,4 +89,4 @@ class Saver:
         with open(file, 'w') as f:
             for arg in vars(agent):
                 f.write("{}: {}\n".format(arg.upper(), getattr(agent, arg)))
-        print("Logfile saved to: {}".format(file))
+        print_bracketing("Logfile saved to: {}".format(file))

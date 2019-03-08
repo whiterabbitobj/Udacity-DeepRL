@@ -25,16 +25,18 @@ def main():
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
                        env.agent_count,
-                       a_lr = meta.args.actor_learn_rate,
-                       c_lr = meta.args.critic_learn_rate,
-                       batch_size = meta.args.batch_size,
-                       buffer_size = meta.args.buffer_size,
-                       C = meta.args.C,
-                       device = meta.args.device,
-                       gamma = meta.args.gamma,
-                       rollout = meta.args.rollout)
+                       device = meta.args.device)
+                       # a_lr = meta.args.actor_learn_rate,
+                       # c_lr = meta.args.critic_learn_rate,
+                       # batch_size = meta.args.batch_size,
+                       # buffer_size = meta.args.buffer_size,
+                       # C = meta.args.C,
+                       # gamma = meta.args.gamma,
+                       # rollout = meta.args.rollout)
 
     if meta.load_file: meta.load_agent(agent)
+
+    if not meta.quietmode: meta.print_params(agent)
 
     if meta.args.eval:
         eval(agent, meta.args, env)

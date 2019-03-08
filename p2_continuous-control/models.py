@@ -31,7 +31,7 @@ class ActorNet(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1, fc2)
         self.output = nn.Linear(fc2, action_size)
-        #initialize_weights(self, weight_low, weight_high)
+        initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state):
         """
@@ -41,7 +41,6 @@ class ActorNet(nn.Module):
         x = F.relu(self.fc2(x))
         logits = self.output(x)
         action = logits.tanh()
-        #log_prob = logits.log_prob(action)
         return action
 
 
@@ -57,7 +56,7 @@ class CriticNet(nn.Module):
     def __init__(self,
                  state_size,
                  action_size,
-                 n_atoms = 51,
+                 num_atoms,
                  layer_sizes = LAYER_SIZES,
                  weight_low = WEIGHT_LOW,
                  weight_high = WEIGHT_HIGH):
@@ -69,8 +68,8 @@ class CriticNet(nn.Module):
 
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
-        self.output = nn.Linear(fc2, n_atoms)
-        #initialize_weights(self, weight_low, weight_high)
+        self.output = nn.Linear(fc2, num_atoms)
+        initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state, actions):
         """

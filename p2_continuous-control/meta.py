@@ -12,11 +12,26 @@ class Meta():
 
         self.args = self._get_args()
         self._process_args(self.args)
+        self.quietmode = self.args.quiet
         self._generate_print_statements()
-
         self.load_file = self._get_agent_file(self.args)
 
         pass
+
+    def print_params(self, agent):
+        # Default to printing all the ARGS info to the command line for review
+        a = {}
+        for arg in vars(self.args):
+            if arg not in vars(agent):
+                a[arg] = getattr(self.args, arg)
+        arg_print = []
+        for arg in a:
+            arg_print.append("{}: {}".format(arg.upper(), a[arg]))
+        arg_print.append("\n")
+        for arg in vars(agent):
+            arg_print.append("{}: {}".format(arg.upper(), getattr(agent, arg)))
+        print_bracketing(arg_print)
+
 
     def load_agent(self, agent):
         """
@@ -115,14 +130,6 @@ class Meta():
         if args.eval and not args.force_eval:
             args.num_episodes = 1
             args.max_steps = 1000
-        # Default to printing all the ARGS info to the command line for review
-        if not args.quiet:
-            arg_print = []
-            for arg in vars(args):
-                if arg == "quiet": continue
-                arg_statement = "{}: {}".format(arg.upper(), getattr(args, arg))
-                arg_print.append(arg_statement)
-            print_bracketing(arg_print)
 
     def _get_args(self):
         """

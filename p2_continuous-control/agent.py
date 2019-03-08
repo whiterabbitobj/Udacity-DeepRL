@@ -1,8 +1,6 @@
-import numpy as np
 import copy
-# from collections import namedtuple, deque
 from collections import deque
-
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -17,19 +15,19 @@ class D4PG_Agent:
                  state_size,
                  action_size,
                  agent_count,
-                 a_lr = 1e-4,
-                 c_lr = 1e-4,
+                 a_lr = 1e-3,
+                 c_lr = 1e-3,
                  batch_size = 128,
                  buffer_size = 300000,
-                 C = 3000,
+                 C = 500,
                  device = "cpu",
                  e = 0.3,
-                 e_decay = 0.99999,
+                 e_decay = 1, #0.99999,
                  e_min = 0.05,
                  gamma = 0.99,
-                 num_atoms = 51,
+                 num_atoms = 75,
                  vmin = 0,
-                 vmax = 0.3,
+                 vmax = 0.2,
                  rollout = 5,
                  tau = 0.0005,
                  l2_decay = 0.0001,
@@ -66,13 +64,18 @@ class D4PG_Agent:
         stability of learning. Thus, it too has been left out of this
         implementation but may be added as a future TODO item.
         """
-        self.device = device
-
         self.framework = "D4PG"
-        self.t_step = 0
-        self.episode = 0
+
+        self.actor_learn_rate = a_lr
+        self.critic_learn_rate = c_lr
+
         self.batch_size = batch_size
+        self.buffer_size = buffer_size
+
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
         self.C = C
+
         self._e = e
         self.e_decay = e_decay
         self.e_min = e_min
@@ -83,11 +86,13 @@ class D4PG_Agent:
         self.gamma = gamma
         self.tau = tau
         self.update_type = update_type
-
         self.vmin = vmin
         self.vmax = vmax
         self.num_atoms = num_atoms
         self.atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
+
+        self.t_step = 0
+        self.episode = 0
 
 
         # Set up memory buffers, currently only standard replay is implemented #
@@ -97,11 +102,10 @@ class D4PG_Agent:
         self.actor = ActorNet(state_size, action_size).to(self.device)
         self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
-        self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr)
-
+        self.actor_optim = optim.Adam(self.actor.parameters(), lr=a_lr, weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(state_size, action_size).to(self.device)
-        self.critic_target = CriticNet(state_size, action_size).to(self.device)
+        self.critic = CriticNet(state_size, action_size, num_atoms).to(self.device)
+        self.critic_target = CriticNet(state_size, action_size, num_atoms).to(self.device)
         self._hard_update(self.actor, self.actor_target)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=c_lr, weight_decay=l2_decay)
 
@@ -124,6 +128,7 @@ class D4PG_Agent:
         """
         Add the current SARS' tuple into the short term memory, then learn
         """
+
         # Current SARS' stored in short term memory, then stacked for NStep
         memory = list(zip(states, actions, rewards, next_states))
         self._store_memories(memory)
@@ -141,22 +146,23 @@ class D4PG_Agent:
         Actor πθ and πθ'
         Critic Zw and Zw' (categorical distribution)
         """
+
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_STATES are ROLLOUT steps ahead of STATES
         batch = self.memory.sample(self.batch_size)
         states, actions, rewards, next_states = batch
-
+        atoms = self.atoms.unsqueeze(0)
         # Calculate Yᵢ from target networks using πθ' and Zw'
         # These tensors are not needed for backpropogation, so detach from the
         # calculation graph (literally doubles runtime if this is not detached)
         target_dist = self._get_targets(rewards, next_states).detach()
-        # Calculate value DISTRIBUTION using Zw w.r.t. stored historical actions
+        # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
         _, log_probs = self.critic(states, actions)
         # Calculate the critic network LOSS (Cross Entropy)
-        # sum across columns to get Q values, then take the mean across the
-        # batch and multiply in the negative to calculate CrossEntropy loss
+        # estimates distance between target and projected values
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
+        #critic_loss = -(target_dist * (log_probs*atoms).sum(-1).mean()
 
 
         # Predict action for actor network loss calculation using πθ
@@ -165,8 +171,7 @@ class D4PG_Agent:
         probs, _ = self.critic(states, predicted_action)
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
-        expected_reward = (probs * self.atoms.unsqueeze(0)).sum(-1)
-
+        expected_reward = (probs * atoms).sum(-1)
         # Calculate the actor network LOSS (Policy Gradient)
         # Take the mean across the batch and multiply in the negative to
         # perform gradient ascent
