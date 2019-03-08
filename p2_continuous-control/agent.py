@@ -9,7 +9,6 @@ import torch.optim as optim
 from buffers import ReplayBuffer
 from models import ActorNet, CriticNet
 
-
 class D4PG_Agent:
     def __init__(self,
                  state_size,
@@ -64,36 +63,32 @@ class D4PG_Agent:
         stability of learning. Thus, it too has been left out of this
         implementation but may be added as a future TODO item.
         """
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.framework = "D4PG"
 
+        self.agent_count = agent_count
         self.actor_learn_rate = a_lr
         self.critic_learn_rate = c_lr
-
         self.batch_size = batch_size
         self.buffer_size = buffer_size
-
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
+        self.action_size = action_size
+        self.state_size = state_size
         self.C = C
-
         self._e = e
         self.e_decay = e_decay
         self.e_min = e_min
-        self.state_size = state_size
-        self.action_size = action_size
-        self.agent_count = agent_count
-        self.rollout = rollout
         self.gamma = gamma
+        self.rollout = rollout
         self.tau = tau
         self.update_type = update_type
+
+        self.num_atoms = num_atoms
         self.vmin = vmin
         self.vmax = vmax
-        self.num_atoms = num_atoms
         self.atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
 
         self.t_step = 0
         self.episode = 0
-
 
         # Set up memory buffers, currently only standard replay is implemented #
         self.memory = ReplayBuffer(self.device, buffer_size)
@@ -220,7 +215,6 @@ class D4PG_Agent:
         """
         Handle any cleanup or steps to begin a new episode of training.
         """
-        #self._reset_nstep_memory()
         self.memory.init_n_step(self.rollout)
         self.episode += 1
 
@@ -300,11 +294,9 @@ class D4PG_Agent:
         Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
         memory can be added to the ReplayBuffer.
         """
-        #self.n_step_memory.append(experiences)
         self.memory.n_step.append(experiences)
 
         # Abort if ROLLOUT steps haven't been taken in a new episode
-        # if len(self.n_step_memory) < self.rollout:
         if len(self.memory.n_step) < self.rollout:
             return
 
@@ -317,7 +309,6 @@ class D4PG_Agent:
             n_steps = self.rollout - 1
             rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
             rewards = rewards.sum()
-            #print("Rewards:", rewards)
             # store the current state, current action, cumulative discounted
             # reward from t -> t+n-1, and the next_state at t+n (S't+n)
             states = states[0].unsqueeze(0)

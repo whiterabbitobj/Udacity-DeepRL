@@ -12,6 +12,8 @@ def initialize_weights(net, low, high):
     for param in net.parameters():
         param.data.uniform_(low, high)
 
+
+
 class ActorNet(nn.Module):
     """
     Actor network that approximates the non-linear function π(θ)
@@ -81,5 +83,4 @@ class CriticNet(nn.Module):
         logits = self.output(x)
         probs = F.softmax(logits, dim=-1)
         log_probs = F.log_softmax(logits, dim=-1)
-        #q =
         return probs, log_probs

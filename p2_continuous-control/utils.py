@@ -27,7 +27,7 @@ class Saver:
 
         self.filename = self.generate_savename(agent.framework)
         self._check_dir(os.path.join(self.save_dir, self.filename))
-        self._write_init_log(agent)
+        self._write_init_log(args.param_list)
         print_bracketing("Saving to base filename: " + self.filename)
 
 
@@ -82,11 +82,12 @@ class Saver:
                       }
         return checkpoint
 
-    def _write_init_log(self, agent):
+    def _write_init_log(self, params):
         """
         """
-        file = os.path.join(self.save_dir, self.filename, self.filename) + "_LOG.txt"
+        ext = "_LOG.txt"
+        file = os.path.join(self.save_dir, self.filename, self.filename) + ext
         with open(file, 'w') as f:
-            for arg in vars(agent):
-                f.write("{}: {}\n".format(arg.upper(), getattr(agent, arg)))
+            for line in params:
+                f.write(line)
         print_bracketing("Logfile saved to: {}".format(file))

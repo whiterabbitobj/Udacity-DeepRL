@@ -36,11 +36,10 @@ def main():
 
     if meta.load_file: meta.load_agent(agent)
 
-    if not meta.quietmode: meta.print_params(agent)
-
     if meta.args.eval:
         eval(agent, meta.args, env)
     else:
+        meta.collect_params(agent)
         train(agent, meta.args, env)
 
     return True

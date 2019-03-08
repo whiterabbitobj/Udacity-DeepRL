@@ -18,20 +18,25 @@ class Meta():
 
         pass
 
-    def print_params(self, agent):
+    def collect_params(self, agent):
+        """
+        Creates a list of all the Params used to run this training instance,
+        prints this list to the command line if QUIET is not flagged, and stores
+        it for later saving to the params log in the saves directory.
+        """
         # Default to printing all the ARGS info to the command line for review
-        a = {}
-        for arg in vars(self.args):
-            if arg not in vars(agent):
-                a[arg] = getattr(self.args, arg)
-        arg_print = []
-        for arg in a:
-            arg_print.append("{}: {}".format(arg.upper(), a[arg]))
-        arg_print.append("\n")
-        for arg in vars(agent):
-            arg_print.append("{}: {}".format(arg.upper(), getattr(agent, arg)))
-        print_bracketing(arg_print)
+        param_list = [self._format_param(arg, self.args) for arg in vars(self.args) if arg not in vars(agent)]
+        param_list.append("\n")
+        param_list += [self.format_param(arg, agent) for arg in vars(agent)]
+        if not self.quietmode: print_bracketing(param_list)
+        self.args.param_list = param_list
 
+    def _format_param(self, arg, args):
+        """
+        Formats into PARAM: VALUE for reporting. Strips leading underscores for
+        placeholder params where @properties are used for the real value.
+        """
+        return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
 
     def load_agent(self, agent):
         """
