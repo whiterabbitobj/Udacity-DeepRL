@@ -15,12 +15,7 @@ from progress.spinner import Spinner
 
 
 
-x = np.array(([1,2,3],[4,5,6]))
-y = np.array(([.1,.2,.3],[.4,.5,.6]))
-print(x.shape)
-print(y.shape)
-
-a = (x * y).sum(-1)
-print(a)
-b = x.sum(-1) + y.sum(-1)
-print(b)
+l = [1,2,3]
+k = [4,5,6]
+l += k
+print(l)

@@ -27,7 +27,7 @@ class Meta():
         # Default to printing all the ARGS info to the command line for review
         param_list = [self._format_param(arg, self.args) for arg in vars(self.args) if arg not in vars(agent)]
         param_list.append("\n")
-        param_list += [self.format_param(arg, agent) for arg in vars(agent)]
+        param_list += [self._format_param(arg, agent) for arg in vars(agent)]
         if not self.quietmode: print_bracketing(param_list)
         self.args.param_list = param_list
 
@@ -36,7 +36,7 @@ class Meta():
         Formats into PARAM: VALUE for reporting. Strips leading underscores for
         placeholder params where @properties are used for the real value.
         """
-        return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
+        return "{}: {}\n".format(arg.upper().lstrip("_"), getattr(args, arg))
 
     def load_agent(self, agent):
         """
