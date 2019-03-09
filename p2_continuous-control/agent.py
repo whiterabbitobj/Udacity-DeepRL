@@ -8,6 +8,7 @@ import torch.optim as optim
 
 from buffers import ReplayBuffer
 from models import ActorNet, CriticNet
+# from data_handling import Saver
 
 class D4PG_Agent:
     def __init__(self,
@@ -91,7 +92,8 @@ class D4PG_Agent:
         self.episode = 0
 
         # Set up memory buffers, currently only standard replay is implemented #
-        self.memory = ReplayBuffer(self.device, buffer_size)
+        self.memory = ReplayBuffer(self.device, self.buffer_size)
+        #self.saver = Saver(self.framework, args.save_dir)
 
         #                    Initialize ACTOR networks                         #
         self.actor = ActorNet(state_size, action_size).to(self.device)

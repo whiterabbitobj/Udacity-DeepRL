@@ -16,13 +16,12 @@ from progress.spinner import Spinner
 
 class Test:
     def __init__(self):
+        self.time = self.atime = time.time()
 
-        return 15
+    def newTime(self):
+        self.atime = time.time()
 
-    def stuff(self):
-        return 5
-
-
-x = Test()
-
-print(x)
+t = Test()
+print(t.time, t.atime)
+t.newTime()
+print(t.time, t.atime)

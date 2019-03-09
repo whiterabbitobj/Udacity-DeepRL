@@ -3,13 +3,26 @@ import numpy as np
 import time
 from utils import print_bracketing
 
-class Saver:
+class Saver():
+    """
+    Handles the saving of checkpoints and collection of data to do so. Generates
+    the savename and directory for each Agent session.
+    PARAMS:
+    prefix - usually the name of the framework of the agent being trained, but
+            could be manually provided if desired.
+    save_dir - this will usually come from a cmdline parser
+    file_ext - extension to append to saved weights files. Can be any arbitrary
+            string the user desires.
+    """
     def __init__(self,
-                 agent_name,
-                 save_dir,
+                 prefix,
+                 save_dir = 'saves',
                  file_ext = ".agent"):
+        """
+        Initialize a Saver object.
+        """
         self.file_ext = file_ext
-        self.save_dir, self.filename = self.generate_savename(agent_name, save_dir)
+        self.save_dir, self.filename = self.generate_savename(prefix, save_dir)
 
     def load_agent(self, load_file, agent):
         """
@@ -24,21 +37,20 @@ class Saver:
         statement = "Successfully loaded file: {}".format(load_file)
         print_bracketing(statement)
 
-    def generate_savename(self, agent_name, save_dir):
+    def generate_savename(self, prefix, save_dir):
         """
         Generates an automatic savename for training files, will version-up as
         needed.
         """
-        t = time.localtime()
-        savename = "{}_{}_v".format(agent_name, time.strftime("%Y%m%d", time.localtime()))
+        base_name = "{}_{}_v".format(prefix, time.strftime("%Y%m%d", time.localtime()))
         files = [f for f in os.listdir(save_dir)]
-        files = [f for f in files if savename in f]
+        files = [f for f in files if base_name in f]
         if len(files)>0:
             ver = [int(re.search("_v(\d+)", file).group(1)) for file in files]
             ver = max(ver) + 1
         else:
             ver = 1
-        filename =  "{}{}".format(savename, ver)
+        filename =  "{}{}".format(base_name, ver)
         print_bracketing("Saving to base filename: " + filename)
         save_dir = os.path.join(save_dir, filename)
         self._check_dir(save_dir)
@@ -93,39 +105,81 @@ class Logger:
     def __init__(self,
                  agent,
                  args,
-                 save_dir = '.'):
+                 save_dir = '.',
+                 log_every = 10):
         self.max_eps = args.num_episodes
-        self.current_log = ''
-        self.full_log = ''
+        self.quietmode = args.quiet
+        self.log_every = log_every
+        self.agent_count = agent.agent_count
+        # self.current_log = ''
+        # self.full_log = ''
         # self.agent_count = agent.agent_count
-        self.scores = []
         self.save_dir = save_dir
         self.log_dir = os.path.join(self.save_dir, 'logs')
+        self.filename = os.path.basename(self.save_dir)
+        # self.param_list = self._collect_params(args, agent)
 
-        self.param_list = self._collect_params(args, agent)
-        self._write_init_log(self._collect_params(args, agent))
-        self._reset_rewards()
+        self._init_rewards()
+        self._init_logs(self._collect_params(args, agent))
+
+        statement = "Starting training at: {}".format(time.strftime("%H:%M:%S", time.localtime()))
+        print_bracketing(statement)
+        self.start_time = self.eps_time =  time.time()
+        self.scores = []
+        self.losses = []
+
+
+    def log(self, rewards, agent):
+        self.rewards += rewards
+        if agent.t_step % self.log_every:
+            self._write_losses(agent)
+            print("A LOSS: ", agent.actor_loss)
+            print("C LOSS: ", agent.critic_loss)
+            #self._write_criticloss()
+            #self._write_episode_score()
 
     def _check_dir(self, dir):
         """
         Creates requested directory if it doesn't yet exist.
         """
-
         if not os.path.isdir(dir):
             os.mkdir(dir)
 
-
-    def _write_init_log(self, params):
+    def _init_logs(self, params):
         """
         Outputs an initial log of all parameters provided as a list.
         """
-        ext = "_LOG.txt"
-
-        file = os.path.join(self.save_dir, self.filename, self.filename) + ext
-        with open(file, 'w') as f:
+        basename = os.path.join(self.log_dir, self.filename)
+        paramfile = basename + "_LOG.txt"
+        self.alossfile = basename + "_actorloss.txt"
+        self.clossfile = basename + "_criticloss.txt"
+        self.scoresfile = basename + "_scores.txt"
+        with open(paramfile, 'w') as f:
             for line in params:
                 f.write(line)
-        print_bracketing("Logfile saved to: {}".format(file))
+        with open(self.alossfile, 'w') as f:
+            pass
+        with open(self.clossfile, 'w') as f:
+            pass
+        with open(self.scoresfile, 'w') as f:
+            pass
+        log_statement = ["Logfiles saved to: {}".format(self.log_dir)]
+        log_statement.append("-{}".format(paramfile))
+        log_statement.append("-{}".format(self.alossmfile))
+        log_statement.append("-{}".format(self.clossfile))
+        log_statement.append("-{}".format(self.scoresfile))
+        print_bracketing(log_statement)
+
+    def _write_losses(self, agent):
+        with open(self.alossfile, 'a') as f:
+            f.write(str(agent.actor_loss) + '\n')
+        with open(self.clossfile, 'a') as f:
+            f.write(str(agent.critic_loss) + '\n')
+
+    def _write_scores(self, score):
+        with open(self.scoresfile, 'a') as f:
+            f.write(str(score) + '\n')
+
 
     def _collect_params(self, args, agent):
         """
@@ -147,46 +201,48 @@ class Logger:
         """
         return "{}: {}\n".format(arg.upper().lstrip("_"), getattr(args, arg))
 
-    # def add(self, log):
-    #     self.current_log += str(log)
-
-    def start_clock(self):
-        t = time.localtime()
-        statement = "Starting training at: {}".format(time.strftime("%H:%M:%S", time.localtime()))
-        print_bracketing(statement)
-        self.start_time = time.time()
-
-    def step(self, eps):
-
-        print("\nEpisode {}/{}... RUNTIME: {}".format(eps, self.max_eps, self._runtime()))
+    def step(self, epsnum):
+        epstime, total = self._runtime()
+        print("\nEpisode {}/{}... RUNTIME: {}, TOTAL:".format(epsnum, self.max_eps, epstime, total))
         self._update_score()
-        self._reset_rewards()
+        self._init_rewards()
 
     def _runtime(self):
-        m, s = divmod(time.time() - self.start_time, 60)
+        nowTime = time.time()
+
+        m, s = divmod(nowTime - self.eps_time, 60)
         h, m = divmod(m, 60)
-        return "{}h{}m{}s".format(int(h), int(m), int(s))
+        total = "{}h{}m{}s".format(int(h), int(m), int(s))
+
+        m, s = divmod(nowTime - self.start_time, 60)
+        h, m = divmod(m, 60)
+        total = "{}h{}m{}s".format(int(h), int(m), int(s))
+
+        self.eps_time = nowTime
+
+        return epstime, total
 
     def _update_score(self):
         score = self.rewards.mean()
         print("{}Return: {}".format("."*10, score))
-        self.scores.append(score)
+        self._write_scores(score)
+        #self.scores.append(score)
 
-    def _reset_rewards(self):
+    def _init_rewards(self):
         self.rewards = np.zeros(self.agent_count)
 
-    def print(self):
-        # flushlen = len(self.current_log)
-        # sys.stdout.write(self.current_log)
-        # sys.stdout.flush()
-        # sys.stdout.write("\b"*100)
-        # sys.stdout.flush()
-        pass
-
-    def report(self, save_dir):
-        for detail in self.agent_details:
-            print(detail)
-        pass
+    # def print(self):
+    #     # flushlen = len(self.current_log)
+    #     # sys.stdout.write(self.current_log)
+    #     # sys.stdout.flush()
+    #     # sys.stdout.write("\b"*100)
+    #     # sys.stdout.flush()
+    #     pass
+    #
+    # def report(self, save_dir):
+    #     for detail in self.agent_details:
+    #         print(detail)
+    #     pass
 
 def gather_args():
     """

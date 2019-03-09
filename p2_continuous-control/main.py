@@ -28,38 +28,27 @@ def main():
                        env.agent_count,
                        device = args.device)
 
-    # meta.init_session(env, agent)
     saver = Saver(agent.framework, args.save_dir)
-    logger = Logger(agent, args, saver.save_dir)
-
-    #if meta.load_file: meta.load_agent(agent)
     if args.load_file: saver.load_agent(args.load_file, agent)
 
-    if meta.args.eval:
-        eval(agent, meta.args, env)
+    if args.eval:
+        eval(agent, args, env)
     else:
-        train(agent, meta, env)
+        train(agent, args, env, saver)
 
     return True
 
 
 
-def train(agent, meta, env):
+def train(agent, args, env, saver):
     """
     Train the agent.
     """
 
-    meta.init_training(agent)
-    args = meta.args
-    #
-    # meta.saver.init(agent, args)
-    # meta.logger.init(agent, args)
-    # saver = Saver(agent, args)
+    logger = Logger(agent, args, saver.save_dir, log_every=10)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
-
-    logger.start_clock()
 
     #Begin training loop
     for episode in range(1, args.num_episodes+1):
@@ -75,8 +64,8 @@ def train(agent, meta, env):
             agent.step(states, actions, rewards, next_states)
             states = next_states
 
-            logger.rewards += rewards
-            #logger.losses.log()
+            #logger.rewards += rewards
+            logger.log(rewards, agent.actor_loss, agent.critic_loss)
             if np.any(dones):
                 break
 
