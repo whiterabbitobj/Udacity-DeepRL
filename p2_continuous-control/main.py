@@ -1,11 +1,11 @@
 import numpy as np
 
-from logger import Logger
+# from logger import Logger
 from agent import D4PG_Agent
 from environment import Environment
-from meta import Meta
-from utils import Saver
-
+# from meta import Meta
+# from utils import Saver
+from data_handling import Loader, Saver, gather_args
 
 def main():
     """
@@ -18,42 +18,43 @@ def main():
     training loop as needed.
     """
 
-    meta = Meta()
+    # meta = Meta()
+    args = gather_args()
 
-    env = Environment(meta.args)
+    env = Environment(args)
 
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
                        env.agent_count,
-                       device = meta.args.device)
-                       # a_lr = meta.args.actor_learn_rate,
-                       # c_lr = meta.args.critic_learn_rate,
-                       # batch_size = meta.args.batch_size,
-                       # buffer_size = meta.args.buffer_size,
-                       # C = meta.args.C,
-                       # gamma = meta.args.gamma,
-                       # rollout = meta.args.rollout)
+                       device = args.device)
 
-    if meta.load_file: meta.load_agent(agent)
+    # meta.init_session(env, agent)
+    saver = Saver(agent.framework, args.save_dir)
+    logger = Logger(agent, args, saver.save_dir)
+
+    #if meta.load_file: meta.load_agent(agent)
+    if args.load_file: saver.load_agent(args.load_file, agent)
 
     if meta.args.eval:
         eval(agent, meta.args, env)
     else:
-        meta.collect_params(agent)
-        train(agent, meta.args, env)
+        train(agent, meta, env)
 
     return True
 
 
 
-def train(agent, args, env):
+def train(agent, meta, env):
     """
     Train the agent.
     """
 
-    saver = Saver(agent, args)
-
-    logger = Logger(agent, args, env)
+    meta.init_training(agent)
+    args = meta.args
+    #
+    # meta.saver.init(agent, args)
+    # meta.logger.init(agent, args)
+    # saver = Saver(agent, args)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
@@ -75,6 +76,7 @@ def train(agent, args, env):
             states = next_states
 
             logger.rewards += rewards
+            #logger.losses.log()
             if np.any(dones):
                 break
 

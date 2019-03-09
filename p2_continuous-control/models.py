@@ -73,7 +73,7 @@ class CriticNet(nn.Module):
         self.output = nn.Linear(fc2, num_atoms)
         initialize_weights(self, weight_low, weight_high)
 
-    def forward(self, state, actions):
+    def forward(self, state, actions, log=False):
         """
         Build a network that maps state -> action values.
         """
@@ -81,6 +81,10 @@ class CriticNet(nn.Module):
         x = torch.cat([x, actions], dim=1)
         x = F.relu(self.fc2(x))
         logits = self.output(x)
-        probs = F.softmax(logits, dim=-1)
-        log_probs = F.log_softmax(logits, dim=-1)
-        return probs, log_probs
+        # probs = F.softmax(logits, dim=-1)
+        # log_probs = F.log_softmax(logits, dim=-1)
+        # return probs, log_probs
+        if log:
+            return F.log_softmax(logits, dim=-1)
+        else:
+            return F.softmax(logits, dim=-1)

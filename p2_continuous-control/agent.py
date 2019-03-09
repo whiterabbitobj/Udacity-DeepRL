@@ -153,8 +153,9 @@ class D4PG_Agent:
         # calculation graph (literally doubles runtime if this is not detached)
         target_dist = self._get_targets(rewards, next_states).detach()
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
-        _, log_probs = self.critic(states, actions)
-        # Calculate the critic network LOSS (Cross Entropy)
+        log_probs = self.critic(states, actions, log=True)
+        # Calculate the critic network LOSS (Cross Entropy), CE-loss is ideal
+        # for categorical value distributions as utilized in D4PG.
         # estimates distance between target and projected values
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
         #critic_loss = -(target_dist * (log_probs*atoms).sum(-1).mean()
@@ -163,14 +164,14 @@ class D4PG_Agent:
         # Predict action for actor network loss calculation using πθ
         predicted_action = self.actor(states)
         # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
-        probs, _ = self.critic(states, predicted_action)
+        probs = self.critic(states, predicted_action)
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
         expected_reward = (probs * atoms).sum(-1)
         # Calculate the actor network LOSS (Policy Gradient)
         # Take the mean across the batch and multiply in the negative to
         # perform gradient ascent
-        actor_loss = -(expected_reward).mean()
+        actor_loss = -expected_reward.mean()
 
         # Perform gradient ascent
         self.actor_optim.zero_grad()
@@ -254,7 +255,7 @@ class D4PG_Agent:
         """
 
         target_actions = self.actor_target(next_states)
-        target_probs, _ = self.critic_target(next_states, target_actions)
+        target_probs = self.critic_target(next_states, target_actions)
         # Project the categorical distribution onto the supports
         projected_probs = self._categorical(rewards, target_probs)
         return projected_probs

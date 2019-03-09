@@ -18,10 +18,6 @@ class Environment:
     def __init__(self, args, id=0):
 
         self.train = not args.eval
-        mult = 50
-        bracket = "#"
-        upper = ("{0}\n{1}{2}{1}\n".format(bracket*mult, bracket, " "*(mult-2)))
-        lower = ("\n{1}{2}{1}\n{0}".format(bracket*mult, bracket, " "*(mult-2)))
         print_bracketing(do_lower=False)
         self.env = UnityEnvironment(file_name='Reacher_Windows_x86_64/Reacher.exe', worker_id=id, no_graphics=args.nographics)
         print_bracketing(do_upper=False)

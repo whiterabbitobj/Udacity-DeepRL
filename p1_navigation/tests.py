@@ -14,8 +14,15 @@ from progress.bar import Bar
 from progress.spinner import Spinner
 
 
+class Test:
+    def __init__(self):
 
-l = [1,2,3]
-k = [4,5,6]
-l += k
-print(l)
+        return 15
+
+    def stuff(self):
+        return 5
+
+
+x = Test()
+
+print(x)
