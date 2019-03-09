@@ -2,6 +2,10 @@ import sys
 import numpy as np
 import time
 from utils import print_bracketing
+from argparse import ArgumentParser
+import torch
+import os.path
+import re
 
 class Saver():
     """
@@ -53,7 +57,7 @@ class Saver():
         filename =  "{}{}".format(base_name, ver)
         print_bracketing("Saving to base filename: " + filename)
         save_dir = os.path.join(save_dir, filename)
-        self._check_dir(save_dir)
+        #self._check_dir(save_dir)
         return save_dir, filename
 
     def save_checkpoint(self, agent, save_every):
@@ -69,6 +73,8 @@ class Saver():
         full_name = os.path.join(self.save_dir, save_name).replace('\\','/')
         statement = "Saving Agent checkpoint to: {}".format(full_name)
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
+        self._check_dir(self.save_dir)
+
         torch.save(self._get_save_dict(agent), full_name)
 
     def save_final(self, agent):
@@ -115,7 +121,8 @@ class Logger:
         # self.full_log = ''
         # self.agent_count = agent.agent_count
         self.save_dir = save_dir
-        self.log_dir = os.path.join(self.save_dir, 'logs')
+        self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
+        self._check_dir(self.log_dir)
         self.filename = os.path.basename(self.save_dir)
         # self.param_list = self._collect_params(args, agent)
 
@@ -131,19 +138,18 @@ class Logger:
 
     def log(self, rewards, agent):
         self.rewards += rewards
-        if agent.t_step % self.log_every:
-            self._write_losses(agent)
-            print("A LOSS: ", agent.actor_loss)
-            print("C LOSS: ", agent.critic_loss)
-            #self._write_criticloss()
-            #self._write_episode_score()
+        self.actor_loss = agent.actor_loss
+        self.critic_loss = agent.critic_loss
+        if agent.t_step % self.log_every == 0 :
+            self._write_losses()
+
 
     def _check_dir(self, dir):
         """
         Creates requested directory if it doesn't yet exist.
         """
         if not os.path.isdir(dir):
-            os.mkdir(dir)
+            os.makedirs(dir)
 
     def _init_logs(self, params):
         """
@@ -164,22 +170,21 @@ class Logger:
         with open(self.scoresfile, 'w') as f:
             pass
         log_statement = ["Logfiles saved to: {}".format(self.log_dir)]
-        log_statement.append("-{}".format(paramfile))
-        log_statement.append("-{}".format(self.alossmfile))
-        log_statement.append("-{}".format(self.clossfile))
-        log_statement.append("-{}".format(self.scoresfile))
+        log_statement.append("-{}".format(os.path.basename(paramfile)))
+        log_statement.append("-{}".format(os.path.basename(self.alossfile)))
+        log_statement.append("-{}".format(os.path.basename(self.clossfile)))
+        log_statement.append("-{}".format(os.path.basename(self.scoresfile)))
         print_bracketing(log_statement)
 
-    def _write_losses(self, agent):
+    def _write_losses(self):
         with open(self.alossfile, 'a') as f:
-            f.write(str(agent.actor_loss) + '\n')
+            f.write(str(self.actor_loss) + '\n')
         with open(self.clossfile, 'a') as f:
-            f.write(str(agent.critic_loss) + '\n')
+            f.write(str(self.critic_loss) + '\n')
 
     def _write_scores(self, score):
         with open(self.scoresfile, 'a') as f:
             f.write(str(score) + '\n')
-
 
     def _collect_params(self, args, agent):
         """
@@ -188,7 +193,7 @@ class Logger:
         it for later saving to the params log in the saves directory.
         """
         # Default to printing all the ARGS info to the command line for review
-        param_list = [self._format_param(arg, self.args) for arg in vars(self.args) if arg not in vars(agent)]
+        param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(agent)]
         param_list.append("\n")
         param_list += [self._format_param(arg, agent) for arg in vars(agent)]
         if not self.quietmode: print_bracketing(param_list)
@@ -206,13 +211,15 @@ class Logger:
         print("\nEpisode {}/{}... RUNTIME: {}, TOTAL:".format(epsnum, self.max_eps, epstime, total))
         self._update_score()
         self._init_rewards()
+        print("A LOSS: ", self.actor_loss)
+        print("C LOSS: ", self.critic_loss)
 
     def _runtime(self):
         nowTime = time.time()
 
         m, s = divmod(nowTime - self.eps_time, 60)
         h, m = divmod(m, 60)
-        total = "{}h{}m{}s".format(int(h), int(m), int(s))
+        epstime = "{}h{}m{}s".format(int(h), int(m), int(s))
 
         m, s = divmod(nowTime - self.start_time, 60)
         h, m = divmod(m, 60)

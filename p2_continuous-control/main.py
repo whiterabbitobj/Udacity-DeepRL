@@ -5,7 +5,7 @@ from agent import D4PG_Agent
 from environment import Environment
 # from meta import Meta
 # from utils import Saver
-from data_handling import Loader, Saver, gather_args
+from data_handling import Logger, Saver, gather_args
 
 def main():
     """
@@ -45,7 +45,7 @@ def train(agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(agent, args, saver.save_dir, log_every=10)
+    logger = Logger(agent, args, saver.save_dir, log_every=50)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
@@ -65,7 +65,7 @@ def train(agent, args, env, saver):
             states = next_states
 
             #logger.rewards += rewards
-            logger.log(rewards, agent.actor_loss, agent.critic_loss)
+            logger.log(rewards, agent)
             if np.any(dones):
                 break
 
@@ -73,8 +73,8 @@ def train(agent, args, env, saver):
         agent.new_episode()
         logger.step(episode)
         # PRINT DEBUGGING INFO AFTER EACH EPISODE
-        print("A LOSS: ", agent.actor_loss)
-        print("C LOSS: ", agent.critic_loss)
+        # print("A LOSS: ", agent.actor_loss)
+        # print("C LOSS: ", agent.critic_loss)
 
     env.close()
     saver.save_final(agent)
