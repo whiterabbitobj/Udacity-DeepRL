@@ -117,14 +117,10 @@ class Logger:
         self.quietmode = args.quiet
         self.log_every = log_every
         self.agent_count = agent.agent_count
-        # self.current_log = ''
-        # self.full_log = ''
-        # self.agent_count = agent.agent_count
         self.save_dir = save_dir
         self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
         self._check_dir(self.log_dir)
         self.filename = os.path.basename(self.save_dir)
-        # self.param_list = self._collect_params(args, agent)
 
         self._init_rewards()
         self._init_logs(self._collect_params(args, agent))
@@ -162,7 +158,7 @@ class Logger:
         self.scoresfile = basename + "_scores.txt"
         with open(paramfile, 'w') as f:
             for line in params:
-                f.write(line)
+                f.write(line + '\n')
         with open(self.alossfile, 'w') as f:
             pass
         with open(self.clossfile, 'w') as f:
@@ -170,10 +166,10 @@ class Logger:
         with open(self.scoresfile, 'w') as f:
             pass
         log_statement = ["Logfiles saved to: {}".format(self.log_dir)]
-        log_statement.append("-{}".format(os.path.basename(paramfile)))
-        log_statement.append("-{}".format(os.path.basename(self.alossfile)))
-        log_statement.append("-{}".format(os.path.basename(self.clossfile)))
-        log_statement.append("-{}".format(os.path.basename(self.scoresfile)))
+        log_statement.append("...{}".format(os.path.basename(paramfile)))
+        log_statement.append("...{}".format(os.path.basename(self.alossfile)))
+        log_statement.append("...{}".format(os.path.basename(self.clossfile)))
+        log_statement.append("...{}".format(os.path.basename(self.scoresfile)))
         print_bracketing(log_statement)
 
     def _write_losses(self):
@@ -194,7 +190,7 @@ class Logger:
         """
         # Default to printing all the ARGS info to the command line for review
         param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(agent)]
-        param_list.append("\n")
+        #param_list.append("\n")
         param_list += [self._format_param(arg, agent) for arg in vars(agent)]
         if not self.quietmode: print_bracketing(param_list)
         return param_list
@@ -204,11 +200,11 @@ class Logger:
         Formats into PARAM: VALUE for reporting. Strips leading underscores for
         placeholder params where @properties are used for the real value.
         """
-        return "{}: {}\n".format(arg.upper().lstrip("_"), getattr(args, arg))
+        return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
 
     def step(self, epsnum):
         epstime, total = self._runtime()
-        print("\nEpisode {}/{}... RUNTIME: {}, TOTAL:".format(epsnum, self.max_eps, epstime, total))
+        print("\nEpisode {}/{}... RUNTIME: {}, TOTAL: {}".format(epsnum, self.max_eps, epstime, total))
         self._update_score()
         self._init_rewards()
         print("A LOSS: ", self.actor_loss)
