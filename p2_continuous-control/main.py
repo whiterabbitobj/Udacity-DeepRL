@@ -78,6 +78,7 @@ def train(agent, args, env, saver):
 
     env.close()
     saver.save_final(agent)
+    logger.graph()
     #logger.report(args.save_dir)
     #logger.print_results()
     return True

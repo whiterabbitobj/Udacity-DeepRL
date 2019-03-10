@@ -9,17 +9,19 @@ import torch.optim as optim
 from buffers import ReplayBuffer
 from models import ActorNet, CriticNet
 # from data_handling import Saver
+#______~~~~~~~______#
+#      ~~~~~~~      #
 
 class D4PG_Agent:
     def __init__(self,
                  state_size,
                  action_size,
                  agent_count,
-                 a_lr = 1e-3,
+                 a_lr = 0.0005, #1e-3,
                  c_lr = 1e-3,
                  batch_size = 128,
-                 buffer_size = 200000,
-                 C = 200,
+                 buffer_size = 400000,
+                 C = 350,
                  device = "cpu",
                  e = 0.3,
                  e_decay = 1, #0.99999,

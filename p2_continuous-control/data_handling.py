@@ -6,6 +6,9 @@ from argparse import ArgumentParser
 import torch
 import os.path
 import re
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.gridspec import GridSpec
 
 class Saver():
     """
@@ -57,7 +60,6 @@ class Saver():
         filename =  "{}{}".format(base_name, ver)
         print_bracketing("Saving to base filename: " + filename)
         save_dir = os.path.join(save_dir, filename)
-        #self._check_dir(save_dir)
         return save_dir, filename
 
     def save_checkpoint(self, agent, save_every):
@@ -67,8 +69,6 @@ class Saver():
 
         if agent.episode % save_every:
             return
-        # checkpoint_dir = os.path.join(self.save_dir, self.filename)
-        #self._check_dir(checkpoint_dir)
         save_name = "{}_eps{}_ckpt{}".format(self.filename, agent.episode, self.file_ext)
         full_name = os.path.join(self.save_dir, save_name).replace('\\','/')
         statement = "Saving Agent checkpoint to: {}".format(full_name)
@@ -131,6 +131,81 @@ class Logger:
         self.scores = []
         self.losses = []
 
+    def graph(self):
+        self.load_logs()
+        self.plot_logs()
+
+
+    def load_logs(self):
+        with open(self.scoresfile, 'r') as f:
+            self.slines = [float(i) for i in f.read().splitlines()]
+        with open(self.alossfile, 'r') as f:
+            self.alines = [float(i) for i in f.read().splitlines()]
+        with open(self.clossfile, 'r') as f:
+            self.clines = [float(i) for i in f.read().splitlines()]
+        with open(self.paramfile, 'r') as f:
+            loglines = f.read().splitlines()
+        pstring = ''
+        counter = 0
+        params = ['max_steps', 'num_episodes', 'c', 'num_atoms', 'vmin', 'vmax', 'e', 'e_decay', 'e_min', 'gamma', 'actor_learn_rate', 'critic_learn_rate', 'buffer_size', 'batch_size', 'pretrain']
+        for line in loglines:
+            if line.split(':')[0].lower() in params:
+                line += '  '
+                counter += len(line)
+
+                if counter > 80:
+                    pstring += '\n'
+                    counter = 0
+                pstring += line
+        self.pstring = pstring
+
+    def plot_logs(self):
+        score_x = np.linspace(1, len(self.slines), len(self.slines))
+        actor_x = np.linspace(1, len(self.alines), len(self.alines))
+        critic_x = np.linspace(1, len(self.clines), len(self.clines))
+        dtop = 0.85
+        xcount = 5
+        xstep = int(len(self.slines)/xcount)
+        xticks = np.linspace(0, len(self.slines), xcount, dtype=int)
+
+        fig = plt.figure(figsize=(20,10))
+        gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)#,  right=1.5)
+        ax1 = fig.add_subplot(gs[:,0])
+        ax2 = fig.add_subplot(gs[0,1])
+        ax3 = fig.add_subplot(gs[1,1])
+        gs2 = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
+        dummyax = fig.add_subplot(gs2[0,0])
+        ax1.plot(score_x, self.slines)
+        ax1.set_title("Scores")
+        ax1.set_xlabel("Episode")
+        ax1.set_ylabel("Score")
+
+        ax2.plot(actor_x, self.alines)
+        ax2.set_title("Actor Loss")
+        ax2.set_xticks(np.linspace(0, len(self.alines), xcount))
+        ax2.set_xticklabels(xticks)
+        ax2.set_yticks(np.linspace(min(self.alines), max(self.alines), 5))
+        ax2.set_ylabel("Loss", labelpad=10)
+
+
+        ax3.plot(critic_x, self.clines)
+        ax3.set_title("Critic Loss")
+        ax3.set_xticks(np.linspace(0, len(self.alines), xcount))
+        ax3.set_xticklabels(xticks)
+        ax3.set_yticks(np.linspace(min(self.clines), max(self.clines), 5))
+        ax3.set_ylabel("Loss", labelpad=20)
+
+        dummyax.set_title(self.pstring, size=13)
+        dummyax.axis("off")
+
+        fig.suptitle("Training run {}".format(self.filename), size=40)
+
+        #fig.show()
+        savegraph = os.path.join(self.log_dir, self.filename+"_graph.png")
+        fig.savefig(savegraph)
+        statement = "Saved graph data to: {}".format(savegraph).replace("\\", "/")
+        print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
+
 
     def log(self, rewards, agent):
         self.rewards += rewards
@@ -152,11 +227,11 @@ class Logger:
         Outputs an initial log of all parameters provided as a list.
         """
         basename = os.path.join(self.log_dir, self.filename)
-        paramfile = basename + "_LOG.txt"
+        self.paramfile = basename + "_LOG.txt"
         self.alossfile = basename + "_actorloss.txt"
         self.clossfile = basename + "_criticloss.txt"
         self.scoresfile = basename + "_scores.txt"
-        with open(paramfile, 'w') as f:
+        with open(self.paramfile, 'w') as f:
             for line in params:
                 f.write(line + '\n')
         with open(self.alossfile, 'w') as f:
@@ -166,7 +241,7 @@ class Logger:
         with open(self.scoresfile, 'w') as f:
             pass
         log_statement = ["Logfiles saved to: {}".format(self.log_dir)]
-        log_statement.append("...{}".format(os.path.basename(paramfile)))
+        log_statement.append("...{}".format(os.path.basename(self.paramfile)))
         log_statement.append("...{}".format(os.path.basename(self.alossfile)))
         log_statement.append("...{}".format(os.path.basename(self.clossfile)))
         log_statement.append("...{}".format(os.path.basename(self.scoresfile)))
@@ -190,7 +265,6 @@ class Logger:
         """
         # Default to printing all the ARGS info to the command line for review
         param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(agent)]
-        #param_list.append("\n")
         param_list += [self._format_param(arg, agent) for arg in vars(agent)]
         if not self.quietmode: print_bracketing(param_list)
         return param_list
