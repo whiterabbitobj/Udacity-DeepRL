@@ -416,17 +416,22 @@ def gather_args():
     """
     Generate arguments passed from the command line.
     """
-    parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
+    parser = ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment.",
             usage="")
 
-    parser.add_argument("-alr", "--actor_learn_rate",
-            help="Actor Learning Rate.",
+    parser.add_argument("-lr", "--actor_learn_rate",
+            help="Learning Rate.",
             type=float,
             default=1e-3)
-    parser.add_argument("-clr", "--critic_learn_rate",
-            help="Critic Learning Rate.",
+    parser.add_argument("-a", "--alpha",
+            help="Alpha parameter of the Prioritized Experience Replay.",
             type=float,
-            default=1e-4)
+            default=0.6)
+    parser.add_argument("-b", "--beta",
+            help="Beta parameter of the Prioritized Experience Replay.",
+            type=float,
+            default=0.4)
+
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
@@ -434,11 +439,11 @@ def gather_args():
     parser.add_argument("-buffer", "--buffer_size",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=300000)
-    parser.add_argument("-C", "--C",
-            help="How many timesteps between hard network updates.",
+            default=100000)
+    parser.add_argument("-C",
+            help="How many timesteps between updating Q' to match Q",
             type=int,
-            default=1000)
+            default=600)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -452,11 +457,30 @@ def gather_args():
             help="Gamma (Discount rate).",
             type=float,
             default=0.99)
-    parser.add_argument("-max", "--max_steps",
-            help="How many timesteps to explore each episode, if a \
-                  Terminal state is not reached first",
+    parser.add_argument("-e", "--epsilon",
+            help="Starting value of Epsilon.",
+            type=float,
+            default=1.0)
+    parser.add_argument("-ed", "--epsilon_decay",
+            help="Epsilon decay value.",
+            type=float,
+            default=0.99)
+    parser.add_argument("-em", "--epsilon_min",
+            help="Minimum value for epsilon.",
+            type=float,
+            default=0.01)
+    parser.add_argument("-fs", "--framestack",
+            help="How many recent frames to stack for temporal replay.",
             type=int,
-            default=1000)
+            default=4)
+    parser.add_argument("-skip", "--frameskip",
+            help="How many frames to skip in between new actions/frame stacking.",
+            type=int,
+            default=4)
+    parser.add_argument("-m", "--momentum",
+            help="Momentum for use in specific optimizers like SGD",
+            type=float,
+            default=0.95)
     parser.add_argument("--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
@@ -464,6 +488,13 @@ def gather_args():
             help="How many episodes to train?",
             type=int,
             default=200)
+    parser.add_argument("-o", "--optimizer",
+            help="Choose an optimizer for the network. (RMSprop/Adam/SGD)",
+            type=str,
+            default="Adam")
+    parser.add_argument("--pixels",
+            help="Train the network using visual data instead of states from the engine.",
+            action="store_true")                       
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",

@@ -1,541 +1,338 @@
-import numpy as np
-import random
-from collections import namedtuple, deque
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 
-class Agent():
-    """Uses a classic Deep Q-Network to learn from the environment"""
+from buffers import ReplayBuffer
+from models import QNetwork
 
-    def __init__(self, nA, state_size, args, seed=0):
-        #super(DQN_Agent, self).__init()
 
-        #initialize agent parameters
-        #self.nS = state_size
-        self.nA = nA
-        self.seed = 0#random.seed(seed)
-        self.framestack = args.framestack
-        self.device = args.device
-        self.t_step = 0
-        #initialize params from the command line args
+
+class DQN_Agent:
+    """
+    PyTorch Implementation of DQN/DDQN.
+    """
+    def __init__(self,
+                 state_size,
+                 action_size,
+                 args,
+                 lr = 0.0005,
+                 batch_size = 128,
+                 buffer_size = 500000,
+                 C = 300,
+                 device = "cpu",
+                 epsilon = 1,
+                 gamma = 0.99,
+                 rollout = 1,
+                 tau = 0.0005,
+                 l2_decay = 0.0001,
+                 momentum = 1,
+                 update_type = "hard"):
+        """
+        Initialize a D4PG Agent.
+        """
+
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.framework = args.framework
-        self.batchsize = args.batchsize
-        #self.buffersize = args.buffersize
-        self.C = args.C
-        #self.dropout = args.dropout
-        self.epsilon = args.epsilon
-        self.gamma = args.gamma
-        #self.lr = args.learn_rate
-        self.update_every = args.update_every
-        #self.momentum = args.momentum
-        #self.no_per = args.no_prioritized_replay
-        self.train = args.train
-        self.pixels = args.pixels
+        self.eval = args.eval
+        #self.agent_count = agent_count
+        self.learn_rate = lr
 
-        #Initialize Q-Network
-        self.q = self._make_model(args.pixels, state_size, args.dropout)
-        self.qhat = self._make_model(args.pixels, state_size, args.dropout)
-        self.qhat.load_state_dict(self.q.state_dict())
-        self.qhat.eval()
-        self.optimizer = self._set_optimizer(self.q.parameters(), args.optimizer, args.learn_rate, args.momentum)
+        self.batch_size = batch_size
+        self.buffer_size = buffer_size
+        self.action_size = action_size
+        self.state_size = state_size
+        self.C = C
+        self.epsilon = epsilon
 
-        #initialize REPLAY buffer
-        if args.no_prioritized_replay:
-            self.memory = ReplayBuffer(args.buffersize, self.framestack, self.device, state_size, self.pixels)
-        else:
+        self.gamma = gamma
+        self.rollout = rollout
+        self.tau = tau
+        self.update_type = update_type
+
+
+        self.t_step = 0
+        self.episode = 0
+        self.seed = 0
+
+        # Set up memory buffers
+        if args.prioritized_experience_replay:
             self.memory = PERBuffer(args.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
             self.criterion = WeightedLoss()
-
-    def act(self, state):
-        """Select an action using epsilon-greedy π.
-           Always use greedy if not training.
-        """
-        if random.random() > self.epsilon or not self.train:
-            self.q.eval()
-            with torch.no_grad():
-                action_values = self.q(state)#.detach()
-            self.q.train()
-            action = action_values.max(1)[1].view(1,1)
-            #print("Using greedy action:", action.item())
-            return action
         else:
-            #print("Using random action.")
-            return torch.tensor([[random.randrange(self.nA)]], device=self.device, dtype=torch.long)
+            self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
 
-    def step(self, state, action, reward, next_state):
-        """Moves the agent to the next timestep.
-           Learns each UPDATE_EVERY steps.
-        """
-        if not self.train:
-            return
-        reward = torch.tensor([reward], device=self.device)
-        self.memory.store(state, action, reward, next_state)
-
-        if self._memory_loaded(): # and self.t_step % self.update_every == 0:
-            self.learn()
-        # ------------------- update target network ------------------- #
-        # self._soft_update(self.q, self.qhat, 0.001)
-        #update the target network every C steps
-        if self.t_step % self.C == 0:
-            self.qhat.load_state_dict(self.q.state_dict())
-
-        self.t_step += 1
+        #                    Initialize Q networks                         #
+        self.q = self._make_model(state_size, action_size, args.pixels)
+        self.q_target = self._make_model(state_size, action_size, args.pixels)
+        self._hard_update(self.q, self.q_target)
+        self.q_optim = self._set_optimizer(self.q.parameters(), lr=lr, weight_decay=l2_decay, momentum=momentum)
 
 
+        self.new_episode()
 
-    def _soft_update(self, local_model, target_model, tau):
-        """
-        Soft update model parameters.
-        """
-        for target_param, local_param in zip(target_model.parameters(), local_model.parameters()):
-            target_param.data.copy_(tau*local_param.data + (1.0-tau)*target_param.data)
-
-
-
-    def learn(self):
-        """
-        Trains the Deep QNetwork and returns action values.
-        Can use multiple frameworks.
-        """
-        #If using standard ReplayBuffer, is_weights & tree_idx will return None
-        batch, is_weights, tree_idx = self.memory.sample(self.batchsize)
-
-        state_batch = torch.cat(batch.state) #[64,1]
-        action_batch = torch.cat(batch.action) #[64,1]
-        reward_batch = torch.cat(batch.reward) #[64,1]
-        non_final_mask = torch.tensor(tuple(map(lambda s: s is not None, batch.next_state)), device=self.device, dtype=torch.uint8)
-        next_states = torch.cat([s for s in batch.next_state if s is not None])
-
-        qhat_next_values = torch.zeros(self.batchsize, device=self.device) #[64]
-        if self.framework == 'DQN':
-            #VANILLA DQN: get max predicted Q values for the next states from the target model
-            qhat_next_values[non_final_mask] = self.qhat(next_states).detach().max(1)[0] #[64]
-
-        if self.framework == 'DDQN':
-            #DOUBLE DQN: get maximizing action under Q, evaluate actionvalue under qHAT
-            q_next_actions = self.q(next_states).detach().argmax(1)
-            qhat_next_values[non_final_mask] = self.qhat(next_states).gather(1, q_next_actions.unsqueeze(1)).squeeze(1)
-
-        expected_values = reward_batch + (self.gamma * qhat_next_values) #[64]
-
-        expected_values = expected_values.unsqueeze(1) #[64,1]
-        values = self.q(state_batch).gather(1, action_batch) #[64,1]
-
-        if is_weights is None:
-            #Huber Loss provides better results than MSE
-            loss = F.smooth_l1_loss(values, expected_values) #[64,1]
-        else:
-            #Compute Huber Loss manually to utilize is_weights
-            loss, td_errors = self.criterion.huber(values, expected_values, is_weights)
-            self.memory.batch_update(tree_idx, td_errors)
-
-        #backpropogate
-        self.optimizer.zero_grad()
-        loss.backward()
-        # for param in self.q.parameters():
-        #     param.grad.data.clamp_(-1, 1)
-        self.optimizer.step()
-
-    def update_epsilon(self, ed, em):
-        self.epsilon = max(em, self.epsilon * ed)
-
-    def _set_optimizer(self, params, optimizer, lr, momentum):
+    def _set_optimizer(self, params, optimizer, lr, decay, momentum):
         """
         Sets the optimizer based on command line choice. Defaults to Adam.
         """
+
         if optimizer == "RMSprop":
             return optim.RMSprop(params, lr=lr, momentum=momentum)
         elif optimizer == "SGD":
             return optim.SGD(params, lr=lr, momentum=momentum)
         else:
-            return optim.Adam(params, lr=lr)
+            return optim.Adam(params, lr=lr, weight_decay=decay)
 
-    def _make_model(self, use_cnn, state_size, dropout):
+    def _make_model(self, state_size, action_size, use_cnn):
         """
         Sets up the network model based on whether state data or pixel data is
         provided.
         """
+
         if use_cnn:
-            return QCNNetwork(state_size, self.nA, self.seed).to(self.device)
+            return QCNNetwork(state_size, action_size, self.seed).to(self.device)
         else:
-            return QNetwork(state_size, self.nA, self.seed, dropout).to(self.device)
+            return QNetwork(state_size, action_size, self.seed).to(self.device)
 
-    def _memory_loaded(self):
-        """Determines whether it's safe to start learning because the memory is
-           sufficiently filled.
+    def act(self, state, eval=False):
         """
-        if self.memory.type == "ReplayBuffer":
-            if len(self.memory) >= self.batchsize:
-                return True
-        if self.memory.type == "PERBuffer":
-            if self.memory.tree.num_entries >= self.batchsize:
-                return True
-        return False
-
-
-
-class WeightedLoss(nn.Module):
-    """
-    Returns Huber Loss with importance sampled weighting.
-    """
-    def __init__(self):
-        super(WeightedLoss, self).__init__()
-
-    def huber(self, values, targets, weights):
-        errors = torch.abs(values - targets)
-        loss = (errors<1).float()*(errors**2) + (errors>=1).float()*(errors - 0.5)
-        weighted_loss = (weights * loss).sum()
-        #weighted_loss = weighted_loss.sum()
-        return weighted_loss, errors.detach().cpu().numpy()
-
-# FOR 2D CONVOLUTIONAL NETWORK
-class QCNNetwork(nn.Module):
-    """
-    Deep Q-Network CNN Model for use with learning from pixel data.
-    Nonlinear estimator for Qπ
-    """
-    def __init__(self, state_size, action_size, seed):
+        Select an action using epsilon-greedy π.
+        Always use greedy if not training.
         """
-        Initialize parameters and build model.
-        """
-        super(QCNNetwork, self).__init__()
-        #print(len(state))
-        if len(state_size) == 5:
-            _, chans, depth, width, height = state_size
+
+        if random.random() > self.epsilon or eval:
+            states = states.to(self.device)
+            #self.q.eval()
+            with torch.no_grad():
+                action_values = self.q(state).detach().cpu()
+            #self.q.train()
+            #action = action_values.max(1)[1]
+            #action = action.view(1,1).cpu().numpy()
+            action = action_values.argmax(dim=1).unsqueeze(0).numpy()
+            return action
         else:
-            _, chans, width, height = state_size
-        print("STATESIZE FOR CNN:", state_size)
+            return np.random.randint(0,3, size=(1,1))
 
-        outs = [32, 64, 128]
-        kernels = [8, 4, 4]
-        strides = [4, 2, 2]
-        padding = []
+    # def step(self, state, action, reward, next_state):
+    #     """
+    #     Moves the agent to the next timestep.
+    #     Learns each UPDATE_EVERY steps.
+    #     """
+    #     if not self.train:
+    #         return
+    #     reward = torch.tensor([reward], device=self.device)
+    #     self.memory.store(state, action, reward, next_state)
+    #
+    #     if self._memory_loaded(): # and self.t_step % self.update_every == 0:
+    #         self.learn()
+    #     # ------------------- update target network ------------------- #
+    #     # self._soft_update(self.q, self.qhat, 0.001)
+    #     #update the target network every C steps
+    #     if self.t_step % self.C == 0:
+    #         self.qhat.load_state_dict(self.q.state_dict())
+    #
+    #     self.t_step += 1
 
-        self.conv1 = nn.Conv2d(chans, outs[0], kernels[0], stride=strides[0])
-        self.bn1 = nn.BatchNorm2d(outs[0])
-        self.conv2 = nn.Conv2d(outs[0], outs[1], kernels[1], stride=strides[1])
-        self.bn2 = nn.BatchNorm2d(outs[1])
-        self.conv3 = nn.Conv2d(outs[1], outs[2], kernels[2], stride=strides[2])
-        self.bn3 = nn.BatchNorm2d(outs[2])
-
-        fc_in = self._get_fc_in(state_size)
-        fc_hidden = 512
-
-        self.fc1 = nn.Linear(fc_in, fc_hidden)
-        self.fc2 = nn.Linear(fc_hidden, action_size)
-        self.seed = torch.manual_seed(seed)
-
-    def _cnn(self, x):
-        x = F.relu(self.bn1(self.conv1(x)))
-        x = F.relu(self.bn2(self.conv2(x)))
-        x = F.relu(self.bn3(self.conv3(x)))
-        x = x.view(x.size(0), -1)
-        return x
-
-    def _get_fc_in(self, state_size):
-        x = torch.rand(state_size)
-        x = self._cnn(x)
-        fc_in = x.data.view(1, -1).size(1)
-        return fc_in
-
-    def forward(self, state):
-        """Build a network that maps state -> action values."""
-        x = self._cnn(state)
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
-        return x
-
-# FOR 3D CONVOLUTIONAL KERNELS
-# class QCNNetwork(nn.Module):
-#     """
-#     Deep Q-Network CNN Model for use with learning from pixel data.
-#     Nonlinear estimator for Qπ
-#     """
-#     def __init__(self, state_size, action_size, seed):
-#         """
-#         Initialize parameters and build model.
-#         """
-#         super(QCNNetwork, self).__init__()
-#         _, chans, depth, width, height = state_size
-#
-#         print("STATESIZE FOR CNN:", state_size)
-#
-#         outs = [128, 128*2, 128*2]
-#         kernels = [(1,3,3), (1,3,3), (4,3,3)]
-#         strides = [(1,3,3), (1,3,3), (1,3,3)]
-#         #
-#         # outs = [64, 128, 256]
-#         # kernels = [(1,4,4), (1,3,3), (4,3,3)]
-#         # strides = [(1,2,2), (1,3,3), (1,3,3)]
-#         self.conv1 = nn.Conv3d(chans, outs[0], kernels[0], stride=strides[0])
-#         self.bn1 = nn.BatchNorm3d(outs[0])
-#         self.conv2 = nn.Conv3d(outs[0], outs[1], kernels[1], stride=strides[1])
-#         self.bn2 = nn.BatchNorm3d(outs[1])
-#         self.conv3 = nn.Conv3d(outs[1], outs[2], kernels[2], stride=strides[2])
-#         self.bn3 = nn.BatchNorm3d(outs[2])
-#
-#         fc_in = self._get_fc_in(state_size)
-#         fc_hidden = 512
-#
-#
-#         self.fc1 = nn.Linear(fc_in, fc_hidden)
-#         self.fc2 = nn.Linear(fc_hidden, action_size)
-#         self.seed = torch.manual_seed(seed)
-#
-#     def _cnn(self, x):
-#         x = F.relu(self.bn1(self.conv1(x)))
-#         x = F.relu(self.bn2(self.conv2(x)))
-#         x = F.relu(self.bn3(self.conv3(x)))
-#         x = x.view(x.size(0), -1)
-#         return x
-#
-#     def _get_fc_in(self, state_size):
-#         x = torch.rand(state_size)
-#         x = self._cnn(x)
-#         fc_in = x.data.view(1, -1).size(1)
-#         return fc_in
-#
-#     def forward(self, state):
-#         """Build a network that maps state -> action values."""
-#         x = self._cnn(state)
-#         x = F.relu(self.fc1(x))
-#         x = self.fc2(x)
-#         return x
-
-
-
-class QNetwork(nn.Module):
-    """
-    Deep Q-Network Model. Nonlinear estimator for Qπ
-    """
-
-    def __init__(self, state_size, action_size, seed, dropout=0.25, layer_sizes=[64, 64]):
+    def step(self, states, actions, rewards, next_states, pretrain=False):
         """
-        Initialize parameters and build model.
-        """
-        super(QNetwork, self).__init__()
-        _, state_size = state_size
-        self.seed = torch.manual_seed(seed)
-        self.hidden_layers = nn.ModuleList([nn.Linear(state_size, layer_sizes[0])])
-        self.output = nn.Linear(layer_sizes[-1], action_size)
-
-        layer_sizes = zip(layer_sizes[:-1], layer_sizes[1:])
-        self.hidden_layers.extend([nn.Linear(i, o) for i, o in layer_sizes])
-        self.dropout = nn.Dropout(p=dropout)
-
-
-    def forward(self, state):
-        """
-        Build a network that maps state -> action values.
+        Add the current SARS' tuple into the short term memory, then learn
         """
 
+        # Current SARS' stored in short term memory, then stacked for NStep
+        experience = list(zip(states, actions, rewards, next_states))
+        # self._store_memories(memory)
+        self.memory.store_experience(experience)
+        self.t_step += 1
 
-        x = F.relu(self.hidden_layers[0](state))
-        x = self.dropout(x)
-        for layer in self.hidden_layers[1:]:
-            x = F.relu(layer(x))
-            x = self.dropout(x)
-        return self.output(x)
+        # Learn after done pretraining
+        if not pretrain:
+            self.learn()
 
-
-
-class ReplayBuffer:
-    """
-    Standard replay buffer to hold memories for use in a DQN Agent. Returns
-    random experiences with no consideration of their usefulness.
-    """
-    def __init__(self, buffersize, framestack, device, nS, pixels):
-        self.buffer = deque(maxlen=buffersize)
-        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
-        self.device = device
-        self.framestack = framestack
-        self.type = "ReplayBuffer"
-        print("Using standard random Replay memory buffer.")
-
-    def store(self, state, action, reward, next_state):
-        t = self.memory(state, action, reward, next_state)
-        self.buffer.append(t)
-
-    def sample(self, batchsize):
-        batch = random.sample(self.buffer, k=batchsize)
-        return  self.memory(*zip(*batch)), None, None
-
-    def __len__(self):
-        return len(self.buffer)
-
-
-
-class PERBuffer(object):  # stored as ( s, a, r, s_ ) in SumTree
-    """
-    Use a SumTree data structure to efficiently catalogue replay experiences.
-    The Prioritized Experience Replay buffer will return batches based on how
-    much learning is estimated to be possible from each memory.
-    """
-    priority_epsilon = 0.01  # Ensure no experiences end up with a 0-prob of being sampled
-    beta_incremement = 0.00001
-    max_error = 1.0  # clipped abs error
-
-    def __init__(self, capacity, batchsize, framestack, device, alpha, beta):
-        self.tree = SumTree(capacity) # Making the tree
-        self.framestack = framestack
-        self.device = device
-        self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
-        self.alpha = alpha
-        self.beta = beta
-        self.type = "PERBuffer"
-        print("Using Priorized Experience Replay memory buffer.")
-
-    def _leaf_values(self):
+    def learn(self):
         """
-        Return the values of all the leaves in the SumTree.
+        Performs a distributional Actor/Critic calculation and update.
+        Actor πθ and πθ'
+        Critic Zw and Zw' (categorical distribution)
         """
-        return self.tree.tree[self.tree.branches:]
 
-    def store(self, state, action, reward, next_state):
+        # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
+        # Already calculated before storing in the replay buffer.
+        # NEXT_STATES are ROLLOUT steps ahead of STATES
+        batch, is_weights, tree_idx = self.memory.sample(self.batch_size)
+        states, actions, rewards, next_states = batch
+
+        final_mask = torch.tensor(tuple(map(lambda s: s is not None, next_states)), dtype=torch.uint8)
+        next_states = torch.cat([s for s in batch.next_state if s is not None])
+
+        target_Q_values = torch.zeros(self.batchsize).to(self.device)
+        if self.framework == 'DQN':
+            # VANILLA DQN: get max predicted Q values for the next states from
+            # the target model
+            q_values[non_final_mask] = self.q_target(next_states).detach().max(dim=1)[0]
+
+        if self.framework == 'DDQN':
+            # DOUBLE DQN: get maximizing ACTION under Q, evaluate actionvalue
+            # under the q_target
+
+            # Max valued action under active network
+            max_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
+            # Use the active network action to get the value of the stable
+            # target network
+            q_values[non_final_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
+
+        targets = reward_batch + (self.gamma * q_values) #[64]
+
+        targets = targets.unsqueeze(1) #[64,1]
+        values = self.q(state_batch).gather(1, action_batch) #[64,1]
+
+        #Huber Loss provides better results than MSE
+        if is_weights is None:
+            loss = F.smooth_l1_loss(values, targets) #[64,1]
+        #Compute Huber Loss manually to utilize is_weights with Prioritization
+        else:
+            loss, td_errors = self.criterion.huber(values, expected_values, is_weights)
+            self.memory.batch_update(tree_idx, td_errors)
+
+        # Perform gradient descent
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        self._update_networks()
+        self.loss = loss.item()
+
+
+    def initialize_memory(self, pretrain_length, env):
         """
-        Store a new experience in our tree, new experiences are stored with
-        maximum priority until they have been replayed at least once in order
-        to ensure learning.
+        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
+        before training begins.
         """
-        max_priority = np.max(self._leaf_values())
-        experience = self.memory(state, action, reward, next_state)
-        if max_priority == 0:
-            max_priority = self.max_error
 
-        self.tree.add(max_priority, experience)   # set the max p for new p
+        if len(self.memory) >= pretrain_length:
+            print("Memory already filled, length: {}".format(len(self.memory)))
+            return
 
-    def sample(self, n):
+        print("Initializing memory buffer.")
+        states = env.states
+        while len(self.memory) < pretrain_length:
+            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
+            next_states, rewards, dones = env.step(actions)
+            self.step(states, actions, rewards, next_states, pretrain=True)
+            if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
+                print("Taking pretrain step {}... memory filled: {}/{}\
+                    ".format(self.t_step, len(self.memory), pretrain_length))
+
+            states = next_states
+        print("Done!")
+        self.t_step = 0
+
+    def new_episode(self):
         """
-        Sample experiences from the replay buffer using stochastic prioritization
-        based on TD-error. Returns a batch evenly distributed in N samples.
+        Handle any cleanup or steps to begin a new episode of training.
         """
-        batch = []
-        idxs = []
-        priorities = []
-        segment_size = self.tree.total_priority / n
 
-        #idxs = np.empty((n,), dtype=np.int32)
-        #is_weights = np.empty((n, 1), dtype=np.float32)
+        self.memory.init_n_step()
+        self.episode += 1
 
-
-        self.beta = np.min([self.beta + self.beta_incremement, 1.0])  # anneal Beta to 1
-
-        # Calculating the max_weight
-        # p_min = np.min(self._leaf_values()) / self.tree.total_priority
-        # max_weight = np.power(n * p_min, -self.beta)
-
-
-        for i in range(n):
-            low = segment_size * i
-            high = segment_size * (i + 1)
-
-            value = np.random.uniform(low, high) #sample a value from the segment
-
-            index, priority, data = self.tree.get(value) #retrieve corresponding experience
-            idxs.append(index)
-            priorities.append(priority)
-            batch.append(data)
-            # p = priority / self.tree.total_priority
-            # is_weights[i, 0] = np.power(n * p, -self.beta) / max_weight
-            # indexes[i]= index
-
-        probabilities = priorities / self.tree.total_priority
-        #Dividing by the max of the batch is a bit different than the original
-        #paper, but should accomplish the same goal of always scaling downwards
-        #but should be slightly faster than calculating on the entire tree
-        is_weights = np.power(self.tree.num_entries * probabilities, -self.beta)
-        is_weights /= is_weights.max()
-        is_weights = torch.from_numpy(is_weights).type(torch.FloatTensor).to(self.device)
-        return self.memory(*zip(*batch)), is_weights, idxs
-
-    def batch_update(self, tree_idx, td_errors):
+    def _categorical(self, rewards, probs):
         """
-        Update the priorities on the tree
+        Returns the projected value distribution for the input state/action pair
+
+        While there are several very similar implementations of this Categorical
+        Projection methodology around github, this function owes the most
+        inspiration to Zhang Shangtong and his excellent repository located at:
+        https://github.com/ShangtongZhang
         """
-        #error should be provided to this function as ABS()
-        td_errors += self.priority_epsilon  # Add small epsilon to error to avoid ~0 probability
-        clipped_errors = np.minimum(td_errors, self.max_error) # No error should be weight more than a pre-set maximum value
-        priorities = np.power(clipped_errors, self.alpha) # Raise the TD-error to power of Alpha to tune between fully weighted or fully random
 
-        for idx, priority in zip(tree_idx, priorities):
-            self.tree.update(idx, priority)
+        # Create local vars to keep code more concise
+        vmin = self.vmin
+        vmax = self.vmax
+        atoms = self.atoms
+        num_atoms = self.num_atoms
+        gamma = self.gamma
+        rollout = self.rollout
 
-    def __len__(self):
-        return self.tree.tree_size
+        rewards = rewards.unsqueeze(-1)
+        delta_z = (vmax - vmin) / (num_atoms - 1)
 
+        # Rewards were stored with 0->(N-1) summed, take Reward and add it to
+        # the discounted expected reward at N (ROLLOUT) timesteps
+        projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0)
+        projected_atoms.clamp_(vmin, vmax)
+        b = (projected_atoms - vmin) / delta_z
 
+        lower_bound = b.floor()
+        upper_bound = b.ceil()
 
-class SumTree(object):
-    """
-    SumTree for holding Prioritized Replay information in an efficiently to
-    sample data structure. Uses While-loops throughought instead of commonly
-    used recursive function calls, for small efficiency gain.
-    """
-    def __init__(self, capacity):
-        self.capacity = capacity # Number of memories to store
-        self.branches = capacity - 1 # Branches above the leafs that store sums
-        self.tree_size = self.capacity + self.branches # Total tree size
-        self.tree = np.zeros(self.tree_size) # Create SumTree array
-        self.data = np.zeros(capacity, dtype=object)  # Create array to hold memories corresponding to SumTree leaves
-        self.data_pointer = 0
-        self.num_entries = 0
+        m_lower = (upper_bound + (lower_bound == upper_bound).float() - b) * probs
+        m_upper = (b - lower_bound) * probs
 
-    def add(self, priority, data):
+        projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
+        for idx in range(probs.size(0)):
+            projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
+            projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
+        return projected_probs.float()
+
+    def _gauss_noise(self, shape):
         """
-        Add the memory in DATA
-        Add priority score in the TREE leaf
+        Returns the epsilon scaled noise distribution for adding to Actor
+        calculated action policy.
         """
-        idx = self.data_pointer % self.capacity
-        tree_index = self.branches + idx # Update the leaf
 
-        self.data[idx] = data # Update data frame
-        self.update(tree_index, priority) # Indexes are added sequentially
-        # Incremement
-        self.data_pointer += 1
-        if self.num_entries < self.capacity:
-            self.num_entries += 1
+        n = np.random.normal(0, 1, shape)
+        return self.e*n
 
-    def update(self, tree_index, new_priority):
+    def _get_targets(self, rewards, next_states):
         """
-        Update the leaf priority score and propagate the change through tree
+        Calculate Yᵢ from target networks using πθ' and Zw'
         """
-        # Change = new priority score - former priority score
-        change = new_priority - self.tree[tree_index]
-        self.tree[tree_index] = new_priority
-        # then propagate the change through tree
-        while tree_index != 0:
-            tree_index = (tree_index - 1) // 2
-            self.tree[tree_index] += change
 
-    def get(self, v):
+        target_actions = self.actor_target(next_states)
+        target_probs = self.critic_target(next_states, target_actions)
+        # Project the categorical distribution onto the supports
+        projected_probs = self._categorical(rewards, target_probs)
+        return projected_probs
+
+    def _update_networks(self):
         """
-        Retrieve the index, values at that index, and replay memory, that is
-        most closely associated to sample value of V.
+        Updates the network using either DDPG-style soft updates (w/ param \
+        TAU), or using a DQN/D4PG style hard update every C timesteps.
         """
-        current_idx = 0
-        while True:
-            left = 2 * current_idx + 1
-            right = left + 1
 
-            # If we reach bottom, end the search
-            if left >= self.tree_size:
-                leaf_index = current_idx
-                break
-            else: # downward search, always search for a higher priority node
-                if v <= self.tree[left]:
-                    current_idx = left
+        if self.update_type == "soft":
+            self._soft_update(self.actor, self.actor_target)
+            self._soft_update(self.critic, self.critic_target)
+        elif self.t_step % self.C == 0:
+            self._hard_update(self.actor, self.actor_target)
+            self._hard_update(self.critic, self.critic_target)
 
-                else:
-                    v -= self.tree[left]
-                    current_idx = right
+    def _soft_update(self, active, target):
+        """
+        Slowly updated the network using every-step partial network copies
+        modulated by parameter TAU.
+        """
 
-        data_index = leaf_index - self.capacity + 1
+        for t_param, param in zip(target.parameters(), active.parameters()):
+            t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
 
-        return leaf_index, self.tree[leaf_index], self.data[data_index]
+    def _hard_update(self, active, target):
+        """
+        Fully copy parameters from active network to target network. To be used
+        in conjunction with a parameter "C" that modulated how many timesteps
+        between these hard updates.
+        """
+
+        target.load_state_dict(active.state_dict())
 
     @property
-    def total_priority(self):
-        return self.tree[0] # Returns the root node
+    def e(self):
+        """
+        This property ensures that the annealing process is run every time that
+        E is called.
+        Anneals the epsilon rate down to a specified minimum to ensure there is
+        always some noisiness to the policy actions. Returns as a property.
+        """
+
+        self._e = max(self.e_min, self._e * self.e_decay)
+        return self._e

@@ -22,7 +22,8 @@ def main():
     agent = D4PG_Agent(env.state_size,
                        env.action_size,
                        env.agent_count,
-                       device = args.device)
+                       device = args.device,
+                       eval = args.eval)
 
     saver = Saver(agent.framework, agent, args.save_dir, args.load_file)
 
@@ -86,7 +87,7 @@ def eval(agent, args, env):
         states = env.states
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
-            actions = agent.act(states, noisy=False)
+            actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             states = next_states
 
