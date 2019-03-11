@@ -1,10 +1,4 @@
-# import os.path
-# import time
-# import re
-
 import torch
-# import matplotlib.pyplot as plt
-# import numpy as np
 from unityagents import UnityEnvironment
 from utils import print_bracketing
 

@@ -69,25 +69,26 @@ class Saver():
 
         if not agent.episode % save_every == 0:
             return
+        mssg = "Saving Agent checkpoint to: "
         save_name = "{}_eps{}_ckpt".format(self.filename, agent.episode)
-        self._save(save_name, "Saving Agent checkpoint to: ")
+        self._save(agent, save_name, mssg)
 
     def save_final(self, agent):
         """
         Preps a final savefile after training has finished.
         """
-
+        mssg = "Saved final Agent weights to: "
         save_name = "{}_eps{}_FINAL".format(self.filename, agent.episode-1)
-        self._save(save_name, "Saved final Agent weights to: ")
+        self._save(agent, save_name, mssg)
 
-    def _save(self, save_name, save_statement):
+    def _save(self, agent, save_name, mssg):
         """
         Does the actual saving bit.
         """
 
         full_name = os.path.join(self.save_dir, save_name).replace('\\','/')
-        full_name += + self.file_ext
-        statement = save_statement + full_name
+        full_name += self.file_ext
+        statement = mssg + full_name
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         check_dir(self.save_dir)
         torch.save(self._get_save_dict(agent), full_name)

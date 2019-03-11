@@ -1,18 +1,47 @@
-import copy
-from collections import deque
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import numpy as np
 
 from buffers import ReplayBuffer
 from models import ActorNet, CriticNet
-# from data_handling import Saver
-#______~~~~~~~______#
-#      ~~~~~~~      #
+
+
 
 class D4PG_Agent:
+    """
+    PyTorch Implementation of D4PG:
+    "Distributed Distributional Deterministic Policy Gradients"
+    (Barth-Maron, Hoffman, et al., 2018)
+    As described in the paper at: https://arxiv.org/pdf/1804.08617.pdf
+
+    Much thanks also to the original DDPG paper:
+    "Continuous Control with Deep Reinforcement Learning"
+    (Lillicrap, Hunt, et al., 2016)
+    https://arxiv.org/pdf/1509.02971.pdf
+
+    And to:
+    "A Distributional Perspective on Reinforcement Learning"
+    (Bellemare, Dabney, et al., 2017)
+    https://arxiv.org/pdf/1707.06887.pdf
+
+    D4PG utilizes distributional value estimation, n-step returns,
+    prioritized experience replay (PER), distributed K-actor exploration,
+    and off-policy actor-critic learning to achieve very fast and stable
+    learning for continuous control tasks.
+
+    This version of the Agent is written to interact with Udacity's
+    Continuous Control robotic arm manipulation environment which provides
+    20 simultaneous actors, negating the need for K-actor implementation.
+    Thus, this code has no multiprocessing functionality. It could be easily
+    added as part of the main.py script.
+
+    In the original D4PG paper, it is suggested in the data that PER does
+    not have significant (or perhaps any at all) effect on the speed or
+    stability of learning. Thus, it too has been left out of this
+    implementation but may be added as a future TODO item.
+    """
     def __init__(self,
                  state_size,
                  action_size,
@@ -35,37 +64,9 @@ class D4PG_Agent:
                  l2_decay = 0.0001,
                  update_type = "hard"):
         """
-        PyTorch Implementation of D4PG:
-        "Distributed Distributional Deterministic Policy Gradients"
-        (Barth-Maron, Hoffman, et al., 2018)
-        As described in the paper at: https://arxiv.org/pdf/1804.08617.pdf
-
-        Much thanks also to the original DDPG paper:
-        "Continuous Control with Deep Reinforcement Learning"
-        (Lillicrap, Hunt, et al., 2016)
-        https://arxiv.org/pdf/1509.02971.pdf
-
-        And to:
-        "A Distributional Perspective on Reinforcement Learning"
-        (Bellemare, Dabney, et al., 2017)
-        https://arxiv.org/pdf/1707.06887.pdf
-
-        D4PG utilizes distributional value estimation, n-step returns,
-        prioritized experience replay (PER), distributed K-actor exploration,
-        and off-policy actor-critic learning to achieve very fast and stable
-        learning for continuous control tasks.
-
-        This version of the Agent is written to interact with Udacity's
-        Continuous Control robotic arm manipulation environment which provides
-        20 simultaneous actors, negating the need for K-actor implementation.
-        Thus, this code has no multiprocessing functionality. It could be easily
-        added as part of the main.py script.
-
-        In the original D4PG paper, it is suggested in the data that PER does
-        not have significant (or perhaps any at all) effect on the speed or
-        stability of learning. Thus, it too has been left out of this
-        implementation but may be added as a future TODO item.
+        Initialize a D4PG Agent.
         """
+
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.framework = "D4PG"
 
@@ -94,8 +95,7 @@ class D4PG_Agent:
         self.episode = 0
 
         # Set up memory buffers, currently only standard replay is implemented #
-        self.memory = ReplayBuffer(self.device, self.buffer_size, self.rollout)
-        #self.saver = Saver(self.framework, args.save_dir)
+        self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
 
         #                    Initialize ACTOR networks                         #
         self.actor = ActorNet(state_size, action_size).to(self.device)
@@ -135,11 +135,9 @@ class D4PG_Agent:
         self.memory.store_experience(experience)
         self.t_step += 1
 
-        # Don't do any learning if the network is initializing the memory
-        if pretrain:
-            return
-
-        self.learn()
+        # Learn after done pretraining
+        if not pretrain:
+            self.learn()
 
     def learn(self):
         """
@@ -241,7 +239,7 @@ class D4PG_Agent:
         https://github.com/ShangtongZhang
         """
 
-        # Create function local vars to keep code more concise
+        # Create local vars to keep code more concise
         vmin = self.vmin
         vmax = self.vmax
         atoms = self.atoms
@@ -303,7 +301,6 @@ class D4PG_Agent:
             self._hard_update(self.actor, self.actor_target)
             self._hard_update(self.critic, self.critic_target)
 
-
     def _soft_update(self, active, target):
         """
         Slowly updated the network using every-step partial network copies
@@ -322,33 +319,6 @@ class D4PG_Agent:
 
         target.load_state_dict(active.state_dict())
 
-    # def _store_memories(self, experiences):
-    #     """
-    #     Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
-    #     memory can be added to the ReplayBuffer.
-    #     """
-    #     self.memory.n_step.append(experiences)
-    #
-    #     # Abort if ROLLOUT steps haven't been taken in a new episode
-    #     if len(self.memory.n_step) < self.rollout:
-    #         return
-    #
-    #     # Unpacks and stores the SARS' tuple for each actor in the environment
-    #     # thus, each timestep actually adds K_ACTORS memories to the buffer,
-    #     # for the Udacity environment this means 20 memories each timestep.
-    #     for actor in zip(*self.memory.n_step):
-    #         states, actions, rewards, next_states = zip(*actor)
-    #         n_steps = self.rollout - 1
-    #         rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
-    #         rewards = rewards.sum()
-    #         # store the current state, current action, cumulative discounted
-    #         # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-    #         states = states[0].unsqueeze(0)
-    #         actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
-    #         rewards = torch.tensor([rewards])
-    #         next_states = next_states[-1].unsqueeze(0)
-    #         self.memory.store(states, actions, rewards, next_states)
-
     @property
     def e(self):
         """
@@ -357,6 +327,6 @@ class D4PG_Agent:
         Anneals the epsilon rate down to a specified minimum to ensure there is
         always some noisiness to the policy actions. Returns as a property.
         """
-        
+
         self._e = max(self.e_min, self._e * self.e_decay)
         return self._e

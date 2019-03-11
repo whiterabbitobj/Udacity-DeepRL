@@ -1,10 +1,7 @@
 import numpy as np
 
-# from logger import Logger
 from agent import D4PG_Agent
 from environment import Environment
-# from meta import Meta
-# from utils import Saver
 from data_handling import Logger, Saver, gather_args
 
 def main():
@@ -56,7 +53,7 @@ def train(agent, args, env, saver):
         states = env.states
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
-            actions = agent.act(states, noisy=False)
+            actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             agent.step(states, actions, rewards, next_states)
             states = next_states
@@ -89,7 +86,7 @@ def eval(agent, args, env):
         states = env.states
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
-            actions = agent.act(states)
+            actions = agent.act(states, noisy=False)
             next_states, rewards, dones = env.step(actions)
             states = next_states
 

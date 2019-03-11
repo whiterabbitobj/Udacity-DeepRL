@@ -1,6 +1,7 @@
-from collections import deque #, namedtuple
+from collections import deque
 import random
 import torch
+import numpy as np
 
 class ReplayBuffer:
     """
@@ -16,11 +17,11 @@ class ReplayBuffer:
 
     where n=ROLLOUT.
     """
-    def __init__(self, device, buffer_size=100000, rollout=5):
+    def __init__(self, device, buffer_size=100000, gamma=0.99, rollout=5):
         self.buffer = deque(maxlen=buffer_size)
         self.device = device
+        self.gamma = gamma
         self.rollout = rollout
-        #self.stacked_memory = namedtuple("stacked_memory", field_names=['state','action','reward','next_state'])
 
     def store_trajectory(self, state, action, reward, next_state):
         """
@@ -28,7 +29,6 @@ class ReplayBuffer:
         but allows for n_step rollout.
         """
 
-        # memory = self.stacked_memory(state, action, reward, next_state)
         trajectory = (state, action, reward, next_state)
         self.buffer.append(trajectory)
 
@@ -42,7 +42,6 @@ class ReplayBuffer:
         actions = torch.cat(actions).float().to(self.device)
         rewards = torch.cat(rewards).to(self.device)
         next_states = torch.cat(next_states).to(self.device)
-        # return  self.experience(*zip(*batch))
         return (states, actions, rewards, next_states)
 
     def init_n_step(self):
@@ -65,7 +64,7 @@ class ReplayBuffer:
         # Unpacks and stores the SARS' tuple for each actor in the environment
         # thus, each timestep actually adds K_ACTORS memories to the buffer,
         # for the Udacity environment this means 20 memories each timestep.
-        for actor in zip(*self.memory.n_step):
+        for actor in zip(*self.n_step):
             states, actions, rewards, next_states = zip(*actor)
             n_steps = self.rollout - 1
 

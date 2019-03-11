@@ -16,13 +16,11 @@ def print_bracketing(info=None, do_upper=True, do_lower=True):
     upper = ("{0}\n{1}{2}{1}".format(bracket*mult, bracket, " "*(mult-2)))
     lower = ("{1}{2}{1}\n{0}".format(bracket*mult, bracket, " "*(mult-2)))
     if do_upper: print(upper)
-    if info is not None:
-        for line in info:
-            print(line.center(mult))
+    if info: print('\n'.join([line.center(mult) for line in info]))
     if do_lower: print(lower)
     return
 
-def check_dir(self, dir):
+def check_dir(dir):
     """
     Creates requested directory if it doesn't yet exist.
     """

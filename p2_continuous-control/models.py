@@ -1,12 +1,15 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-# import torch.optim as optim
 import numpy as np
+
+
 
 LAYER_SIZES = [400,300]
 WEIGHT_LOW = -3e-3
 WEIGHT_HIGH = 3e-3
+
+
 
 def initialize_weights(net, low, high):
     for param in net.parameters():
@@ -81,9 +84,8 @@ class CriticNet(nn.Module):
         x = torch.cat([x, actions], dim=1)
         x = F.relu(self.fc2(x))
         logits = self.output(x)
-        # probs = F.softmax(logits, dim=-1)
-        # log_probs = F.log_softmax(logits, dim=-1)
-        # return probs, log_probs
+        # Only calculate the type of softmax needed by the foward call, to save
+        # a modest amount of calculation across 1000s of timesteps.
         if log:
             return F.log_softmax(logits, dim=-1)
         else:
