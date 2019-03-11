@@ -35,7 +35,6 @@ class Saver():
         """
         Loads a checkpoint from an earlier trained agent.
         """
-
         checkpoint = torch.load(load_file, map_location=lambda storage, loc: storage)
         agent.actor.load_state_dict(checkpoint['actor_dict'])
         agent.critic.load_state_dict(checkpoint['critic_dict'])
@@ -109,10 +108,14 @@ class Saver():
 
 class Logger:
     def __init__(self,
-                 agent,
-                 args,
+                 agent=None,
+                 args=None,
                  save_dir = '.',
                  log_every = 10):
+        if agent==None or args==None:
+            print("Blank init for Logger object.")
+            return
+
         self.max_eps = args.num_episodes
         self.quietmode = args.quiet
         self.log_every = log_every
@@ -131,12 +134,28 @@ class Logger:
         self.scores = []
         self.losses = []
 
-    def graph(self):
+    def graph(self, logdir=None, do_save=True):
+        if logdir != None:
+            self.log_dir = logdir
+            self.filename = os.path.basename(logdir)
+            print(self.log_dir)
+            for f in os.listdir(self.log_dir):
+                if f.endswith("_LOG.txt"):
+                    self.paramfile = os.path.join(self.log_dir,f)
+                if f.endswith("_actorloss.txt"):
+                    self.alossfile = os.path.join(self.log_dir,f)
+                if f.endswith("_criticloss.txt"):
+                    self.clossfile = os.path.join(self.log_dir,f)
+                if f.endswith("_scores.txt"):
+                    self.scoresfile = os.path.join(self.log_dir, f)
         self.load_logs()
-        self.plot_logs()
+        self.plot_logs(do_save)
 
 
     def load_logs(self):
+        """
+        Loads data from on-disk log files, for later manipulation and plotting.
+        """
         with open(self.scoresfile, 'r') as f:
             self.slines = [float(i) for i in f.read().splitlines()]
         with open(self.alossfile, 'r') as f:
@@ -159,7 +178,10 @@ class Logger:
                 pstring += line
         self.pstring = pstring
 
-    def plot_logs(self):
+    def plot_logs(self, do_save=True):
+        """
+        Plots data in a matplotlib graph for review and comparison.
+        """
         score_x = np.linspace(1, len(self.slines), len(self.slines))
         actor_x = np.linspace(1, len(self.alines), len(self.alines))
         critic_x = np.linspace(1, len(self.clines), len(self.clines))
@@ -169,7 +191,7 @@ class Logger:
         xticks = np.linspace(0, len(self.slines), xcount, dtype=int)
 
         fig = plt.figure(figsize=(20,10))
-        gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)#,  right=1.5)
+        gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)
         ax1 = fig.add_subplot(gs[:,0])
         ax2 = fig.add_subplot(gs[0,1])
         ax3 = fig.add_subplot(gs[1,1])
@@ -200,9 +222,11 @@ class Logger:
 
         fig.suptitle("Training run {}".format(self.filename), size=40)
 
-        #fig.show()
         savegraph = os.path.join(self.log_dir, self.filename+"_graph.png")
-        fig.savefig(savegraph)
+        if do_save:
+            fig.savefig(savegraph)
+        else:
+            fig.show()
         statement = "Saved graph data to: {}".format(savegraph).replace("\\", "/")
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
 
@@ -219,6 +243,7 @@ class Logger:
         """
         Creates requested directory if it doesn't yet exist.
         """
+
         if not os.path.isdir(dir):
             os.makedirs(dir)
 
@@ -226,6 +251,7 @@ class Logger:
         """
         Outputs an initial log of all parameters provided as a list.
         """
+
         basename = os.path.join(self.log_dir, self.filename)
         self.paramfile = basename + "_LOG.txt"
         self.alossfile = basename + "_actorloss.txt"
@@ -263,7 +289,7 @@ class Logger:
         prints this list to the command line if QUIET is not flagged, and stores
         it for later saving to the params log in the saves directory.
         """
-        # Default to printing all the ARGS info to the command line for review
+
         param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(agent)]
         param_list += [self._format_param(arg, agent) for arg in vars(agent)]
         if not self.quietmode: print_bracketing(param_list)
@@ -372,7 +398,7 @@ def gather_args():
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=100)
+            default=200)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
@@ -464,7 +490,8 @@ def _get_files(save_dir):
     file_list = []
     for root, _, files in os.walk(save_dir):
         for file in files:
-            file_list.append(os.path.join(root, file))
+            if file.endswith(".agent"):
+                file_list.append(os.path.join(root, file))
     return sorted(file_list, key=lambda x: os.path.getmtime(x))
 
 

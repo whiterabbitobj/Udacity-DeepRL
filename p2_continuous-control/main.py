@@ -59,7 +59,7 @@ def train(agent, args, env, saver):
 
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
-            actions = agent.act(states)
+            actions = agent.act(states, noisy=False)
             next_states, rewards, dones = env.step(actions)
             agent.step(states, actions, rewards, next_states)
             states = next_states

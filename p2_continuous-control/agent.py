@@ -18,18 +18,18 @@ class D4PG_Agent:
                  action_size,
                  agent_count,
                  a_lr = 0.0005, #1e-3,
-                 c_lr = 1e-3,
+                 c_lr = 0.00075, #1e-3,
                  batch_size = 128,
-                 buffer_size = 400000,
-                 C = 350,
+                 buffer_size = 500000,
+                 C = 300,
                  device = "cpu",
-                 e = 0.3,
+                 e = 0.2,
                  e_decay = 1, #0.99999,
                  e_min = 0.05,
                  gamma = 0.99,
-                 num_atoms = 75,
+                 num_atoms = 100,
                  vmin = 0,
-                 vmax = 0.2,
+                 vmax = 0.3,
                  rollout = 5,
                  tau = 0.0005,
                  l2_decay = 0.0001,
@@ -110,7 +110,7 @@ class D4PG_Agent:
 
         self.new_episode()
 
-    def act(self, states):
+    def act(self, states, noisy=True):
         """
         Predict an action using a policy/ACTOR network π.
         Scaled noise N (gaussian distribution) is added to all actions todo
@@ -119,8 +119,9 @@ class D4PG_Agent:
 
         states = states.to(self.device)
         actions = self.actor(states).detach().cpu().numpy()
-        noise = self._gauss_noise(actions.shape)
-        actions += noise
+        if noisy:
+            noise = self._gauss_noise(actions.shape)
+            actions += noise
         return np.clip(actions, -1, 1)
 
     def step(self, states, actions, rewards, next_states, pretrain=False):
