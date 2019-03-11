@@ -18,7 +18,6 @@ def main():
     training loop as needed.
     """
 
-    # meta = Meta()
     args = gather_args()
 
     env = Environment(args)
@@ -28,8 +27,7 @@ def main():
                        env.agent_count,
                        device = args.device)
 
-    saver = Saver(agent.framework, args.save_dir)
-    if args.load_file: saver.load_agent(args.load_file, agent)
+    saver = Saver(agent.framework, agent, args.save_dir, args.load_file)
 
     if args.eval:
         eval(agent, args, env)
@@ -56,7 +54,6 @@ def train(agent, args, env, saver):
         env.reset()
         # Get initial state
         states = env.states
-
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
             actions = agent.act(states, noisy=False)
@@ -64,7 +61,6 @@ def train(agent, args, env, saver):
             agent.step(states, actions, rewards, next_states)
             states = next_states
 
-            #logger.rewards += rewards
             logger.log(rewards, agent)
             if np.any(dones):
                 break
@@ -72,15 +68,10 @@ def train(agent, args, env, saver):
         saver.save_checkpoint(agent, args.save_every)
         agent.new_episode()
         logger.step(episode)
-        # PRINT DEBUGGING INFO AFTER EACH EPISODE
-        # print("A LOSS: ", agent.actor_loss)
-        # print("C LOSS: ", agent.critic_loss)
 
     env.close()
     saver.save_final(agent)
     logger.graph()
-    #logger.report(args.save_dir)
-    #logger.print_results()
     return True
 
 def eval(agent, args, env):
@@ -88,25 +79,26 @@ def eval(agent, args, env):
     Evaluate the performance of an agent using a saved weights file.
     """
 
-    #logger = Logger(agent, args, env)
+    logger = Logger(agent, args)
 
-    #Begin training loop
+    #Begin evaluation loop
     for episode in range(1, args.num_episodes+1):
         # Begin each episode with a clean environment
         env.reset()
         # Get initial state
         states = env.states
-
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
             actions = agent.act(states)
             next_states, rewards, dones = env.step(actions)
             states = next_states
-            #logger.rewards += rewards
+
+            logger.log(rewards, agent)
             if np.any(dones):
                 break
+
         agent.new_episode()
-        #logger.step(episode)
+        logger.step(episode)
 
     env.close()
     return True

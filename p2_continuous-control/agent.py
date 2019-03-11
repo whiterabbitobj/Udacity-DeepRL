@@ -94,7 +94,7 @@ class D4PG_Agent:
         self.episode = 0
 
         # Set up memory buffers, currently only standard replay is implemented #
-        self.memory = ReplayBuffer(self.device, self.buffer_size)
+        self.memory = ReplayBuffer(self.device, self.buffer_size, self.rollout)
         #self.saver = Saver(self.framework, args.save_dir)
 
         #                    Initialize ACTOR networks                         #
@@ -130,8 +130,9 @@ class D4PG_Agent:
         """
 
         # Current SARS' stored in short term memory, then stacked for NStep
-        memory = list(zip(states, actions, rewards, next_states))
-        self._store_memories(memory)
+        experience = list(zip(states, actions, rewards, next_states))
+        # self._store_memories(memory)
+        self.memory.store_experience(experience)
         self.t_step += 1
 
         # Don't do any learning if the network is initializing the memory
@@ -157,22 +158,26 @@ class D4PG_Agent:
         # These tensors are not needed for backpropogation, so detach from the
         # calculation graph (literally doubles runtime if this is not detached)
         target_dist = self._get_targets(rewards, next_states).detach()
+
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
         log_probs = self.critic(states, actions, log=True)
+
         # Calculate the critic network LOSS (Cross Entropy), CE-loss is ideal
         # for categorical value distributions as utilized in D4PG.
         # estimates distance between target and projected values
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
-        #critic_loss = -(target_dist * (log_probs*atoms).sum(-1).mean()
 
 
         # Predict action for actor network loss calculation using πθ
         predicted_action = self.actor(states)
+
         # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
         probs = self.critic(states, predicted_action)
+
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
         expected_reward = (probs * atoms).sum(-1)
+
         # Calculate the actor network LOSS (Policy Gradient)
         # Take the mean across the batch and multiply in the negative to
         # perform gradient ascent
@@ -199,6 +204,7 @@ class D4PG_Agent:
         Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
         before training begins.
         """
+
         if len(self.memory) >= pretrain_length:
             print("Memory already filled, length: {}".format(len(self.memory)))
             return
@@ -211,7 +217,7 @@ class D4PG_Agent:
             self.step(states, actions, rewards, next_states, pretrain=True)
             if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
                 print("Taking pretrain step {}... memory filled: {}/{}\
-                      ".format(self.t_step, len(self.memory), pretrain_length))
+                    ".format(self.t_step, len(self.memory), pretrain_length))
 
             states = next_states
         print("Done!")
@@ -221,12 +227,18 @@ class D4PG_Agent:
         """
         Handle any cleanup or steps to begin a new episode of training.
         """
-        self.memory.init_n_step(self.rollout)
+
+        self.memory.init_n_step()
         self.episode += 1
 
     def _categorical(self, rewards, probs):
         """
         Returns the projected value distribution for the input state/action pair
+
+        While there are several very similar implementations of this Categorical
+        Projection methodology around github, this function owes the most
+        inspiration to Zhang Shangtong and his excellent repository located at:
+        https://github.com/ShangtongZhang
         """
 
         # Create function local vars to keep code more concise
@@ -234,11 +246,15 @@ class D4PG_Agent:
         vmax = self.vmax
         atoms = self.atoms
         num_atoms = self.num_atoms
+        gamma = self.gamma
+        rollout = self.rollout
 
         rewards = rewards.unsqueeze(-1)
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
-        projected_atoms = rewards + self.gamma**self.rollout * atoms.unsqueeze(0)#.view(1,-1)
+        # Rewards were stored with 0->(N-1) summed, take Reward and add it to
+        # the discounted expected reward at N (ROLLOUT) timesteps
+        projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0)
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
 
@@ -254,6 +270,15 @@ class D4PG_Agent:
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
         return projected_probs.float()
 
+    def _gauss_noise(self, shape):
+        """
+        Returns the epsilon scaled noise distribution for adding to Actor
+        calculated action policy.
+        """
+
+        n = np.random.normal(0, 1, shape)
+        return self.e*n
+
     def _get_targets(self, rewards, next_states):
         """
         Calculate Yᵢ from target networks using πθ' and Zw'
@@ -264,15 +289,6 @@ class D4PG_Agent:
         # Project the categorical distribution onto the supports
         projected_probs = self._categorical(rewards, target_probs)
         return projected_probs
-
-    def _gauss_noise(self, shape):
-        """
-        Returns the epsilon scaled noise distribution for adding to Actor
-        calculated action policy.
-        """
-
-        n = np.random.normal(0, 1, shape)
-        return self.e*n
 
     def _update_networks(self):
         """
@@ -289,39 +305,49 @@ class D4PG_Agent:
 
 
     def _soft_update(self, active, target):
+        """
+        Slowly updated the network using every-step partial network copies
+        modulated by parameter TAU.
+        """
+
         for t_param, param in zip(target.parameters(), active.parameters()):
             t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
 
     def _hard_update(self, active, target):
+        """
+        Fully copy parameters from active network to target network. To be used
+        in conjunction with a parameter "C" that modulated how many timesteps
+        between these hard updates.
+        """
+
         target.load_state_dict(active.state_dict())
 
-    def _store_memories(self, experiences):
-        """
-        Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
-        memory can be added to the ReplayBuffer.
-        """
-        self.memory.n_step.append(experiences)
-
-        # Abort if ROLLOUT steps haven't been taken in a new episode
-        if len(self.memory.n_step) < self.rollout:
-            return
-
-        # Unpacks and stores the SARS' tuple for each actor in the environment
-        # thus, each timestep actually adds K_ACTORS memories to the buffer,
-        # for the Udacity environment this means 20 memories each timestep.
-        # for actor in zip(*self.n_step_memory):
-        for actor in zip(*self.memory.n_step):
-            states, actions, rewards, next_states = zip(*actor)
-            n_steps = self.rollout - 1
-            rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
-            rewards = rewards.sum()
-            # store the current state, current action, cumulative discounted
-            # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-            states = states[0].unsqueeze(0)
-            actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
-            rewards = torch.tensor([rewards])
-            next_states = next_states[-1].unsqueeze(0)
-            self.memory.store(states, actions, rewards, next_states)
+    # def _store_memories(self, experiences):
+    #     """
+    #     Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
+    #     memory can be added to the ReplayBuffer.
+    #     """
+    #     self.memory.n_step.append(experiences)
+    #
+    #     # Abort if ROLLOUT steps haven't been taken in a new episode
+    #     if len(self.memory.n_step) < self.rollout:
+    #         return
+    #
+    #     # Unpacks and stores the SARS' tuple for each actor in the environment
+    #     # thus, each timestep actually adds K_ACTORS memories to the buffer,
+    #     # for the Udacity environment this means 20 memories each timestep.
+    #     for actor in zip(*self.memory.n_step):
+    #         states, actions, rewards, next_states = zip(*actor)
+    #         n_steps = self.rollout - 1
+    #         rewards = np.fromiter((rewards[i] * self.gamma**i for i in range(n_steps)), float, count=n_steps)
+    #         rewards = rewards.sum()
+    #         # store the current state, current action, cumulative discounted
+    #         # reward from t -> t+n-1, and the next_state at t+n (S't+n)
+    #         states = states[0].unsqueeze(0)
+    #         actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
+    #         rewards = torch.tensor([rewards])
+    #         next_states = next_states[-1].unsqueeze(0)
+    #         self.memory.store(states, actions, rewards, next_states)
 
     @property
     def e(self):
@@ -331,5 +357,6 @@ class D4PG_Agent:
         Anneals the epsilon rate down to a specified minimum to ensure there is
         always some noisiness to the policy actions. Returns as a property.
         """
+        
         self._e = max(self.e_min, self._e * self.e_decay)
         return self._e

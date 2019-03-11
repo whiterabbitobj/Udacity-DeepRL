@@ -1,14 +1,13 @@
 import os.path
-import re
-import time
 
-import torch
-import matplotlib
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 
 
 def print_bracketing(info=None, do_upper=True, do_lower=True):
+    """
+    Formats a provided statement (INFO) for printing to the cmdline. If provided
+    a list, will print each element to a new line, and if provided a string,
+    will print a single line.
+    """
     mult = 50
     if type(info) is not list and info is not None:
         mult = max(mult, len(info))
@@ -22,3 +21,11 @@ def print_bracketing(info=None, do_upper=True, do_lower=True):
             print(line.center(mult))
     if do_lower: print(lower)
     return
+
+def check_dir(self, dir):
+    """
+    Creates requested directory if it doesn't yet exist.
+    """
+
+    if not os.path.isdir(dir):
+        os.makedirs(dir)

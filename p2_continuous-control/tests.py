@@ -19,3 +19,11 @@ l.list_params(f)
 
 
 l.load_params(f)
+
+
+
+x = "anything"
+if x:
+    print("true")
+else:
+    print("false")
