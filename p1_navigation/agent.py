@@ -16,40 +16,31 @@ class DQN_Agent:
                  state_size,
                  action_size,
                  args,
-                 agent_count = 1,
-                 lr = 0.0005,
-                 batch_size = 64,
-                 buffer_size = 500000,
-                 C = 300,
-                 device = "cpu",
-                 epsilon = 1,
-                 gamma = 0.99,
-                 rollout = 5,
-                 tau = 0.0005,
-                 l2_decay = 0.0001,
-                 momentum = 1,
-                 update_type = "hard"):
+                ):
         """
         Initialize a D4PG Agent.
         """
 
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        self.framework = args.framework
-        self.eval = args.eval
-        self.agent_count = agent_count
-        self.learn_rate = lr
-
-        self.batch_size = batch_size
-        self.buffer_size = buffer_size
         self.action_size = action_size
         self.state_size = state_size
-        self.C = C
-        self.epsilon = epsilon
+        self.framework = args.framework
+        self.eval = args.eval
+        self.agent_count = 1
+        self.learn_rate = 0.0005
+        self.batch_size = 128
+        self.buffer_size = 50000
+        self.C = 2000#*2.4
+        self._epsilon = 1
+        self.epsilon_decay = .9999
+        self.epsilon_min = 0.01
 
-        self.gamma = gamma
-        self.rollout = rollout
-        self.tau = tau
-        self.update_type = update_type
+        self.gamma = 0.99
+        self.rollout = 1
+        self.tau = 0.0005
+        self.momentum = 1
+        self.l2_decay = 0.0
+        self.update_type = "hard"
 
 
         self.t_step = 0
@@ -67,33 +58,23 @@ class DQN_Agent:
         self.q = self._make_model(state_size, action_size, args.pixels)
         self.q_target = self._make_model(state_size, action_size, args.pixels)
         self._hard_update(self.q, self.q_target)
-        self.q_optimizer = self._set_optimizer(self.q.parameters(), lr=lr, decay=l2_decay, momentum=momentum)
+        self.q_optimizer = self._set_optimizer(self.q.parameters(), lr=self.learn_rate, decay=self.l2_decay, momentum=self.momentum)
 
 
         self.new_episode()
 
-    def _set_optimizer(self, params,lr, decay, momentum,  optimizer="Adam"):
+
+    @property
+    def epsilon(self):
         """
-        Sets the optimizer based on command line choice. Defaults to Adam.
+        This property ensures that the annealing process is run every time that
+        E is called.
+        Anneals the epsilon rate down to a specified minimum to ensure there is
+        always some noisiness to the policy actions. Returns as a property.
         """
 
-        if optimizer == "RMSprop":
-            return optim.RMSprop(params, lr=lr, momentum=momentum)
-        elif optimizer == "SGD":
-            return optim.SGD(params, lr=lr, momentum=momentum)
-        else:
-            return optim.Adam(params, lr=lr, weight_decay=decay)
-
-    def _make_model(self, state_size, action_size, use_cnn):
-        """
-        Sets up the network model based on whether state data or pixel data is
-        provided.
-        """
-
-        if use_cnn:
-            return QCNNetwork(state_size, action_size, self.seed).to(self.device)
-        else:
-            return QNetwork(state_size, action_size, self.seed).to(self.device)
+        self._epsilon = max(self.epsilon_min, self.epsilon_decay ** self.t_step)
+        return self._epsilon
 
     def act(self, state, eval=False, pretrain=False):
         """
@@ -112,16 +93,13 @@ class DQN_Agent:
             action = np.random.randint(self.action_size, size=(1,1))
         return action.astype(np.long)
 
-    def step(self, states, actions, rewards, next_states, pretrain=False):
+    def step(self, state, action, reward, next_state, pretrain=False):
         """
         Add the current SARS' tuple into the short term memory, then learn
         """
 
         # Current SARS' stored in short term memory, then stacked for NStep
-        # experience = list(zip(states, actions, rewards, next_states))
-        experience = (states, actions, rewards, next_states)
-        #print(experience, '\n\n\n\n')
-        # self._store_memories(memory)
+        experience = (state, action, reward, next_state)
         self.memory.store_experience(experience)
         self.t_step += 1
 
@@ -131,9 +109,8 @@ class DQN_Agent:
 
     def learn(self):
         """
-        Performs a distributional Actor/Critic calculation and update.
-        Actor πθ and πθ'
-        Critic Zw and Zw' (categorical distribution)
+        Trains the Deep QNetwork and returns action values.
+        Can use multiple frameworks.
         """
 
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
@@ -144,13 +121,12 @@ class DQN_Agent:
 
         q_values = torch.zeros(self.batch_size).to(self.device)
         if self.framework == 'DQN':
-            # VANILLA DQN: get max predicted Q values for the next states from
-            # the target model
+            # Max predicted Q values for the next states from the target model
             q_values[terminal_mask] = self.q_target(next_states).detach().max(dim=1)[0]
 
         if self.framework == 'DDQN':
-            # DOUBLE DQN: get maximizing ACTION under Q, evaluate actionvalue
-            # under the q_target
+            # Get maximizing ACTION under Q, evaluate actionvalue
+            # under q_target
 
             # Max valued action under active network
             max_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
@@ -158,14 +134,16 @@ class DQN_Agent:
             # target network
             q_values[terminal_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
 
-        targets = rewards + (self.gamma * q_values)
+        targets = rewards + (self.gamma**self.rollout * q_values)
 
         targets = targets.unsqueeze(1)
         values = self.q(states).gather(1, actions)
 
         #Huber Loss provides better results than MSE
         if is_weights is None:
-            loss = F.smooth_l1_loss(values, targets)
+            #loss = F.smooth_l1_loss(values, targets)
+            loss = F.smooth_l1_loss(targets, values)
+
         #Compute Huber Loss manually to utilize is_weights with Prioritization
         else:
             loss, td_errors = self.criterion.huber(values, targets, is_weights)
@@ -179,7 +157,6 @@ class DQN_Agent:
         self._update_networks()
         self.loss = loss.item()
 
-
     def initialize_memory(self, pretrain_length, env):
         """
         Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
@@ -191,24 +168,27 @@ class DQN_Agent:
             return
 
         print("Initializing memory buffer.")
-        state = env.state
-        while len(self.memory) < pretrain_length:
-            action = self.act(state, pretrain=True)
-            next_state, reward, done = env.step(action)
-            if done:
-                next_state = None
-                env.reset()
-                state = env.state
-                continue
 
-            self.step(state, action, reward, next_state, pretrain=True)
-            if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
-                print("Taking pretrain step {}... memory filled: {}/{}\
-                    ".format(self.t_step, len(self.memory), pretrain_length))
+        while True:
+            done = False
+            env.reset()
+            state = env.state
+            while not done:
+                action = self.act(state, pretrain=True)
+                next_state, reward, done = env.step(action)
+                if done:
+                    next_state = None
 
-            states = next_state
-        print("Done!")
-        self.t_step = 0
+                self.step(state, action, reward, next_state, pretrain=True)
+                states = next_state
+
+                if self.t_step % 50 == 0 or len(self.memory) >= pretrain_length:
+                    print("Taking pretrain step {}... memory filled: {}/{}\
+                        ".format(self.t_step, len(self.memory), pretrain_length))
+                if len(self.memory) >= pretrain_length:
+                    print("Done!")
+                    self.t_step = 0
+                    return
 
     def new_episode(self):
         """
@@ -217,65 +197,6 @@ class DQN_Agent:
 
         self.memory.init_n_step()
         self.episode += 1
-
-    def _categorical(self, rewards, probs):
-        """
-        Returns the projected value distribution for the input state/action pair
-
-        While there are several very similar implementations of this Categorical
-        Projection methodology around github, this function owes the most
-        inspiration to Zhang Shangtong and his excellent repository located at:
-        https://github.com/ShangtongZhang
-        """
-
-        # Create local vars to keep code more concise
-        vmin = self.vmin
-        vmax = self.vmax
-        atoms = self.atoms
-        num_atoms = self.num_atoms
-        gamma = self.gamma
-        rollout = self.rollout
-
-        rewards = rewards.unsqueeze(-1)
-        delta_z = (vmax - vmin) / (num_atoms - 1)
-
-        # Rewards were stored with 0->(N-1) summed, take Reward and add it to
-        # the discounted expected reward at N (ROLLOUT) timesteps
-        projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0)
-        projected_atoms.clamp_(vmin, vmax)
-        b = (projected_atoms - vmin) / delta_z
-
-        lower_bound = b.floor()
-        upper_bound = b.ceil()
-
-        m_lower = (upper_bound + (lower_bound == upper_bound).float() - b) * probs
-        m_upper = (b - lower_bound) * probs
-
-        projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
-        for idx in range(probs.size(0)):
-            projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
-            projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
-        return projected_probs.float()
-
-    def _gauss_noise(self, shape):
-        """
-        Returns the epsilon scaled noise distribution for adding to Actor
-        calculated action policy.
-        """
-
-        n = np.random.normal(0, 1, shape)
-        return self.e*n
-
-    def _get_targets(self, rewards, next_states):
-        """
-        Calculate Yᵢ from target networks using πθ' and Zw'
-        """
-
-        target_actions = self.actor_target(next_states)
-        target_probs = self.critic_target(next_states, target_actions)
-        # Project the categorical distribution onto the supports
-        projected_probs = self._categorical(rewards, target_probs)
-        return projected_probs
 
     def _update_networks(self):
         """
@@ -306,14 +227,25 @@ class DQN_Agent:
 
         target.load_state_dict(active.state_dict())
 
-    @property
-    def e(self):
+    def _set_optimizer(self, params,lr, decay, momentum,  optimizer="Adam"):
         """
-        This property ensures that the annealing process is run every time that
-        E is called.
-        Anneals the epsilon rate down to a specified minimum to ensure there is
-        always some noisiness to the policy actions. Returns as a property.
+        Sets the optimizer based on command line choice. Defaults to Adam.
         """
 
-        self._e = max(self.e_min, self._e * self.e_decay)
-        return self._e
+        if optimizer == "RMSprop":
+            return optim.RMSprop(params, lr=lr, momentum=momentum)
+        elif optimizer == "SGD":
+            return optim.SGD(params, lr=lr, momentum=momentum)
+        else:
+            return optim.Adam(params, lr=lr, weight_decay=decay)
+
+    def _make_model(self, state_size, action_size, use_cnn):
+        """
+        Sets up the network model based on whether state data or pixel data is
+        provided.
+        """
+
+        if use_cnn:
+            return QCNNetwork(state_size, action_size, self.seed).to(self.device)
+        else:
+            return QNetwork(state_size, action_size, self.seed).to(self.device)

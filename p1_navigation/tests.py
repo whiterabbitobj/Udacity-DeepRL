@@ -16,10 +16,6 @@ from progress.spinner import Spinner
 
 
 
-i = 0
-while i < 30:
-    i += 1
-    if i%5 == 0:
-        continue
+
+for i in range(4):
     print(i)
-    

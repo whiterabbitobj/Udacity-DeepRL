@@ -69,17 +69,32 @@ class ReplayBuffer:
         states, actions, rewards, next_states = zip(*self.n_step)
         n_steps = self.rollout - 1
 
+
         # Calculate n-step discounted reward
+        # If encountering a terminal state (next_state == None) then sum the
+        # rewards only until the terminal state and report back a terminal state
+        # for the experience tuple.
         if n_steps > 0:
-            rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
-            rewards = rewards.sum()
+            reward = torch.tensor(0, dtype=torch.float)
+            for i in range(n_steps):
+                if next_states[i] is  None:
+                    print("Encountered terminal state in ROLLOUT stacking! Reward calculated from {} steps: {}".format(i+1, reward))
+                    n_steps = i
+                    break
+                else:
+                    reward += self.gamma**i * rewards[i]
+
+            rewards = reward
+
+            #rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
+            #rewards = rewards.sum()
 
         # store the current state, current action, cumulative discounted
         # reward from t -> t+n-1, and the next_state at t+n (S't+n)
         state = states[0]
         action = torch.from_numpy(actions[0])
         reward = torch.tensor([rewards])
-        next_state = next_states[-1]
+        next_state = next_states[n_steps]
         self.store_trajectory(state, action, reward, next_state)
 
     def __len__(self):

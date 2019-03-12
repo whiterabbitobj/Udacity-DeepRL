@@ -177,22 +177,22 @@ class Logger:
             return
 
         self.loss = agent.loss
-        #self.critic_loss = agent.critic_loss
         # Writes the loss data to an on-disk logfile every LOG_EVERY timesteps
         if agent.t_step % self.log_every == 0:
             self._write_losses()
 
-    def step(self, epsnum):
+    def step(self, eps_num, epsilon):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
 
-        epstime, total = self._runtime()
-        print("\nEpisode {}/{}... RUNTIME: {}, TOTAL: {}".format(epsnum, self.max_eps, epstime, total))
+        eps_time, total = self._runtime()
+        print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total))
+        if not self.quietmode:
+            print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
         self._update_score()
         self._init_rewards()
-
 
     def load_logs(self):
         """
@@ -208,9 +208,8 @@ class Logger:
 
         # List of the desired params to print on the graph for later review
         params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms',
-            'vmin', 'vmax', 'e', 'e_decay', 'e_min', 'gamma',
-            'actor_learn_rate', 'critic_learn_rate', 'buffer_size',
-            'batch_size', 'pretrain']
+            'vmin', 'vmax', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma',
+            'learn_rate', 'buffer_size', 'batch_size', 'pretrain', 'rollout', ]
 
         sess_params = ''
         counter = 0
@@ -275,7 +274,6 @@ class Logger:
             fig.show()
         statement = "Saved graph data to: {}".format(save_file).replace("\\", "/")
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
-
 
     def graph(self, logdir=None, save_to_disk=True):
         """
@@ -369,13 +367,10 @@ class Logger:
         cmdline, and then saves to the logfile.
         """
 
-        score = self.rewards.mean()
+        score = self.rewards.sum()
         print("{}Return: {}".format("."*10, score))
         if not self.eval:
             self._write_scores(score)
-            if self.quietmode:
-                return
-            print("NETWORK LOSS: ", self.loss)
 
     def _write_losses(self):
         """
@@ -384,7 +379,6 @@ class Logger:
 
         with open(self.netlossfile, 'a') as f:
             f.write(str(self.loss) + '\n')
-
 
     def _write_scores(self, score):
         """
@@ -410,10 +404,14 @@ def gather_args():
     parser = ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment.",
             usage="")
 
-    parser.add_argument("-lr", "--actor_learn_rate",
+    parser.add_argument("-f", "--framework",
+            help="Which type of Agent to use. (DQN, D2DQN (double dqn), DDQN (dueling dqn))",
+            type=str,
+            default="DDQN")
+    parser.add_argument("-lr", "--learn_rate",
             help="Learning Rate.",
             type=float,
-            default=1e-3)
+            default=0.001)
     parser.add_argument("-a", "--alpha",
             help="Alpha parameter of the Prioritized Experience Replay.",
             type=float,
@@ -422,7 +420,6 @@ def gather_args():
             help="Beta parameter of the Prioritized Experience Replay.",
             type=float,
             default=0.4)
-
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
@@ -490,7 +487,11 @@ def gather_args():
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
             type=int,
-            default=5000)
+            default=1000)
+    parser.add_argument("-per", "--prioritized_experience_replay",
+            help="Use standard Prioritized Experience Replay instead of \
+                  standard Replay Buffer.",
+            action="store_true")
     parser.add_argument("--quiet",
             help="Print less while running the agent.",
             action="store_true")
@@ -504,7 +505,7 @@ def gather_args():
     parser.add_argument("-se", "--save_every",
             help="How many episodes between saves.",
             type=int,
-            default=10)
+            default=50)
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,

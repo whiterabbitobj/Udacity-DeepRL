@@ -57,14 +57,16 @@ def train(agent, args, env, saver):
         done = False
         env.reset()
         # Get initial state
-        state = env.states
+        state = env.state
         # Gather experience until done or max_steps is reached
         while not done:
             action = agent.act(state)
             next_state, reward, done = env.step(action)
             if done:
                 next_state = None
-
+                # print("terminal state reached!")
+            # if reward:
+            #     print(reward)
             agent.step(state, action, reward, next_state)
             state = next_state
 
@@ -73,7 +75,7 @@ def train(agent, args, env, saver):
 
         saver.save_checkpoint(agent, args.save_every)
         agent.new_episode()
-        logger.step(episode)
+        logger.step(episode, agent.epsilon)
 
     env.close()
     saver.save_final(agent)
