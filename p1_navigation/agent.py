@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
-
 from buffers import ReplayBuffer
 from models import QNetwork
 
@@ -17,14 +16,15 @@ class DQN_Agent:
                  state_size,
                  action_size,
                  args,
+                 agent_count = 1,
                  lr = 0.0005,
-                 batch_size = 128,
+                 batch_size = 64,
                  buffer_size = 500000,
                  C = 300,
                  device = "cpu",
                  epsilon = 1,
                  gamma = 0.99,
-                 rollout = 1,
+                 rollout = 5,
                  tau = 0.0005,
                  l2_decay = 0.0001,
                  momentum = 1,
@@ -36,7 +36,7 @@ class DQN_Agent:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.framework = args.framework
         self.eval = args.eval
-        #self.agent_count = agent_count
+        self.agent_count = agent_count
         self.learn_rate = lr
 
         self.batch_size = batch_size
@@ -67,12 +67,12 @@ class DQN_Agent:
         self.q = self._make_model(state_size, action_size, args.pixels)
         self.q_target = self._make_model(state_size, action_size, args.pixels)
         self._hard_update(self.q, self.q_target)
-        self.q_optim = self._set_optimizer(self.q.parameters(), lr=lr, weight_decay=l2_decay, momentum=momentum)
+        self.q_optimizer = self._set_optimizer(self.q.parameters(), lr=lr, decay=l2_decay, momentum=momentum)
 
 
         self.new_episode()
 
-    def _set_optimizer(self, params, optimizer, lr, decay, momentum):
+    def _set_optimizer(self, params,lr, decay, momentum,  optimizer="Adam"):
         """
         Sets the optimizer based on command line choice. Defaults to Adam.
         """
@@ -95,44 +95,22 @@ class DQN_Agent:
         else:
             return QNetwork(state_size, action_size, self.seed).to(self.device)
 
-    def act(self, state, eval=False):
+    def act(self, state, eval=False, pretrain=False):
         """
         Select an action using epsilon-greedy π.
         Always use greedy if not training.
         """
 
-        if random.random() > self.epsilon or eval:
-            states = states.to(self.device)
+        if np.random.random() > self.epsilon or not eval and not pretrain:
+            state = state.to(self.device)
             #self.q.eval()
             with torch.no_grad():
                 action_values = self.q(state).detach().cpu()
             #self.q.train()
-            #action = action_values.max(1)[1]
-            #action = action.view(1,1).cpu().numpy()
             action = action_values.argmax(dim=1).unsqueeze(0).numpy()
-            return action
         else:
-            return np.random.randint(0,3, size=(1,1))
-
-    # def step(self, state, action, reward, next_state):
-    #     """
-    #     Moves the agent to the next timestep.
-    #     Learns each UPDATE_EVERY steps.
-    #     """
-    #     if not self.train:
-    #         return
-    #     reward = torch.tensor([reward], device=self.device)
-    #     self.memory.store(state, action, reward, next_state)
-    #
-    #     if self._memory_loaded(): # and self.t_step % self.update_every == 0:
-    #         self.learn()
-    #     # ------------------- update target network ------------------- #
-    #     # self._soft_update(self.q, self.qhat, 0.001)
-    #     #update the target network every C steps
-    #     if self.t_step % self.C == 0:
-    #         self.qhat.load_state_dict(self.q.state_dict())
-    #
-    #     self.t_step += 1
+            action = np.random.randint(self.action_size, size=(1,1))
+        return action.astype(np.long)
 
     def step(self, states, actions, rewards, next_states, pretrain=False):
         """
@@ -140,7 +118,9 @@ class DQN_Agent:
         """
 
         # Current SARS' stored in short term memory, then stacked for NStep
-        experience = list(zip(states, actions, rewards, next_states))
+        # experience = list(zip(states, actions, rewards, next_states))
+        experience = (states, actions, rewards, next_states)
+        #print(experience, '\n\n\n\n')
         # self._store_memories(memory)
         self.memory.store_experience(experience)
         self.t_step += 1
@@ -160,16 +140,13 @@ class DQN_Agent:
         # Already calculated before storing in the replay buffer.
         # NEXT_STATES are ROLLOUT steps ahead of STATES
         batch, is_weights, tree_idx = self.memory.sample(self.batch_size)
-        states, actions, rewards, next_states = batch
+        states, actions, rewards, next_states, terminal_mask = batch
 
-        final_mask = torch.tensor(tuple(map(lambda s: s is not None, next_states)), dtype=torch.uint8)
-        next_states = torch.cat([s for s in batch.next_state if s is not None])
-
-        target_Q_values = torch.zeros(self.batchsize).to(self.device)
+        q_values = torch.zeros(self.batch_size).to(self.device)
         if self.framework == 'DQN':
             # VANILLA DQN: get max predicted Q values for the next states from
             # the target model
-            q_values[non_final_mask] = self.q_target(next_states).detach().max(dim=1)[0]
+            q_values[terminal_mask] = self.q_target(next_states).detach().max(dim=1)[0]
 
         if self.framework == 'DDQN':
             # DOUBLE DQN: get maximizing ACTION under Q, evaluate actionvalue
@@ -179,25 +156,25 @@ class DQN_Agent:
             max_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
             # Use the active network action to get the value of the stable
             # target network
-            q_values[non_final_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
+            q_values[terminal_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
 
-        targets = reward_batch + (self.gamma * q_values) #[64]
+        targets = rewards + (self.gamma * q_values)
 
-        targets = targets.unsqueeze(1) #[64,1]
-        values = self.q(state_batch).gather(1, action_batch) #[64,1]
+        targets = targets.unsqueeze(1)
+        values = self.q(states).gather(1, actions)
 
         #Huber Loss provides better results than MSE
         if is_weights is None:
-            loss = F.smooth_l1_loss(values, targets) #[64,1]
+            loss = F.smooth_l1_loss(values, targets)
         #Compute Huber Loss manually to utilize is_weights with Prioritization
         else:
-            loss, td_errors = self.criterion.huber(values, expected_values, is_weights)
+            loss, td_errors = self.criterion.huber(values, targets, is_weights)
             self.memory.batch_update(tree_idx, td_errors)
 
         # Perform gradient descent
-        self.optimizer.zero_grad()
+        self.q_optimizer.zero_grad()
         loss.backward()
-        self.optimizer.step()
+        self.q_optimizer.step()
 
         self._update_networks()
         self.loss = loss.item()
@@ -214,16 +191,22 @@ class DQN_Agent:
             return
 
         print("Initializing memory buffer.")
-        states = env.states
+        state = env.state
         while len(self.memory) < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-            next_states, rewards, dones = env.step(actions)
-            self.step(states, actions, rewards, next_states, pretrain=True)
+            action = self.act(state, pretrain=True)
+            next_state, reward, done = env.step(action)
+            if done:
+                next_state = None
+                env.reset()
+                state = env.state
+                continue
+
+            self.step(state, action, reward, next_state, pretrain=True)
             if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
                 print("Taking pretrain step {}... memory filled: {}/{}\
                     ".format(self.t_step, len(self.memory), pretrain_length))
 
-            states = next_states
+            states = next_state
         print("Done!")
         self.t_step = 0
 
@@ -301,11 +284,9 @@ class DQN_Agent:
         """
 
         if self.update_type == "soft":
-            self._soft_update(self.actor, self.actor_target)
-            self._soft_update(self.critic, self.critic_target)
+            self._soft_update(self.q, self.q_target)
         elif self.t_step % self.C == 0:
-            self._hard_update(self.actor, self.actor_target)
-            self._hard_update(self.critic, self.critic_target)
+            self._hard_update(self.q, self.q_target)
 
     def _soft_update(self, active, target):
         """

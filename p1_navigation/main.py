@@ -66,9 +66,9 @@ def train(agent, args, env, saver):
                 next_state = None
 
             agent.step(state, action, reward, next_state)
-            states = next_states
+            state = next_state
 
-            logger.log(rewards, agent)
+            logger.log(reward, agent)
 
 
         saver.save_checkpoint(agent, args.save_every)

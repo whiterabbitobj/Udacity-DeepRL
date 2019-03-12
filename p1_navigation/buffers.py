@@ -38,11 +38,14 @@ class ReplayBuffer:
         """
         batch = random.sample(self.buffer, k=batch_size)
         states, actions, rewards, next_states = zip(*batch)
+
         states = torch.cat(states).to(self.device)
-        actions = torch.cat(actions).float().to(self.device)
+        actions = torch.cat(actions).to(self.device).long()
         rewards = torch.cat(rewards).to(self.device)
-        next_states = torch.cat(next_states).to(self.device)
-        batch = (states, actions, rewards, next_states)
+        terminal_mask = torch.tensor(tuple(map(lambda s: s is not None, next_states)), dtype=torch.uint8).to(self.device)
+        next_states = torch.cat([s for s in next_states if s is not None]).to(self.device)
+
+        batch = (states, actions, rewards, next_states, terminal_mask)
         return batch, None, None
 
     def init_n_step(self):
@@ -57,29 +60,27 @@ class ReplayBuffer:
         memory can be added to the ReplayBuffer.
         """
         self.n_step.append(experience)
-
         # Abort if ROLLOUT steps haven't been taken in a new episode
         if len(self.n_step) < self.rollout:
             return
 
         # Unpacks and stores the SARS' tuple for each actor in the environment
-        # thus, each timestep actually adds K_ACTORS memories to the buffer,
-        # for the Udacity environment this means 20 memories each timestep.
-        for actor in zip(*self.n_step):
-            states, actions, rewards, next_states = zip(*actor)
-            n_steps = self.rollout - 1
+        # for actor in zip(*self.n_step):
+        states, actions, rewards, next_states = zip(*self.n_step)
+        n_steps = self.rollout - 1
 
-            # Calculate n-step discounted reward
+        # Calculate n-step discounted reward
+        if n_steps > 0:
             rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
             rewards = rewards.sum()
 
-            # store the current state, current action, cumulative discounted
-            # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-            states = states[0].unsqueeze(0)
-            actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
-            rewards = torch.tensor([rewards])
-            next_states = next_states[-1].unsqueeze(0)
-            self.store_trajectory(states, actions, rewards, next_states)
+        # store the current state, current action, cumulative discounted
+        # reward from t -> t+n-1, and the next_state at t+n (S't+n)
+        state = states[0]
+        action = torch.from_numpy(actions[0])
+        reward = torch.tensor([rewards])
+        next_state = next_states[-1]
+        self.store_trajectory(state, action, reward, next_state)
 
     def __len__(self):
         return len(self.buffer)

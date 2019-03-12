@@ -15,4 +15,11 @@ from progress.bar import Bar
 from progress.spinner import Spinner
 
 
-l = utils.LogLoader()
+
+i = 0
+while i < 30:
+    i += 1
+    if i%5 == 0:
+        continue
+    print(i)
+    

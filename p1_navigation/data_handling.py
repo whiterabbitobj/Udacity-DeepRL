@@ -51,6 +51,7 @@ class Saver():
 
         timestamp = time.strftime("%Y%m%d", time.localtime())
         base_name = "{}_{}_v".format(prefix, timestamp)
+        check_dir(save_dir)
         files = [f for f in os.listdir(save_dir)]
         files = [f for f in files if base_name in f]
         if len(files)>0:
@@ -100,8 +101,7 @@ class Saver():
 
         checkpoint = {'state_size': agent.state_size,
                       'action_size': agent.action_size,
-                      'actor_dict': agent.actor.state_dict(),
-                      'critic_dict': agent.critic.state_dict()
+                      'actor_dict': agent.q.state_dict(),
                       }
         return checkpoint
 
@@ -111,10 +111,8 @@ class Saver():
         """
 
         checkpoint = torch.load(load_file, map_location=lambda storage, loc: storage)
-        agent.actor.load_state_dict(checkpoint['actor_dict'])
-        agent.critic.load_state_dict(checkpoint['critic_dict'])
-        agent._hard_update(agent.actor, agent.actor_target)
-        agent._hard_update(agent.critic, agent.critic_target)
+        agent.q.load_state_dict(checkpoint['q'])
+        agent._hard_update(agent.q, agent.q_target)
         statement = "Successfully loaded file: {}".format(load_file)
         print_bracketing(statement)
 
@@ -178,8 +176,8 @@ class Logger:
         if self.eval:
             return
 
-        self.actor_loss = agent.actor_loss
-        self.critic_loss = agent.critic_loss
+        self.loss = agent.loss
+        #self.critic_loss = agent.critic_loss
         # Writes the loss data to an on-disk logfile every LOG_EVERY timesteps
         if agent.t_step % self.log_every == 0:
             self._write_losses()
@@ -203,10 +201,8 @@ class Logger:
 
         with open(self.scoresfile, 'r') as f:
             self.slines = [float(i) for i in f.read().splitlines()]
-        with open(self.alossfile, 'r') as f:
-            self.alines = [float(i) for i in f.read().splitlines()]
-        with open(self.clossfile, 'r') as f:
-            self.clines = [float(i) for i in f.read().splitlines()]
+        with open(self.netlossfile, 'r') as f:
+            self.nlines = [float(i) for i in f.read().splitlines()]
         with open(self.paramfile, 'r') as f:
             loglines = f.read().splitlines()
 
@@ -234,8 +230,8 @@ class Logger:
         """
 
         score_x = np.linspace(1, len(self.slines), len(self.slines))
-        actor_x = np.linspace(1, len(self.alines), len(self.alines))
-        critic_x = np.linspace(1, len(self.clines), len(self.clines))
+        actor_x = np.linspace(1, len(self.nlines), len(self.nlines))
+        critic_x = np.linspace(1, len(self.nlines), len(self.nlines))
         dtop = 0.85
         xcount = 5
         xstep = int(len(self.slines)/xcount)
@@ -245,7 +241,7 @@ class Logger:
         gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)
         ax1 = fig.add_subplot(gs[:,0])
         ax2 = fig.add_subplot(gs[0,1])
-        ax3 = fig.add_subplot(gs[1,1])
+        # ax3 = fig.add_subplot(gs[1,1])
         gs2 = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
         dummyax = fig.add_subplot(gs2[0,0])
         ax1.plot(score_x, self.slines)
@@ -253,19 +249,19 @@ class Logger:
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Score")
 
-        ax2.plot(actor_x, self.alines)
-        ax2.set_title("Actor Loss")
-        ax2.set_xticks(np.linspace(0, len(self.alines), xcount))
+        ax2.plot(actor_x, self.nlines)
+        ax2.set_title("Network Loss")
+        ax2.set_xticks(np.linspace(0, len(self.nlines), xcount))
         ax2.set_xticklabels(xticks)
-        ax2.set_yticks(np.linspace(min(self.alines), max(self.alines), 5))
+        ax2.set_yticks(np.linspace(min(self.nlines), max(self.nlines), 5))
         ax2.set_ylabel("Loss", labelpad=10)
 
-        ax3.plot(critic_x, self.clines)
-        ax3.set_title("Critic Loss")
-        ax3.set_xticks(np.linspace(0, len(self.alines), xcount))
-        ax3.set_xticklabels(xticks)
-        ax3.set_yticks(np.linspace(min(self.clines), max(self.clines), 5))
-        ax3.set_ylabel("Loss", labelpad=20)
+        # ax3.plot(critic_x, self.nlines)
+        # ax3.set_title("Critic Loss")
+        # ax3.set_xticks(np.linspace(0, len(self.nlines), xcount))
+        # ax3.set_xticklabels(xticks)
+        # ax3.set_yticks(np.linspace(min(self.nlines), max(self.nlines), 5))
+        # ax3.set_ylabel("Loss", labelpad=20)
 
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
@@ -296,10 +292,8 @@ class Logger:
                 f = os.path.join(self.log_dir,f)
                 if f.endswith("_LOG.txt"):
                     self.paramfile = f
-                if f.endswith("_actorloss.txt"):
+                if f.endswith("_networkloss.txt"):
                     self.alossfile = f
-                if f.endswith("_criticloss.txt"):
-                    self.clossfile = f
                 if f.endswith("_scores.txt"):
                     self.scoresfile = f
         self.load_logs()
@@ -312,12 +306,11 @@ class Logger:
 
         basename = os.path.join(self.log_dir, self.filename)
         self.paramfile = basename + "_LOG.txt"
-        self.alossfile = basename + "_actorloss.txt"
-        self.clossfile = basename + "_criticloss.txt"
+        self.netlossfile = basename + "_networkloss.txt"
         self.scoresfile = basename + "_scores.txt"
         # Create the log files. Params is filled on creation, the others are
         # initialized blank and filled as training proceeds.
-        files = [self.paramfile, self.alossfile, self.clossfile, self.scoresfile]
+        files = [self.paramfile, self.netlossfile, self.scoresfile]
         log_statement = ["Logfiles saved to: {}".format(self.log_dir)]
         for filename in files:
             with open(filename, 'w') as f:
@@ -382,18 +375,16 @@ class Logger:
             self._write_scores(score)
             if self.quietmode:
                 return
-            print("A LOSS: ", self.actor_loss)
-            print("C LOSS: ", self.critic_loss)
+            print("NETWORK LOSS: ", self.loss)
 
     def _write_losses(self):
         """
         Writes actor/critic loss data to file.
         """
 
-        with open(self.alossfile, 'a') as f:
-            f.write(str(self.actor_loss) + '\n')
-        with open(self.clossfile, 'a') as f:
-            f.write(str(self.critic_loss) + '\n')
+        with open(self.netlossfile, 'a') as f:
+            f.write(str(self.loss) + '\n')
+
 
     def _write_scores(self, score):
         """
@@ -435,7 +426,7 @@ def gather_args():
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
-            default=128)
+            default=64)
     parser.add_argument("-buffer", "--buffer_size",
             help="How many past timesteps to keep in memory.",
             type=int,
@@ -443,7 +434,7 @@ def gather_args():
     parser.add_argument("-C",
             help="How many timesteps between updating Q' to match Q",
             type=int,
-            default=600)
+            default=300*2.4)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -480,21 +471,21 @@ def gather_args():
     parser.add_argument("-m", "--momentum",
             help="Momentum for use in specific optimizers like SGD",
             type=float,
-            default=0.95)
+            default=0.99)
     parser.add_argument("--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=200)
+            default=500)
     parser.add_argument("-o", "--optimizer",
             help="Choose an optimizer for the network. (RMSprop/Adam/SGD)",
             type=str,
             default="Adam")
     parser.add_argument("--pixels",
             help="Train the network using visual data instead of states from the engine.",
-            action="store_true")                       
+            action="store_true")
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
