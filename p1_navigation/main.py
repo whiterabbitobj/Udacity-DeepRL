@@ -65,8 +65,8 @@ def train(agent, args, env, saver):
             if done:
                 next_state = None
                 # print("terminal state reached!")
-            # if reward:
-            #     print(reward)
+            if reward:
+                print(reward)
             agent.step(state, action, reward, next_state)
             state = next_state
 
