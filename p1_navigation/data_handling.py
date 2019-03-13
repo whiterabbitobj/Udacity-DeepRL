@@ -9,6 +9,7 @@ import re
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
+from collections import deque
 
 class Saver():
     """
@@ -37,7 +38,6 @@ class Saver():
         self.file_ext = file_ext
         self.save_dir, self.filename = self.generate_savename(prefix, save_dir)
         if load_file:
-            print(load_file)
             self._load_agent(load_file, agent)
         else:
             statement = "Saving to base filename: {}".format(self.filename)
@@ -67,7 +67,6 @@ class Saver():
         """
         Preps a checkpoint save file at intervals controlled by SAVE_EVERY.
         """
-
         if not agent.episode % save_every == 0:
             return
         mssg = "Saving Agent checkpoint to: "
@@ -101,7 +100,7 @@ class Saver():
 
         checkpoint = {'state_size': agent.state_size,
                       'action_size': agent.action_size,
-                      'actor_dict': agent.q.state_dict(),
+                      'q_dict': agent.q.state_dict(),
                       }
         return checkpoint
 
@@ -111,7 +110,7 @@ class Saver():
         """
 
         checkpoint = torch.load(load_file, map_location=lambda storage, loc: storage)
-        agent.q.load_state_dict(checkpoint['q'])
+        agent.q.load_state_dict(checkpoint['actor_dict'])
         agent._hard_update(agent.q, agent.q_target)
         statement = "Successfully loaded file: {}".format(load_file)
         print_bracketing(statement)
@@ -139,11 +138,12 @@ class Logger:
                  agent=None,
                  args=None,
                  save_dir = '.',
-                 log_every = 100):
+                 log_every = 100,
+                 print_every = 5):
         """
         Initialize a Logger object.
         """
-
+        self.save_dir = save_dir
         if agent==None or args==None:
             print("Blank init for Logger object.")
             return
@@ -152,11 +152,11 @@ class Logger:
         self.quietmode = args.quiet
         self.log_every = log_every
         self.agent_count = agent.agent_count
-        self.save_dir = save_dir
         self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
         self.filename = os.path.basename(self.save_dir)
         self.start_time = self.prev_timestamp =  time.time()
-
+        self.scores = deque(maxlen=print_every)
+        self.print_every = print_every
         self._init_rewards()
         if not self.eval:
 
@@ -181,18 +181,26 @@ class Logger:
         if agent.t_step % self.log_every == 0:
             self._write_losses()
 
-    def step(self, eps_num, epsilon):
+
+    def step(self, eps_num, epsilon='1'):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
-
-        eps_time, total = self._runtime()
-        print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total))
-        if not self.quietmode:
-            print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
-        self._update_score()
+        # print_every = 3
+        self.scores.append(self._update_score())
         self._init_rewards()
+
+        if self.eval:
+            print("Score: {}".format(self.scores[-1]))
+            return
+
+        if eps_num % self.print_every == 0:
+            eps_time, total = self._runtime()
+            print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total))
+            if not self.quietmode:
+                print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
+            print("{}Avg return over previous {} episodes: {}\n".format("."*5, self.print_every, np.array(self.scores).mean()))
 
     def load_logs(self):
         """
@@ -200,16 +208,17 @@ class Logger:
         """
 
         with open(self.scoresfile, 'r') as f:
-            self.slines = [float(i) for i in f.read().splitlines()]
+            self.slines = np.array([float(i) for i in f.read().splitlines()])
         with open(self.netlossfile, 'r') as f:
-            self.nlines = [float(i) for i in f.read().splitlines()]
+            self.nlines = np.array([float(i) for i in f.read().splitlines()])
         with open(self.paramfile, 'r') as f:
             loglines = f.read().splitlines()
 
         # List of the desired params to print on the graph for later review
         params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms',
             'vmin', 'vmax', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma',
-            'learn_rate', 'buffer_size', 'batch_size', 'pretrain', 'rollout', ]
+            'learn_rate', 'buffer_size', 'batch_size', 'pretrain', 'rollout',
+            'l2_decay']
 
         sess_params = ''
         counter = 0
@@ -223,57 +232,100 @@ class Logger:
                 sess_params += line
         self.sess_params = sess_params
 
+    def _moving_avg(self, data, avg_across):
+        avg_across = int(avg_across)
+        window = np.ones(avg_across)/avg_across
+        # data = np.pad(data, avg_across, mode="edge")
+        data = np.pad(data, avg_across, mode="mean", stat_length=10)
+        return np.convolve(data, window, 'same')[avg_across:-avg_across]
+
     def plot_logs(self, save_to_disk=True):
         """
         Plots data in a matplotlib graph for review and comparison.
         """
 
         score_x = np.linspace(1, len(self.slines), len(self.slines))
-        actor_x = np.linspace(1, len(self.nlines), len(self.nlines))
-        critic_x = np.linspace(1, len(self.nlines), len(self.nlines))
+        loss_x = np.linspace(1, len(self.nlines), len(self.nlines))
+        # critic_x = np.linspace(1, len(self.nlines), len(self.nlines))
         dtop = 0.85
         xcount = 5
+        bg_color = 0.925
+        ma100_color = (1, .2, .3)
+        ma200_color = (.38,1,.55)
         xstep = int(len(self.slines)/xcount)
         xticks = np.linspace(0, len(self.slines), xcount, dtype=int)
+        n_yticks = np.linspace(min(self.nlines), max(self.nlines), 5)
+        score_window = min(100, len(self.slines))
+        nlines_ratio = len(self.nlines)/len(self.slines)
+        annotate_props = dict(facecolor=(0.1,0.3,0.5), alpha=0.85, edgecolor=(0.2,0.3,0.6), linewidth=2)
+
+        score_mean = self.slines[-score_window:].mean()
+        score_std = self.slines[-score_window:].std()
+        score_report = "{0}eps MA score: {1:.2f}\n{0}eps STD: {2:.3f}".format(score_window, score_mean, score_std)
+
+        loss_mean = self.nlines[-int(score_window*nlines_ratio):].mean()
+        loss_std = self.nlines[-int(score_window*nlines_ratio):].std()
+        loss_report = "{0}eps MA loss: {1:.2f}\n{0}eps STD: {2:.3f}".format(score_window, loss_mean, loss_std)
 
         fig = plt.figure(figsize=(20,10))
         gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)
         ax1 = fig.add_subplot(gs[:,0])
         ax2 = fig.add_subplot(gs[0,1])
-        # ax3 = fig.add_subplot(gs[1,1])
         gs2 = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
         dummyax = fig.add_subplot(gs2[0,0])
+
+        # Plot unfiltered scores
         ax1.plot(score_x, self.slines)
+        # Plot 200MA line
+        ax1.plot(score_x, self._moving_avg(self.slines, score_window*2),
+                color=ma200_color, lw=3, label="{}eps MA".format(score_window*2))
+         # Plot 100MA line
+        ax1.plot(score_x, self._moving_avg(self.slines, score_window),
+                color=ma100_color, lw=2, label="{}eps MA".format(score_window))
         ax1.set_title("Scores")
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Score")
+        ax1.set_facecolor((bg_color, bg_color, bg_color))
+        ax1.grid()
+        ax1.legend(loc="upper left", markerscale=2.5, fontsize=15)
+        ax1.axvspan(score_x[-score_window], score_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
+        ax1.annotate(score_report, xy=(0,0), xycoords="figure points", xytext=(0.925,0.05),
+                    textcoords="axes fraction", horizontalalignment="right",
+                    size=20, color='white', bbox = annotate_props)
 
-        ax2.plot(actor_x, self.nlines)
-        ax2.set_title("Network Loss")
+        # Plot unfiltered network loss data
+        ax2.plot(loss_x, self.nlines)
+        # Plot 200MA line
+        ax2.plot(loss_x, self._moving_avg(self.nlines, score_window*2*nlines_ratio),
+                color=ma200_color, lw=3, label="{}eps MA".format(score_window*2))
+        # Plot 100MA line
+        ax2.plot(loss_x, self._moving_avg(self.nlines, score_window*nlines_ratio),
+                color=ma100_color, lw=2, label="{}eps MA".format(score_window))
         ax2.set_xticks(np.linspace(0, len(self.nlines), xcount))
+        ax2.set_yticks(n_yticks)
         ax2.set_xticklabels(xticks)
-        ax2.set_yticks(np.linspace(min(self.nlines), max(self.nlines), 5))
         ax2.set_ylabel("Loss", labelpad=10)
-
-        # ax3.plot(critic_x, self.nlines)
-        # ax3.set_title("Critic Loss")
-        # ax3.set_xticks(np.linspace(0, len(self.nlines), xcount))
-        # ax3.set_xticklabels(xticks)
-        # ax3.set_yticks(np.linspace(min(self.nlines), max(self.nlines), 5))
-        # ax3.set_ylabel("Loss", labelpad=20)
+        ax2.set_title("Network Loss")
+        ax2.set_facecolor((bg_color, bg_color, bg_color))
+        ax2.grid()
+        ax2.legend(loc="upper left", markerscale=1.5, fontsize=12)
+        ax2.axvspan(loss_x[-int(score_window*nlines_ratio)], loss_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
+        ax2.annotate(loss_report, xy=(0,0), xycoords="figure points", xytext=(0.935,0.79),
+                    textcoords="axes fraction", horizontalalignment="right",
+                    size=14, color='white', bbox = annotate_props)
 
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
 
-        fig.suptitle("Training run {}".format(self.filename), size=40)
+        fig.suptitle("Training session: {}".format(self.filename), size=40)
 
-        save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
         if save_to_disk:
+            save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
             fig.savefig(save_file)
+            statement = "Saved graph data to: {}".format(save_file).replace("\\", "/")
+            print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         else:
             fig.show()
-        statement = "Saved graph data to: {}".format(save_file).replace("\\", "/")
-        print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
 
     def graph(self, logdir=None, save_to_disk=True):
         """
@@ -285,13 +337,12 @@ class Logger:
         if logdir != None:
             self.log_dir = logdir
             self.filename = os.path.basename(logdir)
-            print(self.log_dir)
             for f in os.listdir(self.log_dir):
                 f = os.path.join(self.log_dir,f)
                 if f.endswith("_LOG.txt"):
                     self.paramfile = f
                 if f.endswith("_networkloss.txt"):
-                    self.alossfile = f
+                    self.netlossfile = f
                 if f.endswith("_scores.txt"):
                     self.scoresfile = f
         self.load_logs()
@@ -368,9 +419,10 @@ class Logger:
         """
 
         score = self.rewards.sum()
-        print("{}Return: {}".format("."*10, score))
+        # print("{}Return: {}".format("."*10, score))
         if not self.eval:
             self._write_scores(score)
+        return score
 
     def _write_losses(self):
         """
@@ -487,7 +539,7 @@ def gather_args():
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
             type=int,
-            default=1000)
+            default=128)
     parser.add_argument("-per", "--prioritized_experience_replay",
             help="Use standard Prioritized Experience Replay instead of \
                   standard Replay Buffer.",

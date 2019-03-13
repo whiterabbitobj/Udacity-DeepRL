@@ -27,10 +27,10 @@ class DQN_Agent:
         self.framework = args.framework
         self.eval = args.eval
         self.agent_count = 1
-        self.learn_rate = 0.0005
-        self.batch_size = 128
-        self.buffer_size = 50000
-        self.C = 2000#*2.4
+        self.learn_rate = 0.0001
+        self.batch_size = 64
+        self.buffer_size = 30000
+        self.C = 650#*2.4
         self._epsilon = 1
         self.epsilon_decay = .9999
         self.epsilon_min = 0.01
@@ -39,7 +39,7 @@ class DQN_Agent:
         self.rollout = 1
         self.tau = 0.0005
         self.momentum = 1
-        self.l2_decay = 0.0
+        self.l2_decay = 0.0001
         self.update_type = "hard"
 
 
@@ -74,6 +74,8 @@ class DQN_Agent:
         """
 
         self._epsilon = max(self.epsilon_min, self.epsilon_decay ** self.t_step)
+        # self._epsilon = max(self.epsilon_min, self.epsilon_decay * self._epsilon)
+
         return self._epsilon
 
     def act(self, state, eval=False, pretrain=False):
@@ -132,7 +134,8 @@ class DQN_Agent:
             max_actions = self.q(next_states).detach().argmax(1).unsqueeze(1)
             # Use the active network action to get the value of the stable
             # target network
-            q_values[terminal_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
+            q_values[terminal_mask] = self.q_target(next_states).detach().gather(1, max_actions).squeeze(1)
+            # q_values[terminal_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
 
         targets = rewards + (self.gamma**self.rollout * q_values)
 
@@ -142,7 +145,7 @@ class DQN_Agent:
         #Huber Loss provides better results than MSE
         if is_weights is None:
             #loss = F.smooth_l1_loss(values, targets)
-            loss = F.smooth_l1_loss(targets, values)
+            loss = F.smooth_l1_loss(values, targets)
 
         #Compute Huber Loss manually to utilize is_weights with Prioritization
         else:
@@ -188,6 +191,7 @@ class DQN_Agent:
                 if len(self.memory) >= pretrain_length:
                     print("Done!")
                     self.t_step = 0
+                    self._epsilon = 1
                     return
 
     def new_episode(self):

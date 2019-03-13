@@ -75,16 +75,16 @@ class ReplayBuffer:
         # rewards only until the terminal state and report back a terminal state
         # for the experience tuple.
         if n_steps > 0:
-            reward = torch.tensor(0, dtype=torch.float)
+            r = torch.tensor(0, dtype=torch.float)
             for i in range(n_steps):
                 if next_states[i] is  None:
                     print("Encountered terminal state in ROLLOUT stacking! Reward calculated from {} steps: {}".format(i+1, reward))
                     n_steps = i
                     break
                 else:
-                    reward += self.gamma**i * rewards[i]
+                    r += self.gamma**i * rewards[i]
 
-            rewards = reward
+            rewards = r
 
             #rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
             #rewards = rewards.sum()

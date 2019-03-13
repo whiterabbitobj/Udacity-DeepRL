@@ -37,7 +37,6 @@ class Saver():
         self.file_ext = file_ext
         self.save_dir, self.filename = self.generate_savename(prefix, save_dir)
         if load_file:
-            print(load_file)
             self._load_agent(load_file, agent)
         else:
             statement = "Saving to base filename: {}".format(self.filename)
@@ -195,18 +194,17 @@ class Logger:
         self._update_score()
         self._init_rewards()
 
-
     def load_logs(self):
         """
         Loads data from on-disk log files, for later manipulation and plotting.
         """
 
         with open(self.scoresfile, 'r') as f:
-            self.slines = [float(i) for i in f.read().splitlines()]
+            self.slines = np.array([float(i) for i in f.read().splitlines()])
         with open(self.alossfile, 'r') as f:
-            self.alines = [float(i) for i in f.read().splitlines()]
+            self.alines = np.array([float(i) for i in f.read().splitlines()])
         with open(self.clossfile, 'r') as f:
-            self.clines = [float(i) for i in f.read().splitlines()]
+            self.clines = np.array([float(i) for i in f.read().splitlines()])
         with open(self.paramfile, 'r') as f:
             loglines = f.read().splitlines()
 
@@ -228,6 +226,13 @@ class Logger:
                 sess_params += line
         self.sess_params = sess_params
 
+    def _moving_avg(self, data, avg_across):
+        avg_across = int(avg_across)
+        window = np.ones(avg_across)/avg_across
+        # data = np.pad(data, avg_across, mode="edge")
+        data = np.pad(data, avg_across, mode="mean", stat_length=5)
+        return np.convolve(data, window, 'same')[avg_across:-avg_across]
+
     def plot_logs(self, save_to_disk=True):
         """
         Plots data in a matplotlib graph for review and comparison.
@@ -238,8 +243,33 @@ class Logger:
         critic_x = np.linspace(1, len(self.clines), len(self.clines))
         dtop = 0.85
         xcount = 5
+        bg_color = 0.925
+        ma100_color = (1, .2, .3)
+        ma200_color = (.38,1,.55)
         xstep = int(len(self.slines)/xcount)
         xticks = np.linspace(0, len(self.slines), xcount, dtype=int)
+        a_yticks = np.linspace(min(self.alines), max(self.alines), 5)
+        c_yticks = np.linspace(min(self.clines), max(self.clines), 5)
+        score_window = min(100, len(self.slines))
+        alines_ratio = len(self.alines)/len(self.slines)
+        clines_ratio = len(self.clines)/len(self.slines)
+        annotate_props = dict(facecolor=(0.1,0.3,0.5), alpha=0.85, edgecolor=(0.2,0.3,0.6), linewidth=2)
+
+        score_mean = self.slines[-score_window:].mean()
+        score_std = self.slines[-score_window:].std()
+        score_report = "{0}eps MA score: {1:.2f}\n{0}eps STD: {2:.3f}".format(
+                score_window, score_mean, score_std)
+
+        a_mean = self.alines[-int(score_window*alines_ratio):].mean()
+        a_std = self.alines[-int(score_window*alines_ratio):].std()
+        a_report = "{0}eps MA actor loss: {1:.2f}\n{0}eps STD: {2:.3f}".format(
+                score_window, a_mean, a_std)
+
+        c_mean = self.clines[-int(score_window*clines_ratio):].mean()
+        c_std = self.clines[-int(score_window*clines_ratio):].std()
+        c_report = "{0}eps MA critic loss: {1:.2f}\n{0}eps STD: {2:.3f}".format(
+                score_window, c_mean, c_std)
+
 
         fig = plt.figure(figsize=(20,10))
         gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)
@@ -248,38 +278,80 @@ class Logger:
         ax3 = fig.add_subplot(gs[1,1])
         gs2 = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
         dummyax = fig.add_subplot(gs2[0,0])
+
+        # Plot unfiltered scores
         ax1.plot(score_x, self.slines)
+        # Plot 200MA line
+        ax1.plot(score_x, self._moving_avg(self.slines, score_window*2), color=ma200_color,
+                lw=3, label="{}eps MA".format(score_window*2))
+        # Plot 100MA line
+        ax1.plot(score_x, self._moving_avg(self.slines, score_window), color=ma100_color,
+                lw=2, label="{}eps MA".format(score_window))
         ax1.set_title("Scores")
         ax1.set_xlabel("Episode")
         ax1.set_ylabel("Score")
+        ax1.set_facecolor((bg_color, bg_color, bg_color))
+        ax1.grid()
+        ax1.legend(loc="upper left", markerscale=2.5, fontsize=15)
+        ax1.axvspan(score_x[-score_window], score_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
+        ax1.annotate(score_report, xy=(1,1), xycoords="figure points", xytext=(0.925,0.05),
+                    textcoords="axes fraction", horizontalalignment="right",
+                    size=20, color='white', bbox = annotate_props)
 
+        # Plot unfiltered actor loss data
         ax2.plot(actor_x, self.alines)
-        ax2.set_title("Actor Loss")
+        # Plot 200MA line
+        ax2.plot(actor_x, self._moving_avg(self.alines, score_window*2*alines_ratio),
+                color=ma200_color, lw=3, label="{}eps MA".format(score_window*2))
+        # Plot 100MA line
+        ax2.plot(actor_x, self._moving_avg(self.alines, score_window*alines_ratio),
+                color=ma100_color, lw=2, label="{}eps MA".format(score_window))
         ax2.set_xticks(np.linspace(0, len(self.alines), xcount))
         ax2.set_xticklabels(xticks)
-        ax2.set_yticks(np.linspace(min(self.alines), max(self.alines), 5))
+        ax2.set_yticks(a_yticks)
+        ax2.set_title("Actor Loss")
         ax2.set_ylabel("Loss", labelpad=10)
+        ax2.set_facecolor((bg_color, bg_color, bg_color))
+        ax2.grid()
+        ax2.legend(loc="upper left", markerscale=1.5, fontsize=12)
+        ax2.axvspan(actor_x[-int(score_window*alines_ratio)], actor_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
+        ax2.annotate(a_report, xy=(0,0), xycoords="figure points", xytext=(.935,.79),
+                    textcoords="axes fraction", horizontalalignment="right",
+                    size=14, color='white', bbox = annotate_props)
 
+        # Plot unfiltered critic loss data
         ax3.plot(critic_x, self.clines)
-        ax3.set_title("Critic Loss")
+        # Plot 200MA line
+        ax3.plot(critic_x, self._moving_avg(self.clines, score_window*2*clines_ratio),
+                color=ma200_color, lw=3, label="{}eps MA".format(score_window*2))
+        # Plot 100MA line
+        ax3.plot(critic_x, self._moving_avg(self.clines, score_window*clines_ratio),
+                color=ma100_color, lw=2, label="{}eps MA".format(score_window))
         ax3.set_xticks(np.linspace(0, len(self.alines), xcount))
         ax3.set_xticklabels(xticks)
-        ax3.set_yticks(np.linspace(min(self.clines), max(self.clines), 5))
+        ax3.set_yticks(c_yticks)
+        ax3.set_title("Critic Loss")
         ax3.set_ylabel("Loss", labelpad=20)
+        ax3.set_facecolor((bg_color, bg_color, bg_color))
+        ax3.grid()
+        ax3.legend(loc="upper left", markerscale=1.5, fontsize=12)
+        ax3.axvspan(critic_x[-int(score_window*clines_ratio)], critic_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
+        ax3.annotate(c_report, xy=(0,0), xycoords="figure points", xytext=(0.935,0.79),
+                    textcoords="axes fraction", horizontalalignment="right",
+                    size=14, color='white', bbox = annotate_props)
 
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
 
         fig.suptitle("Training run {}".format(self.filename), size=40)
 
-        save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
         if save_to_disk:
+            save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
             fig.savefig(save_file)
+            statement = "Saved graph data to: {}".format(save_file).replace("\\", "/")
+            print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         else:
             fig.show()
-        statement = "Saved graph data to: {}".format(save_file).replace("\\", "/")
-        print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
-
 
     def graph(self, logdir=None, save_to_disk=True):
         """
@@ -291,7 +363,6 @@ class Logger:
         if logdir != None:
             self.log_dir = logdir
             self.filename = os.path.basename(logdir)
-            print(self.log_dir)
             for f in os.listdir(self.log_dir):
                 f = os.path.join(self.log_dir,f)
                 if f.endswith("_LOG.txt"):
