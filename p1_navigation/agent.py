@@ -27,7 +27,7 @@ class DQN_Agent:
         self.framework = args.framework
         self.eval = args.eval
         self.agent_count = 1
-        self.learn_rate = 0.0001
+        self.learn_rate = .0005 #0.0001
         self.batch_size = 64
         self.buffer_size = 30000
         self.C = 650#*2.4
@@ -102,7 +102,12 @@ class DQN_Agent:
 
         # Current SARS' stored in short term memory, then stacked for NStep
         experience = (state, action, reward, next_state)
-        self.memory.store_experience(experience)
+        # print("SENDING MEMORY:")
+        # print(experience)
+        if self.rollout == 1:
+            self.memory.store_trajectory(state, torch.from_numpy(action), torch.tensor([reward]), next_state)
+        else:
+            self.memory.store_experience(experience)
         self.t_step += 1
 
         # Learn after done pretraining
