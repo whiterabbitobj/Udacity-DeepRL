@@ -84,7 +84,6 @@ class ReplayBuffer:
                     break
                 else:
                     r += self.gamma**i * rewards[i]
-
             rewards = r
         # else:
             # print("STORING MEMORY")
