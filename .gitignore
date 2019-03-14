@@ -1,11 +1,11 @@
-**/VisualBanana_Windows_x86_64/
-**/Banana_Windows_x86_64/
-**.pth
-**/tests.py
-**/_ARCHIVE
-**/saves
-**unity-environment.log
-/Class_Reference
+VisualBanana_Windows_x86_64/
+Banana_Windows_x86_64/
+*.pth
+tests.py
+_ARCHIVE/
+saves/
+unity-environment.log
+/Class_Reference/
 
 # Mac OS
 .DS_Store
