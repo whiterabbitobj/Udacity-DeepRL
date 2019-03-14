@@ -110,7 +110,7 @@ class Saver():
         """
 
         checkpoint = torch.load(load_file, map_location=lambda storage, loc: storage)
-        agent.q.load_state_dict(checkpoint['actor_dict'])
+        agent.q.load_state_dict(checkpoint['q_dict'])
         agent._hard_update(agent.q, agent.q_target)
         statement = "Successfully loaded file: {}".format(load_file)
         print_bracketing(statement)

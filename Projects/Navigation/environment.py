@@ -30,7 +30,7 @@ class Environment:
             unity_filename = "Banana_Windows_x86_64_Visual/Banana.exe"
         else:
             unity_filename = "Banana_Windows_x86_64/Banana.exe"
-        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id)#, no_graphics=args.nographics)
+        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
         print_bracketing(do_upper=False)
 
         self.brain_name = self.env.brain_names[0]
