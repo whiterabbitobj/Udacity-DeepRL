@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import torch
-from unityagents import UnityEnvironment
+# from unityagents import UnityEnvironment
+
+from mlagents.envs import UnityEnvironment
 from utils import print_bracketing
 import platform
 
