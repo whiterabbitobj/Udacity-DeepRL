@@ -1,5 +1,3 @@
-VisualBanana_Windows_x86_64/
-Banana_Windows_x86_64/
 *.pth
 tests.py
 _ARCHIVE/
