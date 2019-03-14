@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import torch
 from unityagents import UnityEnvironment
 from utils import print_bracketing
@@ -17,6 +18,8 @@ class Environment:
         self.train = not args.eval
         self.pixels = args.pixels
 
+        print("LOADING ON SYSTEM: {}".format(platform.system()))
+        
         print_bracketing(do_lower=False)
         if platform.system() == 'Linux':
             unity_filename = "Banana_Linux_NoVis/Banana.x86_64"
@@ -26,7 +29,7 @@ class Environment:
             unity_filename = "Banana_Windows_x86_64_Visual/Banana.exe"
         else:
             unity_filename = "Banana_Windows_x86_64/Banana.exe"
-        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
+        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id)#, no_graphics=args.nographics)
         print_bracketing(do_upper=False)
 
         self.brain_name = self.env.brain_names[0]
