@@ -13,7 +13,13 @@ class Environment:
 
         self.train = not args.eval
         print_bracketing(do_lower=False)
-        self.env = UnityEnvironment(file_name='Reacher_Windows_x86_64/Reacher.exe', worker_id=id, no_graphics=args.nographics)
+        if platform.system() == 'Linux':
+            unity_filename = "Reacher_Linux_NoVis/Reacher.x86_64"
+        elif platform.system() == 'Darwin':
+            print("MacOS not supported in this code!")
+        else:
+            unity_filename = 'Reacher_Windows_x86_64/Reacher.exe'
+        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
         print_bracketing(do_upper=False)
         self.brain_name = self.env.brain_names[0]
         self.brain = self.env.brains[self.brain_name]
