@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import torch
 from unityagents import UnityEnvironment
+# from mlagents.env import UnityEnvironment
 from utils import print_bracketing
 import platform
 
@@ -10,7 +11,7 @@ class Environment:
     main body code a bit more neat and allows for easier access to certain
     params elsewhere.
     """
-    def __init__(self, args, id=0):
+    def __init__(self, args, id=33):
 
         self.train = not args.eval
 
@@ -24,6 +25,8 @@ class Environment:
             print("MacOS not supported in this code!")
         else:
             unity_filename = 'Reacher_Windows_x86_64/Reacher.exe'
+        # unity_filename = 'Reacher_Windows_x86_64/Reacher.exe'
+
         self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
         print_bracketing(do_upper=False)
         self.brain_name = self.env.brain_names[0]
