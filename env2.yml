@@ -17,7 +17,6 @@ dependencies:
   - cudatoolkit=10.0.130
   - decorator=4.3.0
   - freetype=2.9.1
-  - icc_rt=2019.0.0
   - ipykernel=5.1.0
   - ipython=7.2.0
   - ipython_genutils=0.2.0
@@ -56,11 +55,8 @@ dependencies:
   - tornado=5.1.1
   - tqdm=4.29.1
   - traitlets=4.3.2
-  - vc=14.1
-  - vs2015_runtime=15.5.2
   - wcwidth=0.1.7
   - wheel=0.32.3
-  - wincertstore=0.2
   - xz=5.2.4
   - zeromq=4.2.5
   - zlib=1.2.11
