@@ -48,7 +48,7 @@ class Saver():
         Generates an automatic savename for training files, will version-up as
         needed.
         """
-
+        check_dir(self.save_dir)
         timestamp = time.strftime("%Y%m%d", time.localtime())
         base_name = "{}_{}_v".format(prefix, timestamp)
         files = [f for f in os.listdir(save_dir)]
