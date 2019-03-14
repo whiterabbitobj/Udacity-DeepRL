@@ -13,6 +13,10 @@ class Environment:
     def __init__(self, args, id=0):
 
         self.train = not args.eval
+
+        print("LOADING ON SYSTEM: {}".format(platform.system()))
+
+
         print_bracketing(do_lower=False)
         if platform.system() == 'Linux':
             unity_filename = "Reacher_Linux_NoVis/Reacher.x86_64"
