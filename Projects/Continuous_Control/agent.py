@@ -268,7 +268,7 @@ class D4PG_Agent:
         m_upper = (b - lower_bound) * probs
 
         projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
-        for idx in range(probs.size(0)):
+        for idx in range(int(probs.size(0))):
             projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
         return projected_probs.float()
