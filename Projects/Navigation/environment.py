@@ -19,10 +19,10 @@ class Environment:
         self.pixels = args.pixels
 
         print("LOADING ON SYSTEM: {}".format(platform.system()))
-        
+
         print_bracketing(do_lower=False)
         if platform.system() == 'Linux':
-            unity_filename = "Banana_Linux_NoVis/Banana.x86_64"
+            unity_filename = "Banana_Linux_NoVis/Banana.x86"
         elif platform.system() == 'Darwin':
             print("MacOS not supported in this code!")
         elif self.pixels:
