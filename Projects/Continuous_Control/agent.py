@@ -264,6 +264,15 @@ class D4PG_Agent:
         lower_bound = b.floor()
         upper_bound = b.ceil()
 
+        #DEBUG
+        print("LOUWERBOUND:", len(lower_bound))
+
+        print("UPPERBOUND:", len(upper_bound))
+
+        print("SIZE(0):", probs.size(0))
+
+
+
         m_lower = (upper_bound + (lower_bound == upper_bound).float() - b) * probs
         m_upper = (b - lower_bound) * probs
 
