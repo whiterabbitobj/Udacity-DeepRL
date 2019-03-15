@@ -20,8 +20,7 @@ def main():
 
     env = Environment(args)
 
-    agent = D4PG_Agent(env,
-                       args)
+    agent = D4PG_Agent(env, args)
 
     saver = Saver(agent.framework, agent, args.save_dir, args.load_file)
 

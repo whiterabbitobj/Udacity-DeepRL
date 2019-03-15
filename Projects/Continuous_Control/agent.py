@@ -44,42 +44,26 @@ class D4PG_Agent:
     implementation but may be added as a future TODO item.
     """
     def __init__(self,
-                 state_size,
-                 action_size,
-                 agent_count,
-                 eval,
-                 device,
+                 env,
                  args,
-                 a_lr = 0.0005, #1e-3,
-                 c_lr = 0.00075, #1e-3,
-                 batch_size = 128,
-                 buffer_size = 500000,
-                 C = 300,
-                 e = 0.2,
                  e_decay = 1, #0.99999,
                  e_min = 0.05,
-                 gamma = 0.99,
-                 num_atoms = 100,
-                 vmin = 0,
-                 vmax = 0.3,
-                 rollout = 5,
-                 tau = 0.0005,
                  l2_decay = 0.0001,
                  update_type = "hard"):
         """
         Initialize a D4PG Agent.
         """
 
-        self.device = device
+        self.device = args.device
         self.framework = "D4PG"
-        self.eval = eval
-        self.agent_count = agent_count
+        self.eval = args.eval
+        self.agent_count = env.agent_count
         self.actor_learn_rate = args.actor_learn_rate
         self.critic_learn_rate = args.critic_learn_rate
         self.batch_size = args.batch_size
         self.buffer_size = args.buffer_size
-        self.action_size = action_size
-        self.state_size = state_size
+        self.action_size = env.action_size
+        self.state_size = env.state_size
         self.C = args.C
         self._e = e
         self.e_decay = e_decay
@@ -92,7 +76,7 @@ class D4PG_Agent:
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
         self.vmax = args.vmax
-        self.atoms = torch.linspace(vmin, vmax, num_atoms).to(self.device)
+        self.atoms = torch.linspace(self.vmin, self.vmax, num_atoms).to(self.device)
 
         self.t_step = 0
         self.episode = 0
@@ -101,13 +85,13 @@ class D4PG_Agent:
         self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
 
         #                    Initialize ACTOR networks                         #
-        self.actor = ActorNet(state_size, action_size).to(self.device)
-        self.actor_target = ActorNet(state_size, action_size).to(self.device)
+        self.actor = ActorNet(self.state_size, self.action_size).to(self.device)
+        self.actor_target = ActorNet(self.state_size, self.action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(state_size, action_size, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(state_size, action_size, self.num_atoms).to(self.device)
+        self.critic = CriticNet(self.state_size, self.action_size, self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(self.state_size, self.action_size, self.num_atoms).to(self.device)
         self._hard_update(self.actor, self.actor_target)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
 
