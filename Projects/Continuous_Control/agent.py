@@ -261,7 +261,7 @@ class D4PG_Agent:
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
         #
-        precision = 3
+        precision = 1
         b = torch.round(b * 10**precision) / 10**precision
         print(b.max())
         # for i in b:
