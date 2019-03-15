@@ -76,7 +76,7 @@ class D4PG_Agent:
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
         self.vmax = args.vmax
-        self.atoms = torch.linspace(self.vmin, self.vmax, num_atoms).to(self.device)
+        self.atoms = torch.linspace(self.vmin, self.vmax, self.num_atoms).to(self.device)
 
         self.t_step = 0
         self.episode = 0
