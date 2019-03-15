@@ -70,7 +70,7 @@ class Saver():
         if not agent.episode % save_every == 0:
             return
         mssg = "Saving Agent checkpoint to: "
-        save_name = "{}_eps{}_ckpt".format(self.filename, agent.episode)
+        save_name = "{}_eps{:04d}_ckpt".format(self.filename, agent.episode)
         self._save(agent, save_name, mssg)
 
     def save_final(self, agent):
@@ -78,7 +78,7 @@ class Saver():
         Preps a final savefile after training has finished.
         """
         mssg = "Saved final Agent weights to: "
-        save_name = "{}_eps{}_FINAL".format(self.filename, agent.episode-1)
+        save_name = "{}_eps{:04d}_FINAL".format(self.filename, agent.episode-1)
         self._save(agent, save_name, mssg)
 
     def _save(self, agent, save_name, mssg):
