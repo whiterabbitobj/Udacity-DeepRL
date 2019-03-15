@@ -280,7 +280,7 @@ class D4PG_Agent:
 
         #print("LOWER IDX: {}\nUPPER IDX: {}".format(lower_bound, upper_bound))
 
-        print("m_lower: {}\nm_upper: {}".format(m_lower, m_upper))
+        print("m_lower: {}\nm_upper: {}".format(m_lower.size(), m_upper.size()))
 
         print("-"*50)
 
