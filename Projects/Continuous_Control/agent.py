@@ -260,12 +260,16 @@ class D4PG_Agent:
         projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0)
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
-        #
+
+        # It seems that on professional level GPUs (for instance on AWS), the
+        # floating point math is accurate to the degree that a tensor printing
+        # as 99.00000 might in fact be 99.000000001 in the backend, perhaps due
+        # to binary imprecision, but resulting in 99.00000...ceil() evaluating
+        # to 100 instead of 99. Forcibly reducing the precision to the minimum
+        # seems to be the only solution to this problem, and presents no issues
+        # to the accuracy of calculating lower/upper_bound correctly.
         precision = 1
         b = torch.round(b * 10**precision) / 10**precision
-        print(b.max())
-        # for i in b:
-        #     print(i, end="")
         lower_bound = b.floor()
         upper_bound = b.ceil()
 
@@ -276,6 +280,8 @@ class D4PG_Agent:
 
         #DEBUG
         print("-"*50)
+
+        # print("B MAX:", b.max())
 
         print("LOWER: {}, UPPER: {}".format(lower_bound.size(), upper_bound.size()))
 
