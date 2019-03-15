@@ -150,6 +150,7 @@ class Logger:
             print("Blank init for Logger object.")
             return
         self.eval = args.eval
+        self.framework = agent.framework
         self.max_eps = args.num_episodes
         self.quietmode = args.quiet
         self.log_every = log_every
@@ -344,7 +345,7 @@ class Logger:
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
 
-        fig.suptitle("Training run {}".format(self.filename), size=40)
+        fig.suptitle("{} Training Run".format(self.framework), size=40)
 
         if save_to_disk:
             save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
