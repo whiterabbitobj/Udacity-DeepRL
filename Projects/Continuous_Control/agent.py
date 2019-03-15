@@ -272,7 +272,7 @@ class D4PG_Agent:
         #DEBUG
         print("-"*50)
 
-        print("LOWER: {}, UPPER: {}".format(len(lower_bound), len(upper_bound))
+        print("LOWER: {}, UPPER: {}".format(len(lower_bound), len(upper_bound)))
 
         print("SIZE(0):", probs.size(0))
 
