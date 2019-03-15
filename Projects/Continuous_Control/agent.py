@@ -269,20 +269,20 @@ class D4PG_Agent:
 
         projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
 
-        # #DEBUG
-        # print("-"*50)
-        #
-        # print("LOWER: {}, UPPER: {}".format(len(lower_bound), len(upper_bound)))
-        #
-        # print("SIZE(0):", probs.size(0))
-        #
-        # print("PROJECTED PROBS:", projected_probs.size())
-        #
-        # #print("LOWER IDX: {}\nUPPER IDX: {}".format(lower_bound, upper_bound))
-        #
-        # print("")
-        #
-        # print("-"*50)
+        #DEBUG
+        print("-"*50)
+
+        print("LOWER: {}, UPPER: {}".format(len(lower_bound), len(upper_bound)))
+
+        print("SIZE(0):", probs.size(0))
+
+        print("PROJECTED PROBS:", projected_probs.size())
+
+        #print("LOWER IDX: {}\nUPPER IDX: {}".format(lower_bound, upper_bound))
+
+        print("m_lower: {}\nm_upper: {}".format(m_lower, m_upper))
+
+        print("-"*50)
 
         for idx in range(probs.size(0)):
             projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
