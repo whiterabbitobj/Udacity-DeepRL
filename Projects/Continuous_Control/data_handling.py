@@ -510,10 +510,26 @@ def gather_args():
     parser.add_argument("-C", "--C",
             help="How many timesteps between hard network updates.",
             type=int,
-            default=1000)
+            default=350)
     parser.add_argument("-cpu", "--cpu",
             help="Run training on the CPU instead of the default (GPU).",
             action="store_true")
+    parser.add_argument("-e", "--e",
+            help="Noisey exploration rate.",
+            type=float,
+            default=0.2)
+    parser.add_argument("-vmin", "--vmin",
+            help="Min value of reward projection.",
+            type=float,
+            default=0.0)
+    parser.add_argument("-vmax", "--vmax",
+            help="Max value of reward projection.",
+            type=float,
+            default=0.2)
+    parser.add_argument("-atoms", "--num_atoms",
+            help="Number of atoms to project categorically.",
+            type=int,
+            default=100)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
