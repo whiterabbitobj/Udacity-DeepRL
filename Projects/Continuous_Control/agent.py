@@ -282,18 +282,18 @@ class D4PG_Agent:
         print("-"*50)
 
         # print("B MAX:", b.max())
-
-        print("LOWER: {}, UPPER: {}".format(lower_bound.size(), upper_bound.size()))
-
-        print("probs:", probs.size())
-
-        print("PROJECTED PROBS:", projected_probs.size())
-
-        print("LOWER IDX: {}-{}\nUPPER IDX: {}-{}".format(lower_bound.min(), lower_bound.max(), upper_bound.min(), upper_bound.max()))
-
-        print("m_lower: {}\nm_upper: {}".format(m_lower.size(), m_upper.size()))
-
-        print("-"*50)
+        # 
+        # print("LOWER: {}, UPPER: {}".format(lower_bound.size(), upper_bound.size()))
+        #
+        # print("probs:", probs.size())
+        #
+        # print("PROJECTED PROBS:", projected_probs.size())
+        #
+        # print("LOWER IDX: {}-{}\nUPPER IDX: {}-{}".format(lower_bound.min(), lower_bound.max(), upper_bound.min(), upper_bound.max()))
+        #
+        # print("m_lower: {}\nm_upper: {}".format(m_lower.size(), m_upper.size()))
+        #
+        # print("-"*50)
 
         for idx in range(probs.size(0)):
             projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
