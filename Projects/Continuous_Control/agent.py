@@ -48,12 +48,12 @@ class D4PG_Agent:
                  action_size,
                  agent_count,
                  eval,
+                 device,
                  a_lr = 0.0005, #1e-3,
                  c_lr = 0.00075, #1e-3,
                  batch_size = 128,
                  buffer_size = 500000,
                  C = 300,
-                 device = "cpu",
                  e = 0.2,
                  e_decay = 1, #0.99999,
                  e_min = 0.05,
@@ -69,7 +69,7 @@ class D4PG_Agent:
         Initialize a D4PG Agent.
         """
 
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.device = device
         self.framework = "D4PG"
         self.eval = eval
         self.agent_count = agent_count

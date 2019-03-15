@@ -511,6 +511,9 @@ def gather_args():
             help="How many timesteps between hard network updates.",
             type=int,
             default=1000)
+    parser.add_argument("-cpu", "--cpu",
+            help="Run training on the CPU instead of the default (GPU).",
+            action="store_true")
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -578,8 +581,11 @@ def gather_args():
 
     # Pretrain length can't be less than batch_size
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
-    # Always use GPU if available
-    args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # Use GPU (if available) unless user specifically asks to use CPU
+    if not args.cpu and torch.cuda.is_available():
+        args.device = torch.device("cuda:0")
+    else:
+        args.device = torch.device("cpu")
     # Limit the length of evaluation runs unless user forces cmdline args
     if args.eval and not args.force_eval:
         args.num_episodes = 1
