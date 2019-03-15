@@ -279,10 +279,10 @@ class D4PG_Agent:
         projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
 
         #DEBUG
-        print("-"*50)
-
+        # print("-"*50)
+        #
         # print("B MAX:", b.max())
-        # 
+        #
         # print("LOWER: {}, UPPER: {}".format(lower_bound.size(), upper_bound.size()))
         #
         # print("probs:", probs.size())
