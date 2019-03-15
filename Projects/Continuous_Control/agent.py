@@ -65,7 +65,7 @@ class D4PG_Agent:
         self.action_size = env.action_size
         self.state_size = env.state_size
         self.C = args.C
-        self._e = e
+        self._e = args.e
         self.e_decay = e_decay
         self.e_min = e_min
         self.gamma = args.gamma
