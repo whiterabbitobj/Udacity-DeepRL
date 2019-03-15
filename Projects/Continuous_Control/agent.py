@@ -278,6 +278,8 @@ class D4PG_Agent:
 
         print("PROJECTED PROBS:", projected_probs.size())
 
+        print("LOWER IDX: {}\nUPPER IDX: {}".format(lower_bound, upper_bound))
+
         print("-"*50)
 
         for idx in range(probs.size(0)):
