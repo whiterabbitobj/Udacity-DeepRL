@@ -272,13 +272,13 @@ class D4PG_Agent:
         #DEBUG
         print("-"*50)
 
-        print("LOWER: {}, UPPER: {}".format(lower_bound.size()), upper_bound.size()))
+        print("LOWER: {}, UPPER: {}".format(lower_bound.size(), upper_bound.size()))
 
         print("probs:", probs.size())
 
         print("PROJECTED PROBS:", projected_probs.size())
 
-        print("LOWER IDX: {}-{}\nUPPER IDX: {}-{}".format(lower_bound.min(), lower_bound.max(), upper_bound.min(), upper_bound.min()))
+        print("LOWER IDX: {}-{}\nUPPER IDX: {}-{}".format(lower_bound.min(), lower_bound.max(), upper_bound.min(), upper_bound.max()))
 
         print("m_lower: {}\nm_upper: {}".format(m_lower.size(), m_upper.size()))
 
