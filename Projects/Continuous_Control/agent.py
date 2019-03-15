@@ -264,6 +264,11 @@ class D4PG_Agent:
         lower_bound = b.floor()
         upper_bound = b.ceil()
 
+        m_lower = (upper_bound + (lower_bound == upper_bound).float() - b) * probs
+        m_upper = (b - lower_bound) * probs
+
+        projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
+
         #DEBUG
         print("LOUWERBOUND:", len(lower_bound))
 
@@ -271,13 +276,11 @@ class D4PG_Agent:
 
         print("SIZE(0):", probs.size(0))
 
+        print("PROJECTED PROBS:", projected_probs.size())
 
 
-        m_lower = (upper_bound + (lower_bound == upper_bound).float() - b) * probs
-        m_upper = (b - lower_bound) * probs
 
-        projected_probs = torch.tensor(np.zeros(probs.size())).to(self.device)
-        for idx in range(int(probs.size(0))):
+        for idx in range(probs.size(0)):
             projected_probs[idx].index_add_(0, lower_bound[idx].long(), m_lower[idx].double())
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_lower[idx].double())
         return projected_probs.float()
