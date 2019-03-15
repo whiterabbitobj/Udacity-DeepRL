@@ -59,7 +59,7 @@ class Saver():
             ver = max(ver) + 1
         else:
             ver = 1
-        filename =  "{}{}".format(base_name, ver)
+        filename =  "{}{:03d}".format(base_name, ver)
         save_dir = os.path.join(save_dir, filename)
         return save_dir, filename
 
