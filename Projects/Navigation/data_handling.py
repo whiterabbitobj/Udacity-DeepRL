@@ -148,6 +148,7 @@ class Logger:
             print("Blank init for Logger object.")
             return
         self.eval = args.eval
+        self.framework = agent.framework
         self.max_eps = args.num_episodes
         self.quietmode = args.quiet
         self.log_every = log_every
@@ -317,7 +318,7 @@ class Logger:
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
 
-        fig.suptitle("Training session: {}".format(self.filename), size=40)
+        fig.suptitle("{} Training Run".format(self.framework), size=40)
 
         if save_to_disk:
             save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
@@ -463,7 +464,7 @@ def gather_args():
     parser.add_argument("-lr", "--learn_rate",
             help="Learning Rate.",
             type=float,
-            default=0.001)
+            default=0.0001)
     parser.add_argument("-a", "--alpha",
             help="Alpha parameter of the Prioritized Experience Replay.",
             type=float,
@@ -504,7 +505,7 @@ def gather_args():
     parser.add_argument("-ed", "--epsilon_decay",
             help="Epsilon decay value.",
             type=float,
-            default=0.99)
+            default=0.9999)
     parser.add_argument("-em", "--epsilon_min",
             help="Minimum value for epsilon.",
             type=float,
