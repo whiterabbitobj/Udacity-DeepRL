@@ -79,7 +79,7 @@ class ReplayBuffer:
             r = torch.tensor(0, dtype=torch.float)
             for i in range(n_steps):
                 if next_states[i] is  None:
-                    print("Encountered terminal state in ROLLOUT stacking! Reward calculated from {} steps: {}".format(i+1, reward))
+                    # print("Encountered terminal state in ROLLOUT stacking! Reward calculated from {} steps: {}".format(i+1, rewards))
                     n_steps = i
                     break
                 else:
