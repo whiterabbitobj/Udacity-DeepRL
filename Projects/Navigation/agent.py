@@ -28,17 +28,17 @@ class DQN_Agent:
         self.framework = args.framework
         self.eval = args.eval
         self.agent_count = 1
-        self.learn_rate = .0001 #0.0001
-        self.batch_size = 64
-        self.buffer_size = 30000
-        self.C = 650#*2.4
-        self._epsilon = 1
-        self.epsilon_decay = .9999
-        self.epsilon_min = 0.01
+        self.learn_rate = args.learn_rate
+        self.batch_size = args.batch_size
+        self.buffer_size = args.buffer_size
+        self.C = args.C
+        self._epsilon = args.epsilon
+        self.epsilon_decay = args.epsilon_decay
+        self.epsilon_min = args.epsilon_min
 
         self.gamma = 0.99
-        self.rollout = 5
-        self.tau = 0.0005
+        self.rollout = args.rollout
+        self.tau = args.tau
         self.momentum = 1
         self.l2_decay = 0.0001
         self.update_type = "hard"
