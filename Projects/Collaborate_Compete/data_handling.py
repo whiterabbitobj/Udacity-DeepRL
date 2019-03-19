@@ -454,33 +454,48 @@ def gather_args():
     """
     Generate arguments passed from the command line.
     """
-    parser = ArgumentParser(description="Train or Test a Deep RL agent in Udacity's Banana Environment.",
+    parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
             usage="")
 
-    parser.add_argument("-lr", "--learn_rate",
-            help="Learning Rate.",
+    parser.add_argument("-alr", "--actor_learn_rate",
+            help="Actor Learning Rate.",
             type=float,
-            default=0.0001)
-    parser.add_argument("-a", "--alpha",
-            help="Alpha parameter of the Prioritized Experience Replay.",
+            default=1e-3)
+    parser.add_argument("-clr", "--critic_learn_rate",
+            help="Critic Learning Rate.",
             type=float,
-            default=0.6)
-    parser.add_argument("-b", "--beta",
-            help="Beta parameter of the Prioritized Experience Replay.",
-            type=float,
-            default=0.4)
+            default=1e-4)
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
-            default=64)
+            default=128)
     parser.add_argument("-buffer", "--buffer_size",
             help="How many past timesteps to keep in memory.",
             type=int,
-            default=100000)
-    parser.add_argument("-C",
-            help="How many timesteps between updating Q' to match Q",
+            default=300000)
+    parser.add_argument("-C", "--C",
+            help="How many timesteps between hard network updates.",
             type=int,
-            default=300*2.4)
+            default=350)
+    parser.add_argument("-cpu", "--cpu",
+            help="Run training on the CPU instead of the default (GPU).",
+            action="store_true")
+    parser.add_argument("-e", "--e",
+            help="Noisey exploration rate.",
+            type=float,
+            default=0.2)
+    parser.add_argument("-vmin", "--vmin",
+            help="Min value of reward projection.",
+            type=float,
+            default=0.0)
+    parser.add_argument("-vmax", "--vmax",
+            help="Max value of reward projection.",
+            type=float,
+            default=0.2)
+    parser.add_argument("-atoms", "--num_atoms",
+            help="Number of atoms to project categorically.",
+            type=int,
+            default=100)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -494,53 +509,23 @@ def gather_args():
             help="Gamma (Discount rate).",
             type=float,
             default=0.99)
-    parser.add_argument("-e", "--epsilon",
-            help="Starting value of Epsilon.",
-            type=float,
-            default=1.0)
-    parser.add_argument("-ed", "--epsilon_decay",
-            help="Epsilon decay value.",
-            type=float,
-            default=0.9999)
-    parser.add_argument("-em", "--epsilon_min",
-            help="Minimum value for epsilon.",
-            type=float,
-            default=0.01)
-    parser.add_argument("-fs", "--framestack",
-            help="How many recent frames to stack for temporal replay.",
+    parser.add_argument("-max", "--max_steps",
+            help="How many timesteps to explore each episode, if a \
+                  Terminal state is not reached first",
             type=int,
-            default=4)
-    parser.add_argument("-skip", "--frameskip",
-            help="How many frames to skip in between new actions/frame stacking.",
-            type=int,
-            default=4)
-    parser.add_argument("-m", "--momentum",
-            help="Momentum for use in specific optimizers like SGD",
-            type=float,
-            default=0.99)
+            default=1000)
     parser.add_argument("--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=500)
-    parser.add_argument("-o", "--optimizer",
-            help="Choose an optimizer for the network. (RMSprop/Adam/SGD)",
-            type=str,
-            default="Adam")
-    parser.add_argument("--pixels",
-            help="Train the network using visual data instead of states from the engine.",
-            action="store_true")
+            default=200)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
             type=int,
-            default=128)
-    parser.add_argument("-per", "--prioritized_experience_replay",
-            help="Use standard Prioritized Experience Replay instead of \
-                  standard Replay Buffer.",
-            action="store_true")
+            default=5000)
     parser.add_argument("--quiet",
             help="Print less while running the agent.",
             action="store_true")
@@ -554,7 +539,7 @@ def gather_args():
     parser.add_argument("-se", "--save_every",
             help="How many episodes between saves.",
             type=int,
-            default=50)
+            default=10)
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
 
-from agent import MAD4PG_Agent
+from agent import MAD4PG_Net
 from environment import Environment
 from data_handling import Logger, Saver, gather_args
 
@@ -77,7 +77,7 @@ def train(agent, args, env, saver):
 
 
         saver.save_checkpoint(multi_agent, args.save_every)
-        agent.new_episode()
+        multi_agent.new_episode()
         logger.step(episode, multi_agent.epsilon)
 
     env.close()

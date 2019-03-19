@@ -60,10 +60,10 @@ class Environment:
         """
 
         self.env_info = self.env.step(actions)[self.brain_name]
-        next_state = self.state
-        reward = self.env_info.rewards[0]
-        done = self.env_info.local_done[0]
-        return next_state, reward, done
+        next_observations = self.state
+        rewards = self.env_info.rewards
+        dones = self.env_info.local_done
+        return next_observations, rewards, dones
 
     @property
     def state(self):

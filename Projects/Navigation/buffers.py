@@ -102,30 +102,6 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
-#
-# class ReplayBuffer:
-#     """
-#     Standard replay buffer to hold memories for use in a DQN Agent. Returns
-#     random experiences with no consideration of their usefulness.
-#     """
-#     def __init__(self, buffersize, framestack, device, nS, pixels):
-#         self.buffer = deque(maxlen=buffersize)
-#         self.memory = namedtuple("memory", field_names=['state','action','reward','next_state'])
-#         self.device = device
-#         self.framestack = framestack
-#         self.type = "ReplayBuffer"
-#         print("Using standard random Replay memory buffer.")
-#
-#     def store(self, state, action, reward, next_state):
-#         t = self.memory(state, action, reward, next_state)
-#         self.buffer.append(t)
-#
-#     def sample(self, batchsize):
-#         batch = random.sample(self.buffer, k=batchsize)
-#         return  self.memory(*zip(*batch)), None, None
-#
-#     def __len__(self):
-#         return len(self.buffer)
 
 
 
