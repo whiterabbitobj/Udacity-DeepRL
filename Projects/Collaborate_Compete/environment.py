@@ -37,7 +37,7 @@ class Environment:
         self.reset()
 
         self.action_size = self.brain.vector_action_space_size
-        self.state_size = self.state.shape[1]
+        self.state_size = self.states.shape[1]
         self.agent_count = len(self.env_info.agents)
 
     def reset(self):
@@ -60,13 +60,13 @@ class Environment:
         """
 
         self.env_info = self.env.step(actions)[self.brain_name]
-        next_observations = self.state
+        next_observations = self.states
         rewards = self.env_info.rewards
         dones = self.env_info.local_done
         return next_observations, rewards, dones
 
     @property
-    def state(self):
+    def states(self):
         """
         Returns the STATES as a tensor.
         """

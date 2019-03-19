@@ -17,29 +17,35 @@ class MAD4PG_Net:
     https://arxiv.org/pdf/1804.08617.pdf
     in what I will call MAD4PG.
     """
-    def _init__(self, env, args, num_agents,
+    def __init__(self, env, args, num_agents,
                 e_decay = 1,
                 e_min = 0.05):
         """
         Initialize a MAD4PG network.
         """
+        # self.device = args.device
         self.update_type = "hard"
         self.framework = "MAD4PG"
         self.t_step = 0
         self.episode = 0
+        self.C = args.C
         self._e = args.e
         self.e_min = e_min
         self.e_decay = e_decay
+        # self.gamma = args.gamma
+        self.state_size = env.state_size
+        self.action_size = env.action_size
 
         self.num_agents = num_agents
-        self.agents = [D4PG_Agent(env, args, self.num_agents) for _ in range(self.num_agents)]
+        self.agents = [D4PG_Agent(self.state_size, self.action_size, args, self.num_agents) for _ in range(self.num_agents)]
         self.batch_size = args.batch_size
-        self.buffer_size = args.buffer_size
+        # self.buffer_size = args.buffer_size
         # Set up memory buffers, currently only standard replay is implemented #
-        self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
+        self.memory = ReplayBuffer(args.device, args.buffer_size, args.gamma, args.rollout)
 
         self.new_episode()
-
+        for agent in self.agents:
+            self._update_networks(agent, force_hard=True)
 
     def act(self, observations, eval=False):
         """
@@ -96,16 +102,16 @@ class MAD4PG_Net:
             return
 
         print("Initializing memory buffer.")
-        states = env.states
+        observations = env.states
         while len(self.memory) < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-            next_states, rewards, dones = env.step(actions)
-            self.step(states, actions, rewards, next_states, pretrain=True)
+            actions = np.random.uniform(-1, 1, (self.num_agents, self.action_size))
+            next_observations, rewards, dones = env.step(actions)
+            self.step(observations, actions, rewards, next_observations, pretrain=True)
             if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
                 print("Taking pretrain step {}... memory filled: {}/{}\
                     ".format(self.t_step, len(self.memory), pretrain_length))
 
-            states = next_states
+            observations = next_observations
         print("Done!")
         self.t_step = 0
 
@@ -117,16 +123,16 @@ class MAD4PG_Net:
         self.memory.init_n_step()
         self.episode += 1
 
-    def _update_networks(self, agent):
+    def _update_networks(self, agent, force_hard=False):
         """
         Updates the network using either DDPG-style soft updates (w/ param TAU),
         or using a DQN/D4PG style hard update every C timesteps.
         """
 
-        if self.update_type == "soft":
+        if self.update_type == "soft" and not force_hard:
             self._soft_update(agent.actor, agent.actor_target)
             self._soft_update(agent.critic, agent.critic_target)
-        elif self.t_step % self.C == 0:
+        elif self.t_step % self.C == 0 or force_hard:
             self._hard_update(agent.actor, agent.actor_target)
             self._hard_update(agent.critic, agent.critic_target)
 
@@ -186,7 +192,7 @@ class D4PG_Agent:
     stability of learning. Thus, it too has been left out of this
     implementation but may be added as a future TODO item.
     """
-    def __init__(self, env, args,
+    def __init__(self, state_size, action_size, args,
                  num_agents = 1,
                  l2_decay = 0.0001):
         """
@@ -196,16 +202,16 @@ class D4PG_Agent:
         self.device = args.device
         self.framework = "D4PG"
         self.eval = args.eval
-        self.agent_count = env.agent_count
+        # self.agent_count = env.agent_count
         self.actor_learn_rate = args.actor_learn_rate
         self.critic_learn_rate = args.critic_learn_rate
-        self.action_size = env.action_size
-        self.state_size = env.state_size
-        self.C = args.C
+        # self.action_size = env.action_size
+        # self.state_size = env.state_size
+        # self.C = args.C
         self.gamma = args.gamma
         self.rollout = args.rollout
         self.tau = args.tau
-        self.update_type = update_type
+        #self.update_type = update_type
 
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
@@ -213,14 +219,12 @@ class D4PG_Agent:
         self.atoms = torch.linspace(self.vmin, self.vmax, self.num_atoms).to(self.device)
 
         #                    Initialize ACTOR networks                         #
-        self.actor = ActorNet(self.state_size, self.action_size).to(self.device)
-        self.actor_target = ActorNet(self.state_size, self.action_size).to(self.device)
-        self._hard_update(self.actor, self.actor_target)
+        self.actor = ActorNet(state_size, action_size).to(self.device)
+        self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(self.state_size, self.action_size * num_agents, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(self.state_size, self.action_size * num_agents, self.num_atoms).to(self.device)
-        self._hard_update(self.actor, self.actor_target)
+        self.critic = CriticNet(state_size, action_size * num_agents, self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(state_size, action_size * num_agents, self.num_atoms).to(self.device)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
 
 
