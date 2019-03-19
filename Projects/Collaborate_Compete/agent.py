@@ -17,7 +17,7 @@ class MAD4PG_Net:
     https://arxiv.org/pdf/1804.08617.pdf
     in what I will call MAD4PG.
     """
-    def __init__(self, env, args, num_agents,
+    def __init__(self, env, args, agent_count,
                 e_decay = 1,
                 e_min = 0.05):
         """
@@ -36,8 +36,8 @@ class MAD4PG_Net:
         self.state_size = env.state_size
         self.action_size = env.action_size
 
-        self.num_agents = num_agents
-        self.agents = [D4PG_Agent(self.state_size, self.action_size, args, self.num_agents) for _ in range(self.num_agents)]
+        self.agent_count = agent_count
+        self.agents = [D4PG_Agent(self.state_size, self.action_size, args, self.agent_count) for _ in range(self.agent_count)]
         self.batch_size = args.batch_size
         # self.buffer_size = args.buffer_size
         # Set up memory buffers, currently only standard replay is implemented #
@@ -59,13 +59,14 @@ class MAD4PG_Net:
             actions += noise
         return np.clip(actions, -1, 1)
 
-    def step(self, observations, actions, rewards, next_observations, pretrain=False):
+    def step(self, observations, actions, rewards, next_observations, dones, pretrain=False):
         """
         Add the current SARS' tuple into the short term memory, then learn
         """
 
         # Current SARS' stored in short term memory, then stacked for NStep
-        experience = (observations, actions, rewards, next_observations)
+        #print("len of:\no: {}, a: {}, r: {}, no: {}, d: {}".format(len(observations), len(actions), len(rewards), len(next_observations), len(dones)))
+        experience = (observations, actions, rewards, next_observations, dones)
         self.memory.store_trajectory(experience)
         self.t_step += 1
 
@@ -81,13 +82,11 @@ class MAD4PG_Net:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
-        for idx, agent in enumerate(self.agents):
+        for a_num, agent in enumerate(self.agents):
             batch = self.memory.sample(self.batch_size)
-            print(len(batch))
-            observations, actions, rewards, next_observations, terminal_mask = batch
-            agent.learn(observations[idx], torch.cat(actions), rewards[idx], next_observations[idx])
+            observations, actions, rewards, next_observations, dones = batch
+            agent.learn(observations[a_num], actions, rewards[a_num], next_observations[a_num], dones)
             self._update_networks(agent)
-
 
     def initialize_memory(self, pretrain_length, env):
         """
@@ -102,9 +101,9 @@ class MAD4PG_Net:
         print("Initializing memory buffer.")
         observations = env.states
         while len(self.memory) < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.num_agents, self.action_size))
+            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_observations, rewards, dones = env.step(actions)
-            self.step(observations, actions, rewards, next_observations, pretrain=True)
+            self.step(observations, actions, rewards, next_observations, dones, pretrain=True)
             if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
                 print("Taking pretrain step {}... memory filled: {}/{}\
                     ".format(self.t_step, len(self.memory), pretrain_length))
@@ -191,7 +190,7 @@ class D4PG_Agent:
     implementation but may be added as a future TODO item.
     """
     def __init__(self, state_size, action_size, args,
-                 num_agents = 1,
+                 agent_count = 1,
                  l2_decay = 0.0001):
         """
         Initialize a D4PG Agent.
@@ -221,8 +220,8 @@ class D4PG_Agent:
         self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(state_size, action_size * num_agents, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(state_size, action_size * num_agents, self.num_atoms).to(self.device)
+        self.critic = CriticNet(state_size, action_size * agent_count, self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(state_size, action_size * agent_count, self.num_atoms).to(self.device)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
 
 
@@ -238,18 +237,17 @@ class D4PG_Agent:
             actions = self.actor(obs).detach().cpu().numpy()
         return actions
 
-    def learn(self, obs, actions, reward, next_obs):
+    def learn(self, obs, actions, rewards, next_obs, dones):
         """
         Performs a distributional Actor/Critic calculation and update.
         Actor πθ and πθ'
         Critic Zw and Zw' (categorical distribution)
         """
 
-        atoms = self.atoms.unsqueeze(0)
         # Calculate Yᵢ from target networks using πθ' and Zw'
         # These tensors are not needed for backpropogation, so detach from the
         # calculation graph (literally doubles runtime if this is not detached)
-        target_dist = self._get_targets(rewards, next_obs).detach()
+        target_dist = self._get_targets(rewards, next_obs, dones).detach()
 
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
         log_probs = self.critic(obs, actions, log=True)
@@ -268,7 +266,7 @@ class D4PG_Agent:
 
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
-        expected_reward = (probs * atoms).sum(-1)
+        expected_reward = (probs * self.atoms.unsqueeze(0)).sum(-1)
 
         # Calculate the actor network LOSS (Policy Gradient)
         # Take the mean across the batch and multiply in the negative to
@@ -289,7 +287,7 @@ class D4PG_Agent:
         self.critic_loss = critic_loss.item()
 
 
-    def _categorical(self, rewards, probs):
+    def _categorical(self, rewards, probs, dones):
         """
         Returns the projected value distribution for the input state/action pair
 
@@ -312,7 +310,7 @@ class D4PG_Agent:
 
         # Rewards were stored with 0->(N-1) summed, take Reward and add it to
         # the discounted expected reward at N (ROLLOUT) timesteps
-        projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0)
+        projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0) * (1 - dones)
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
 
@@ -338,13 +336,15 @@ class D4PG_Agent:
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_upper[idx].double())
         return projected_probs.float()
 
-    def _get_targets(self, rewards, next_states):
+    def _get_targets(self, rewards, next_obs, dones):
         """
         Calculate Yᵢ from target networks using πθ' and Zw'
         """
-
-        target_actions = self.actor_target(next_states)
-        target_probs = self.critic_target(next_states, target_actions)
+        #print(next_obs.shape)
+        target_actions = self.actor_target(next_obs)
+        print(target_actions.shape)
+        # target_probs = torch.zeros(rewards, self.num_atoms)
+        target_probs = self.critic_target(next_obs, target_actions)
         # Project the categorical distribution onto the supports
-        projected_probs = self._categorical(rewards, target_probs)
+        projected_probs = self._categorical(rewards, target_probs, dones)
         return projected_probs

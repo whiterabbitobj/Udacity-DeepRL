@@ -33,7 +33,7 @@ def main():
 
     env = Environment(args)
 
-    multi_agent = MAD4PG_Net(env, args, num_agents=2)
+    multi_agent = MAD4PG_Net(env, args, agent_count=2)
 
     saver = Saver(multi_agent.framework, multi_agent, args.save_dir, args.load_file)
 
@@ -51,7 +51,7 @@ def train(multi_agent, args, env, saver):
     Train the agent.
     """
 
-    # logger = Logger(multi_agent, args, saver.save_dir, log_every=50, print_every=5)
+    logger = Logger(multi_agent, args, saver.save_dir, log_every=50, print_every=5)
 
     # Pre-fill the Replay Buffer
     multi_agent.initialize_memory(args.pretrain, env)
@@ -59,22 +59,20 @@ def train(multi_agent, args, env, saver):
     #Begin training loop
     for episode in range(1, args.num_episodes+1):
         # Begin each episode with a clean environment
-        done = False
         env.reset()
         # Get initial state
         observations = env.states
         # Gather experience until done or max_steps is reached
-        while not done:
+        while True:
             actions = multi_agent.act(observations)
             next_observations, rewards, dones = env.step(actions)
-            if np.any(dones):
-                next_observations = None
-
-            multi_agent.step(observations, actions, rewards, next_observations)
+            # print(len(rewards), len(dones))
+            multi_agent.step(observations, actions, rewards, next_observations, dones)
             observations = next_observations
 
+            if np.any(dones):
+                break
             # logger.log(rewards, multi_agent)
-
 
         saver.save_checkpoint(multi_agent, args.save_every)
         multi_agent.new_episode()

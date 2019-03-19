@@ -38,15 +38,39 @@ class ReplayBuffer:
         Return a sample of size BATCH_SIZE as a tuple.
         """
         batch = random.sample(self.buffer, k=batch_size)
-        observations, actions, rewards, next_observations = zip(*batch)
+        observations, actions, rewards, next_observations, dones = zip(*batch)
 
-        observations = torch.cat(observations).to(self.device)
-        actions = torch.cat(actions).to(self.device).long()
-        rewards = torch.cat(rewards).to(self.device)
-        terminal_mask = torch.tensor(tuple(map(lambda s: s is not None, next_observations)), dtype=torch.uint8).to(self.device)
-        next_observations = torch.cat([s for s in next_observations if s is not None]).to(self.device)
+        # print("o: {}\na: {}\nr: {}\nno: {}\nd: {}".format(observations.shape, actions.shape, rewards.shape, next_observations.shape, dones.shape))
 
-        batch = (states, actions, rewards, next_states, terminal_mask)
+        # For actions, stack/transpose to num_agents, batch_size, action_size,
+        # then combine the num_agents and action_size to get the "centralized
+        # action-value function" input, outputting [centralized, batch_size]
+        # for sampled experience.
+        # actions = torch.stack(actions).transpose(1,0).long()
+        # ashape = actions.shape
+        # actions = actions.view(ashape[0]*ashape[-1], -1).to(self.device)
+        actions = torch.stack(actions).long()
+        ashape = actions.shape
+        actions = actions.view(ashape[0], -1).to(self.device)
+
+
+        # Transpose the num_agents and batch_size, for easy indexing later
+        # e.g. from 64 experiences of 2 agents each, to 2 agents with 64
+        # experiences each
+        observations = torch.stack(observations).transpose(1,0).to(self.device)
+        rewards = torch.cat(rewards).transpose(1,0).to(self.device)
+        next_observations = torch.stack(next_observations).transpose(1,0).to(self.device)
+        # print(next_observations.shape)
+        # next_observations = next_observations.transpose(1,0).to(self.device)
+        # print(next_observations.shape)
+        dones = torch.cat(dones).transpose(1,0).to(self.device)
+        #
+        # print(actions.shape)
+        # print(observations.shape)
+        # print(rewards.shape)
+        # print(dones.shape)
+
+        batch = (observations, actions, rewards, next_observations, dones)
         return batch
 
     def init_n_step(self):
@@ -67,7 +91,7 @@ class ReplayBuffer:
                 return
 
             # Unpacks and stores the SARS' tuples across ROLLOUT timesteps
-            observations, actions, rewards, next_observations = zip(*self.n_step)
+            observations, actions, rewards, next_observations, dones = zip(*self.n_step)
             n_steps = self.rollout - 1
 
             # Calculate n-step discounted reward
@@ -77,9 +101,11 @@ class ReplayBuffer:
             summed_rewards = np.zeros(len(rewards[0]))
             for i in range(n_steps):
                 summed_rewards += self.gamma**i * np.array(rewards[i])
-                if next_observations[i] is None:
+                if np.any(dones[i]):
                     n_steps = i
                     break
+
+            # print(summed_rewards)
                 # else:
                     # r += self.gamma**i * rewards[i]
             # rewards = r
@@ -88,9 +114,10 @@ class ReplayBuffer:
             # reward from t -> t+n-1, and the next_state at t+n (S't+n)
             observations = observations[0]
             actions = torch.from_numpy(actions[0])
-            summed_rewards = torch.tensor(summed_rewards)
+            summed_rewards = torch.tensor([summed_rewards])
             next_observations = next_observations[n_steps]
-            experience = (observations, actions, summed_rewards, next_observations)
+            dones = torch.tensor([dones[n_steps]])
+            experience = (observations, actions, summed_rewards, next_observations, dones)
 
         self.buffer.append(experience)
 
