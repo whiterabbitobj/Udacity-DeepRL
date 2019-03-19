@@ -573,6 +573,8 @@ def gather_args():
     # FORCE_EVAL is flagged
     if args.force_eval:
         args.eval = True
+    # Ensure that ROLLOUT is 1 or greater
+    assert args.rollout >= 1, "ROLLOUT must be greater than or equal to 1."
 
     # Determine whether to load a file, and if so, set the filename
     args.load_file = _get_agent_file(args)

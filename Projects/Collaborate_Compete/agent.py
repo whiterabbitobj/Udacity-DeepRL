@@ -53,13 +53,11 @@ class MAD4PG_Net:
         """
 
         assert len(observations) == len(self.agents), "Num OBSERVATIONS does not match num AGENTS."
-        actions = [agent.act(obs) for agent, obs in zip(self.agents, observations)]
+        actions = np.array([agent.act(obs) for agent, obs in zip(self.agents, observations)])
         if not eval:
             noise = self._gauss_noise(actions.shape)
             actions += noise
         return np.clip(actions, -1, 1)
-
-
 
     def step(self, observations, actions, rewards, next_observations, pretrain=False):
         """
@@ -67,8 +65,8 @@ class MAD4PG_Net:
         """
 
         # Current SARS' stored in short term memory, then stacked for NStep
-        experience = list(zip(observations, actions, rewards, next_observations))
-        self.memory.store_experience(experience)
+        experience = (observations, actions, rewards, next_observations)
+        self.memory.store_trajectory(experience)
         self.t_step += 1
 
         # Don't learn if pretraining is being executed
@@ -83,10 +81,10 @@ class MAD4PG_Net:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
-
         for idx, agent in enumerate(self.agents):
             batch = self.memory.sample(self.batch_size)
-            observations, actions, rewards, next_observations = batch
+            print(len(batch))
+            observations, actions, rewards, next_observations, terminal_mask = batch
             agent.learn(observations[idx], torch.cat(actions), rewards[idx], next_observations[idx])
             self._update_networks(agent)
 
