@@ -54,12 +54,12 @@ class Environment:
 
         self.env.close()
 
-    def step(self, action):
+    def step(self, actions):
         """
         Returns REWARDS, NEXT_STATES, DONES based on the actions provided.
         """
 
-        self.env_info = self.env.step(action)[self.brain_name]
+        self.env_info = self.env.step(actions)[self.brain_name]
         next_state = self.state
         reward = self.env_info.rewards[0]
         done = self.env_info.local_done[0]
@@ -70,5 +70,4 @@ class Environment:
         """
         Returns the STATES as a tensor.
         """
-        states = self.env_info.vector_observations[0]
-        return torch.from_numpy(states).float().unsqueeze(0)
+        return torch.from_numpy(self.env_info.vector_observations).float()

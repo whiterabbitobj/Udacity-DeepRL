@@ -9,7 +9,7 @@ from buffers import ReplayBuffer
 from models import ActorNet, CriticNet
 
 
-class MAD4PG:
+class MAD4PG_Net:
     """
     This implementation uses a variant of OpenAI's MADDPG:
     https://arxiv.org/abs/1706.02275
@@ -18,13 +18,51 @@ class MAD4PG:
     in what I will call MAD4PG.
     """
     def _init__(self, env, args, num_agents):
+        self.framework = "MAD4PG"
+        self.t_step = 0
+        self.episode = 0
+
         self.num_agents = num_agents
         self.agents = [D4PG_Agent(env, args) for _ in range(self.num_agents)]
+        self.batch_size = args.batch_size
+        self.buffer_size = args.buffer_size
+        # Set up memory buffers, currently only standard replay is implemented #
+        self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
 
-    def act(self, states):
-        assert len(states) == self.num_agents, "Num STATES does not match num AGENTS."
-        actions = [agent.act(state) for agent, state in zip(self.agents, states)]
+
+
+    def act(self, observations):
+        """
+        For each agent in the MAD4PG network, choose an action from the ACTOR
+        """
+        assert len(observations) == len(self.agents), "Num OBSERVATIONS does not match num AGENTS."
+        actions = [agent.act(obs) for agent, obs in zip(self.agents, observations)]
         return actions
+
+    def step(self, observations, actions, rewards, next_observations, pretrain=False):
+        """
+        Add the current SARS' tuple into the short term memory, then learn
+        """
+
+        # Current SARS' stored in short term memory, then stacked for NStep
+        experience = list(zip(states, actions, rewards, next_states))
+        # self._store_memories(memory)
+        self.memory.store_experience(experience)
+        self.t_step += 1
+
+        # Learn after done pretraining
+        if not pretrain:
+            self.learn()
+
+    def learn(self):
+        """
+        Perform a learning step on all agents in the network.
+        """
+        batch = self.memory.sample(self.batch_size)
+        states, actions, rewards, next_states = batch
+
+
+
 
 class D4PG_Agent:
     """
@@ -51,13 +89,13 @@ class D4PG_Agent:
         """
 
         self.device = args.device
-        self.framework = "MAD4PG"
+        self.framework = "D4PG"
         self.eval = args.eval
         self.agent_count = env.agent_count
         self.actor_learn_rate = args.actor_learn_rate
         self.critic_learn_rate = args.critic_learn_rate
-        self.batch_size = args.batch_size
-        self.buffer_size = args.buffer_size
+        # self.batch_size = args.batch_size
+        # self.buffer_size = args.buffer_size
         self.action_size = env.action_size
         self.state_size = env.state_size
         self.C = args.C
@@ -73,12 +111,12 @@ class D4PG_Agent:
         self.vmin = args.vmin
         self.vmax = args.vmax
         self.atoms = torch.linspace(self.vmin, self.vmax, self.num_atoms).to(self.device)
-
-        self.t_step = 0
-        self.episode = 0
-
-        # Set up memory buffers, currently only standard replay is implemented #
-        self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
+        #
+        # self.t_step = 0
+        # self.episode = 0
+        #
+        # # Set up memory buffers, currently only standard replay is implemented #
+        # self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
 
         #                    Initialize ACTOR networks                         #
         self.actor = ActorNet(self.state_size, self.action_size).to(self.device)
@@ -110,20 +148,20 @@ class D4PG_Agent:
             actions += noise
         return np.clip(actions, -1, 1)
 
-    def step(self, states, actions, rewards, next_states, pretrain=False):
-        """
-        Add the current SARS' tuple into the short term memory, then learn
-        """
-
-        # Current SARS' stored in short term memory, then stacked for NStep
-        experience = list(zip(states, actions, rewards, next_states))
-        # self._store_memories(memory)
-        self.memory.store_experience(experience)
-        self.t_step += 1
-
-        # Learn after done pretraining
-        if not pretrain:
-            self.learn()
+    # def step(self, states, actions, rewards, next_states, pretrain=False):
+    #     """
+    #     Add the current SARS' tuple into the short term memory, then learn
+    #     """
+    #
+    #     # Current SARS' stored in short term memory, then stacked for NStep
+    #     experience = list(zip(states, actions, rewards, next_states))
+    #     # self._store_memories(memory)
+    #     self.memory.store_experience(experience)
+    #     self.t_step += 1
+    #
+    #     # Learn after done pretraining
+    #     if not pretrain:
+    #         self.learn()
 
     def learn(self):
         """
@@ -135,8 +173,8 @@ class D4PG_Agent:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_STATES are ROLLOUT steps ahead of STATES
-        batch = self.memory.sample(self.batch_size)
-        states, actions, rewards, next_states = batch
+        # batch = self.memory.sample(self.batch_size)
+        # states, actions, rewards, next_states = batch
         atoms = self.atoms.unsqueeze(0)
         # Calculate Yᵢ from target networks using πθ' and Zw'
         # These tensors are not needed for backpropogation, so detach from the

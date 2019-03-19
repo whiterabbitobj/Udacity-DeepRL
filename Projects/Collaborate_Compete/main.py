@@ -33,14 +33,14 @@ def main():
 
     env = Environment(args)
 
-    agent = MAD4PG_Agent(env, args, num_agents=2)
+    multi_agent = MAD4PG_Net(env, args, num_agents=2)
 
-    saver = Saver(agent.framework, agent, args.save_dir, args.load_file)
+    saver = Saver(agent.framework, multi_agent, args.save_dir, args.load_file)
 
     if args.eval:
-        eval(agent, args, env)
+        eval(multi_agent, args, env)
     else:
-        train(agent, args, env, saver)
+        train(multi_agent, args, env, saver)
 
     return True
 
@@ -51,10 +51,10 @@ def train(agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(agent, args, saver.save_dir, log_every=50, print_every=5)
+    logger = Logger(multi_agent, args, saver.save_dir, log_every=50, print_every=5)
 
     # Pre-fill the Replay Buffer
-    agent.initialize_memory(args.pretrain, env)
+    multi_agent.initialize_memory(args.pretrain, env)
 
     #Begin training loop
     for episode in range(1, args.num_episodes+1):
@@ -62,23 +62,23 @@ def train(agent, args, env, saver):
         done = False
         env.reset()
         # Get initial state
-        states = env.state
+        observations = env.state
         # Gather experience until done or max_steps is reached
         while not done:
-            action = agent.act(states)
-            next_state, reward, done = env.step(action)
-            if done:
-                next_states = None
+            actions = multi_agent.act(observations)
+            next_observations, rewards, dones = env.step(actions)
+            if np.any(dones):
+                next_observations = None
 
-            agent.step(states, action, reward, next_states)
-            statse = next_states
+            multi_agent.step(observations, actions, rewards, next_observations)
+            observations = next_observations
 
-            logger.log(reward, agent)
+            logger.log(rewards, multi_agent)
 
 
-        saver.save_checkpoint(agent, args.save_every)
+        saver.save_checkpoint(multi_agent, args.save_every)
         agent.new_episode()
-        logger.step(episode, agent.epsilon)
+        logger.step(episode, multi_agent.epsilon)
 
     env.close()
     saver.save_final(agent)
