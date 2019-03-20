@@ -100,7 +100,7 @@ class Saver():
 
         checkpoint = {'state_size': agent.state_size,
                       'action_size': agent.action_size,
-                      'q_dict': agent.q.state_dict(),
+                      '_dict': agent.q.state_dict(),
                       }
         return checkpoint
 

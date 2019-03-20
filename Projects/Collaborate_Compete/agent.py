@@ -84,10 +84,19 @@ class MAD4PG_Net:
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
         batches = [self.memory.sample(self.batch_size) for agent in self.agents]
         target_actions = [agent.actor_target(batch[3][idx]) for idx, (agent, batch) in enumerate(zip(self.agents, batches))]
-        target_actions = torch.cat(target_actions, dim=-1)
+        # # predicted_actions = self.actor(obs)
+        predicted_actions = [agent.actor(batch[0][idx]) for idx, (agent, batch) in enumerate(zip(self.agents, batches))]
+        # target_actions = [agent.actor_target(batch[3]) for agent, batch in zip(self.agents, batches)]
+        # predicted_actions = self.actor(obs)
+        # predicted_actions = [agent.actor(batch[0]) for agent, batch in zip(self.agents, batches)]
+
+        target_actions = torch.cat(target_actions, dim=-1).detach()
+        predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
+        print(target_actions.shape, predicted_actions.shape)
+
         for idx, agent in enumerate(self.agents):
             obs, actions, rewards, next_obs, dones = batches[idx]
-            agent.learn(obs[idx], actions, target_actions, rewards[idx], next_obs[idx], dones[idx])
+            agent.learn(obs[idx], next_obs[idx], actions, target_actions, predicted_actions, rewards[idx], dones[idx])
             self._update_networks(agent)
 
 
@@ -243,7 +252,7 @@ class D4PG_Agent:
             actions = self.actor(obs).detach().cpu().numpy()
         return actions
 
-    def learn(self, obs, actions, target_actions, rewards, next_obs, dones):
+    def learn(self, obs, next_obs, actions, target_actions, predicted_actions, rewards, dones):
         """
         Performs a distributional Actor/Critic calculation and update.
         Actor πθ and πθ'
@@ -253,7 +262,13 @@ class D4PG_Agent:
         # Calculate Yᵢ from target networks using πθ' and Zw'
         # These tensors are not needed for backpropogation, so detach from the
         # calculation graph (literally doubles runtime if this is not detached)
-        target_dist = self._get_targets(rewards, next_obs, target_actions, dones).detach()
+        # target_dist = self._get_targets(rewards, next_obs, target_actions, dones).detach()
+
+        # target_actions = self.actor_target(next_obs)
+        #print(target_actions.shape)
+        target_probs = self.critic_target(next_obs, target_actions)
+        # Project the categorical distribution onto the supports
+        target_dist = self._categorical(rewards, target_probs, dones)
 
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
         log_probs = self.critic(obs, actions.type(torch.float), log=True)
@@ -265,10 +280,10 @@ class D4PG_Agent:
 
 
         # Predict action for actor network loss calculation using πθ
-        predicted_action = self.actor(obs)
+        # predicted_action = self.actor(obs)
 
         # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
-        probs = self.critic(obs, predicted_action)
+        probs = self.critic(obs, predicted_actions)
 
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
@@ -348,13 +363,13 @@ class D4PG_Agent:
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_upper[idx].double())
         return projected_probs.float()
 
-    def _get_targets(self, rewards, next_obs, target_actions, dones):
-        """
-        Calculate Yᵢ from target networks using πθ' and Zw'
-        """
-        # target_actions = self.actor_target(next_obs)
-        #print(target_actions.shape)
-        target_probs = self.critic_target(next_obs, target_actions)
-        # Project the categorical distribution onto the supports
-        projected_probs = self._categorical(rewards, target_probs, dones)
-        return projected_probs
+    # def _get_targets(self, rewards, next_obs, target_actions, dones):
+    #     """
+    #     Calculate Yᵢ from target networks using πθ' and Zw'
+    #     """
+    #     # target_actions = self.actor_target(next_obs)
+    #     #print(target_actions.shape)
+    #     target_probs = self.critic_target(next_obs, target_actions)
+    #     # Project the categorical distribution onto the supports
+    #     projected_probs = self._categorical(rewards, target_probs, dones)
+    #     return projected_probs
