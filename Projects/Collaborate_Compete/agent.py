@@ -82,11 +82,16 @@ class MAD4PG_Net:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
-        for a_num, agent in enumerate(self.agents):
-            batch = self.memory.sample(self.batch_size)
-            observations, actions, rewards, next_observations, dones = batch
-            agent.learn(observations[a_num], actions, rewards[a_num], next_observations[a_num], dones)
+        batches = [self.memory.sample(self.batch_size) for agent in self.agents]
+        target_actions = [agent.actor_target(batch[3][idx]) for idx, (agent, batch) in enumerate(zip(self.agents, batches))]
+        target_actions = torch.cat(target_actions, dim=-1)
+        for idx, agent in enumerate(self.agents):
+            obs, actions, rewards, next_obs, dones = batches[idx]
+            agent.learn(obs[idx], actions, target_actions, rewards[idx], next_obs[idx], dones[idx])
             self._update_networks(agent)
+
+
+    # def _get_target_actions(self, )
 
     def initialize_memory(self, pretrain_length, env):
         """
@@ -214,6 +219,7 @@ class D4PG_Agent:
         self.vmin = args.vmin
         self.vmax = args.vmax
         self.atoms = torch.linspace(self.vmin, self.vmax, self.num_atoms).to(self.device)
+        self.atoms = self.atoms.unsqueeze(0)
 
         #                    Initialize ACTOR networks                         #
         self.actor = ActorNet(state_size, action_size).to(self.device)
@@ -237,7 +243,7 @@ class D4PG_Agent:
             actions = self.actor(obs).detach().cpu().numpy()
         return actions
 
-    def learn(self, obs, actions, rewards, next_obs, dones):
+    def learn(self, obs, actions, target_actions, rewards, next_obs, dones):
         """
         Performs a distributional Actor/Critic calculation and update.
         Actor πθ and πθ'
@@ -247,10 +253,10 @@ class D4PG_Agent:
         # Calculate Yᵢ from target networks using πθ' and Zw'
         # These tensors are not needed for backpropogation, so detach from the
         # calculation graph (literally doubles runtime if this is not detached)
-        target_dist = self._get_targets(rewards, next_obs, dones).detach()
+        target_dist = self._get_targets(rewards, next_obs, target_actions, dones).detach()
 
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
-        log_probs = self.critic(obs, actions, log=True)
+        log_probs = self.critic(obs, actions.type(torch.float), log=True)
 
         # Calculate the critic network LOSS (Cross Entropy), CE-loss is ideal
         # for categorical value distributions as utilized in D4PG.
@@ -266,7 +272,7 @@ class D4PG_Agent:
 
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
-        expected_reward = (probs * self.atoms.unsqueeze(0)).sum(-1)
+        expected_reward = (probs * self.atoms).sum(-1)
 
         # Calculate the actor network LOSS (Policy Gradient)
         # Take the mean across the batch and multiply in the negative to
@@ -307,10 +313,16 @@ class D4PG_Agent:
 
         rewards = rewards.unsqueeze(-1)
         delta_z = (vmax - vmin) / (num_atoms - 1)
-
+        dones = dones.unsqueeze(-1).type(torch.float)
+        # print(rewards.shape)
+        # print(atoms.unsqueeze(0).shape)
+        # print(dones.shape, dones.unsqueeze(1).shape)
         # Rewards were stored with 0->(N-1) summed, take Reward and add it to
         # the discounted expected reward at N (ROLLOUT) timesteps
-        projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0) * (1 - dones)
+        projected_atoms = rewards + gamma**rollout * atoms * (1 - dones)
+        print(projected_atoms.shape)
+        # projected_atoms = (gamma**rollout * atoms.unsqueeze(0)) * (1 - dones)
+        # projected_atoms += rewards
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
 
@@ -336,14 +348,12 @@ class D4PG_Agent:
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_upper[idx].double())
         return projected_probs.float()
 
-    def _get_targets(self, rewards, next_obs, dones):
+    def _get_targets(self, rewards, next_obs, target_actions, dones):
         """
         Calculate Yᵢ from target networks using πθ' and Zw'
         """
-        #print(next_obs.shape)
-        target_actions = self.actor_target(next_obs)
-        print(target_actions.shape)
-        # target_probs = torch.zeros(rewards, self.num_atoms)
+        # target_actions = self.actor_target(next_obs)
+        #print(target_actions.shape)
         target_probs = self.critic_target(next_obs, target_actions)
         # Project the categorical distribution onto the supports
         projected_probs = self._categorical(rewards, target_probs, dones)

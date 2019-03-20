@@ -114,7 +114,7 @@ class ReplayBuffer:
             # reward from t -> t+n-1, and the next_state at t+n (S't+n)
             observations = observations[0]
             actions = torch.from_numpy(actions[0])
-            summed_rewards = torch.tensor([summed_rewards])
+            summed_rewards = torch.tensor([summed_rewards]).type(torch.float)
             next_observations = next_observations[n_steps]
             dones = torch.tensor([dones[n_steps]])
             experience = (observations, actions, summed_rewards, next_observations, dones)
