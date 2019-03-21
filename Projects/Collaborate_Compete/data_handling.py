@@ -81,26 +81,26 @@ class Saver():
         save_name = "{}_eps{:04d}_FINAL".format(self.filename, agent.episode-1)
         self._save(agent, save_name, mssg)
 
-    def _save(self, agent, save_name, mssg):
+    def _save(self, multi_agent, save_name, mssg):
         """
         Does the actual saving bit.
         """
 
         full_name = os.path.join(self.save_dir, save_name).replace('\\','/')
-        full_name += self.file_ext
         statement = mssg + full_name
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         check_dir(self.save_dir)
-        torch.save(self._get_save_dict(agent), full_name)
+        for idx, agent in enumerate(multi_agent.agents):
+            full_name += "agent{}".format(idx) + self.file_ext
+            torch.save(self._get_save_dict(agent), full_name)
 
     def _get_save_dict(self, agent):
         """
         Prep a dictionary of data from the current Agent.
         """
 
-        checkpoint = {'state_size': agent.state_size,
-                      'action_size': agent.action_size,
-                      '_dict': agent.q.state_dict(),
+        checkpoint = {'actor_dict': agent.actor.state_dict(),
+                      'critic_dict': agent.critic.state_dict()
                       }
         return checkpoint
 

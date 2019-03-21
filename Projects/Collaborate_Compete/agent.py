@@ -92,7 +92,7 @@ class MAD4PG_Net:
 
         target_actions = torch.cat(target_actions, dim=-1).detach()
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
-        print(target_actions.shape, predicted_actions.shape)
+        # print(target_actions.shape, predicted_actions.shape)
 
         for idx, agent in enumerate(self.agents):
             obs, actions, rewards, next_obs, dones = batches[idx]
@@ -335,7 +335,7 @@ class D4PG_Agent:
         # Rewards were stored with 0->(N-1) summed, take Reward and add it to
         # the discounted expected reward at N (ROLLOUT) timesteps
         projected_atoms = rewards + gamma**rollout * atoms * (1 - dones)
-        print(projected_atoms.shape)
+        # print(projected_atoms.shape)
         # projected_atoms = (gamma**rollout * atoms.unsqueeze(0)) * (1 - dones)
         # projected_atoms += rewards
         projected_atoms.clamp_(vmin, vmax)

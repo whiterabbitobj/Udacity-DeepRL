@@ -72,11 +72,11 @@ def train(multi_agent, args, env, saver):
 
             if np.any(dones):
                 break
-            # logger.log(rewards, multi_agent)
+            logger.log(rewards, multi_agent)
 
         saver.save_checkpoint(multi_agent, args.save_every)
         multi_agent.new_episode()
-        # logger.step(episode, multi_agent.epsilon)
+        logger.step(episode, multi_agent.epsilon)
 
     env.close()
     saver.save_final(multi_agent)
