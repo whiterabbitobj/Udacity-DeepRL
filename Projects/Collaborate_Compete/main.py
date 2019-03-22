@@ -69,7 +69,7 @@ def train(multi_agent, args, env, saver):
             # print(len(rewards), len(dones))
             multi_agent.step(observations, actions, rewards, next_observations, dones)
             observations = next_observations
-
+            print(rewards)
             logger.log(rewards, multi_agent)
             if np.any(dones):
                 break

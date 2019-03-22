@@ -145,6 +145,7 @@ class Logger:
         Initialize a Logger object.
         """
         self.save_dir = save_dir
+        self.lossfiles = {}
         if multi_agent==None or args==None:
             print("Blank init for Logger object. Most functionality limited.")
             return
@@ -161,15 +162,14 @@ class Logger:
         self.scores = deque(maxlen=print_every)
         self.print_every = print_every
         self._init_rewards()
-        if not self.eval:
 
+        if not self.eval:
             timestamp = time.strftime("%H:%M:%S", time.localtime())
             statement = "Starting training at: {}".format(timestamp)
             print_bracketing(statement)
 
             check_dir(self.log_dir)
             params = self._collect_params(args,  multi_agent)
-
             self._init_logs(params, multi_agent)
 
     def log(self, rewards, multi_agent):
@@ -181,7 +181,6 @@ class Logger:
         if self.eval:
             return
 
-        # self.loss = agent.loss
         # Writes the loss data to an on-disk logfile every LOG_EVERY timesteps
         if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
@@ -212,11 +211,6 @@ class Logger:
         """
         Loads data from on-disk log files, for later manipulation and plotting.
         """
-
-        with open(self.scoresfile, 'r') as f:
-            self.slines = np.array([float(i) for i in f.read().splitlines()])
-        with open(self.netlossfile, 'r') as f:
-            self.nlines = np.array([float(i) for i in f.read().splitlines()])
         with open(self.paramfile, 'r') as f:
             loglines = f.read().splitlines()
 
@@ -253,80 +247,51 @@ class Logger:
         Plots data in a matplotlib graph for review and comparison.
         """
 
-        score_x = np.linspace(1, len(self.slines), len(self.slines))
-        loss_x = np.linspace(1, len(self.nlines), len(self.nlines))
-        # critic_x = np.linspace(1, len(self.nlines), len(self.nlines))
+        with open(self.scoresfile, 'r') as f:
+            scores = np.array([float(score) for score in f.read().splitlines()])
+        num_eps = len(scores)
+        # Calculate the moving average, if not enough episodes were run, then
+        # don't blindly average 100, but instead use the episode length as a barometer.
+        score_window = int(min(100, num_eps/2))
+        # HARD VARS
         dtop = 0.85
-        xcount = 5
-        bg_color = 0.925
-        ma100_color = (1, .2, .3)
-        ma200_color = (.38,1,.55)
-        xstep = int(len(self.slines)/xcount)
-        xticks = np.linspace(0, len(self.slines), xcount, dtype=int)
-        n_yticks = np.linspace(min(self.nlines), max(self.nlines), 5)
-        score_window = min(100, len(self.slines))
-        nlines_ratio = len(self.nlines)/len(self.slines)
-        annotate_props = dict(facecolor=(0.1,0.3,0.5), alpha=0.85, edgecolor=(0.2,0.3,0.6), linewidth=2)
+        num_ticks = 5
+        fig_scale = 10
+        self.bg_color = (0.925, 0.925, 0.925)
+        self.highlight_color = (0.1,0.4,0.1)
+        self.highlight_alpha = 0.25
+        self.ma1_color = (1, 0.2, 0.3)
+        self.ma2_color = (0.38,1.0,0.55)
+        self.annotate_props = dict(facecolor=(0.1,0.3,0.5), alpha=0.85,
+                                   edgecolor=(0.2,0.3,0.6), linewidth=2)
 
-        score_mean = self.slines[-score_window:].mean()
-        score_std = self.slines[-score_window:].std()
-        score_report = "{0}eps MA score: {1:.2f}\n{0}eps STD: {2:.3f}".format(score_window, score_mean, score_std)
+        # SOFT VARS
+        gs_rows = 2
+        gs_cols = 3
+        tick_step = int(num_eps/num_ticks)
+        xticks = np.linspace(0, num_eps, num_ticks, dtype=int)
 
-        loss_mean = self.nlines[-int(score_window*nlines_ratio):].mean()
-        loss_std = self.nlines[-int(score_window*nlines_ratio):].std()
-        loss_report = "{0}eps MA loss: {1:.2f}\n{0}eps STD: {2:.3f}".format(score_window, loss_mean, loss_std)
-
-        fig = plt.figure(figsize=(20,10))
-        gs = GridSpec(2, 2, hspace=.5, wspace=.2, top=dtop-0.08)
-        ax1 = fig.add_subplot(gs[:,0])
-        ax2 = fig.add_subplot(gs[0,1])
-        gs2 = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
-        dummyax = fig.add_subplot(gs2[0,0])
-
-        # Plot unfiltered scores
-        ax1.plot(score_x, self.slines)
-        # Plot 200MA line
-        ax1.plot(score_x, self._moving_avg(self.slines, score_window*2),
-                color=ma200_color, lw=3, label="{}eps MA".format(score_window*2))
-         # Plot 100MA line
-        ax1.plot(score_x, self._moving_avg(self.slines, score_window),
-                color=ma100_color, lw=2, label="{}eps MA".format(score_window))
-        ax1.set_title("Scores")
-        ax1.set_xlabel("Episode")
-        ax1.set_ylabel("Score")
-        ax1.set_facecolor((bg_color, bg_color, bg_color))
-        ax1.grid()
-        ax1.legend(loc="upper left", markerscale=2.5, fontsize=15)
-        ax1.axvspan(score_x[-score_window], score_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
-        ax1.annotate(score_report, xy=(0,0), xycoords="figure points", xytext=(0.925,0.05),
-                    textcoords="axes fraction", horizontalalignment="right",
-                    size=20, color='white', bbox = annotate_props)
-
-        # Plot unfiltered network loss data
-        ax2.plot(loss_x, self.nlines)
-        # Plot 200MA line
-        ax2.plot(loss_x, self._moving_avg(self.nlines, score_window*2*nlines_ratio),
-                color=ma200_color, lw=3, label="{}eps MA".format(score_window*2))
-        # Plot 100MA line
-        ax2.plot(loss_x, self._moving_avg(self.nlines, score_window*nlines_ratio),
-                color=ma100_color, lw=2, label="{}eps MA".format(score_window))
-        ax2.set_xticks(np.linspace(0, len(self.nlines), xcount))
-        ax2.set_yticks(n_yticks)
-        ax2.set_xticklabels(xticks)
-        ax2.set_ylabel("Loss", labelpad=10)
-        ax2.set_title("Network Loss")
-        ax2.set_facecolor((bg_color, bg_color, bg_color))
-        ax2.grid()
-        ax2.legend(loc="upper left", markerscale=1.5, fontsize=12)
-        ax2.axvspan(loss_x[-int(score_window*nlines_ratio)], loss_x[-1], color=(0.1,0.4,0.1), alpha=0.25)
-        ax2.annotate(loss_report, xy=(0,0), xycoords="figure points", xytext=(0.935,0.79),
-                    textcoords="axes fraction", horizontalalignment="right",
-                    size=14, color='white', bbox = annotate_props)
-
+        fig = plt.figure(figsize=(gs_cols*fig_scale, gs_rows/2 * fig_scale))
+        fig.suptitle("{} Training Run".format(self.framework), size=40)
+        gs_params = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
+        dummyax = fig.add_subplot(gs_params[0,0])
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
+        gs = GridSpec(gs_rows, gs_cols, hspace=.5, wspace=.2, top=dtop-0.08)
 
-        fig.suptitle("{} Training Run".format(self.framework), size=40)
+        # Create the plot for the SCORES
+        ax = fig.add_subplot(gs[:,0])
+        self._create_scores_plot(ax, scores, score_window, num_eps, num_ticks)
+
+        # Plot however many LOSS graphs are needed
+        for col in range(1, gs_cols):
+            for row in range(gs_rows):
+                file = self.lossfiles[col-1][row]
+                with open(file, 'r') as f:
+                    data = np.array([float(loss) for loss in f.read().splitlines()])
+                ax = fig.add_subplot(gs[row,col])
+                label = re.match(r'(.*)_(.*)loss', file).group(2).title()
+                self._create_loss_plot(ax, data, score_window, num_eps, num_ticks, xticks, label)
 
         if save_to_disk:
             save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
@@ -335,6 +300,81 @@ class Logger:
             print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         else:
             fig.show()
+
+    def _create_scores_plot(self, ax, scores, score_window, num_eps, num_ticks):
+        """
+        Creates a graph plot for the SCORES of a training session.
+        """
+        x_axis = np.linspace(1, num_eps, num_eps)
+        score_mean = scores[-score_window:].mean()
+        score_std = scores[-score_window:].std()
+        score_report = "{0}eps MA score: {1:.3f}\n{0}eps STD: {2:.3f}".format(
+                score_window, score_mean, score_std)
+
+        # Plot unfiltered scores
+        ax.plot(x_axis, scores)
+        # Plot first MA line
+        ax.plot(x_axis, self._moving_avg(scores, score_window),
+                color=self.ma1_color, lw=2, label="{}eps MA".format(
+                score_window))
+        # Plot second MA line
+        ax.plot(x_axis, self._moving_avg(scores, score_window*2),
+                color=self.ma2_color, lw=3, label="{}eps MA".format(
+                score_window*2))
+
+        ax.set_title("Scores")
+        ax.set_xlabel("Episode")
+        ax.set_xticks(np.linspace(0, num_eps, num_ticks, dtype=int))
+        ax.set_ylabel("Score")
+        ax.set_facecolor(self.bg_color)
+        ax.grid()
+        ax.legend(loc="upper left", markerscale=2.5, fontsize=15)
+        ax.axvspan(x_axis[-score_window], x_axis[-1],
+                   color=self.highlight_color, alpha=self.highlight_alpha)
+        ax.annotate(score_report, xy=(1,1), xycoords="figure points",
+                    xytext=(0.925,0.05), textcoords="axes fraction",
+                    horizontalalignment="right", size=20, color='white',
+                    bbox = self.annotate_props)
+
+    def _create_loss_plot(self, ax, data, score_window, num_eps, num_ticks, xticks, label):
+        """
+        Creates a standardized graph plot of LOSSES for a training session.
+        """
+        datapoints = len(data)
+        x_axis = np.linspace(1, datapoints, datapoints)
+        yticks = np.linspace(min(data), max(data), num_ticks)
+        ratio = datapoints / num_eps
+        fitted_x = score_window * ratio
+        ma1_data = self._moving_avg(data, fitted_x)
+        ma2_data = self._moving_avg(data, fitted_x*2)
+        mean = data[-int(fitted_x):].mean()
+        std = data[-int(fitted_x):].std()
+        report = "{0}eps MA actor loss: {1:.2f}\n{0}eps STD: {2:.3f}".format(
+                score_window, mean, std)
+
+        # Plot unfiltered loss data
+        ax.plot(x_axis, data)
+        # Plot first MA line
+        ax.plot(x_axis, ma1_data, color=self.ma1_color, lw=2,
+                label="{}eps MA".format(score_window))
+        # Plot second MA line
+        ax.plot(x_axis, ma2_data, color=self.ma2_color, lw=3,
+                label="{}eps MA".format(score_window*2))
+
+        ax.set_xticks(np.linspace(0, datapoints, num_ticks))
+        ax.set_xticklabels(xticks)
+        ax.set_yticks(yticks)
+        ax.set_title("{} Loss".format(label))
+        ax.set_ylabel("Loss", labelpad=15)
+        ax.set_facecolor(self.bg_color)
+        ax.grid()
+        ax.legend(loc="upper left", markerscale=1.5, fontsize=12)
+        ax.axvspan(x_axis[-int(fitted_x)], x_axis[-1],
+                    color=self.highlight_color, alpha=self.highlight_alpha)
+        ax.annotate(report, xy=(0,0), xycoords="figure points",
+                     xytext=(.935,.79), textcoords="axes fraction",
+                     horizontalalignment="right", size=14, color='white',
+                     bbox = self.annotate_props)
 
     def graph(self, logdir=None, save_to_disk=True):
         """
@@ -345,15 +385,24 @@ class Logger:
 
         if logdir != None:
             self.log_dir = logdir
-            self.filename = os.path.basename(logdir)
-            for f in os.listdir(self.log_dir):
-                f = os.path.join(self.log_dir,f)
-                if f.endswith("_LOG.txt"):
-                    self.paramfile = f
-                if f.endswith("_networkloss.txt"):
-                    self.netlossfile = f
-                if f.endswith("_scores.txt"):
-                    self.scoresfile = f
+            # self.filename = os.path.basename(logdir)
+            self.filename = logdir.split('/')[-2]
+            self.framework = self.filename.split('_')[0]
+            loss_list = []
+            for file in os.listdir(self.log_dir):
+                file = os.path.join(self.log_dir,file).replace('\\','/')
+                if file.endswith("_LOG.txt"):
+                    self.paramfile = file
+                elif file.endswith("_scores.txt"):
+                    self.scoresfile = file
+                elif file.endswith("loss.txt"):
+                    loss_list.append(file)
+            for file in loss_list:
+                idx = int(re.search(r'agent(\d*)', file).group(1)) - 1
+                try:
+                    self.lossfiles[idx].append(file)
+                except:
+                    self.lossfiles[idx] = [file]
         self.load_logs()
         self.plot_logs(save_to_disk)
 
@@ -506,11 +555,11 @@ def gather_args():
     parser.add_argument("-alr", "--actor_learn_rate",
             help="Actor Learning Rate.",
             type=float,
-            default=1e-3)
+            default=0.001)
     parser.add_argument("-clr", "--critic_learn_rate",
             help="Critic Learning Rate.",
             type=float,
-            default=1e-4)
+            default=0.001)
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
@@ -529,19 +578,19 @@ def gather_args():
     parser.add_argument("-e", "--e",
             help="Noisey exploration rate.",
             type=float,
-            default=0.2)
+            default=0.3)
     parser.add_argument("-vmin", "--vmin",
             help="Min value of reward projection.",
             type=float,
-            default=-0.015)
+            default=0)
     parser.add_argument("-vmax", "--vmax",
             help="Max value of reward projection.",
             type=float,
-            default=0.15)
+            default=0.25)
     parser.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
-            default=51)
+            default=75)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -561,7 +610,7 @@ def gather_args():
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=200)
+            default=500)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
