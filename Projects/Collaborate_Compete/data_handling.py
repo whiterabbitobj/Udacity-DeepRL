@@ -434,10 +434,10 @@ class Logger:
         # Create the log files. Params is filled on creation, the others are
         # initialized blank and filled as training proceeds.
         leader = "..."
-        params_file = self.logs_basename + "_LOG.txt"
+        self.paramfile = self.logs_basename + "_LOG.txt"
         log_statement = ["Logfiles saved to: {}/".format(self.log_dir)]
-        log_statement.append(leader + os.path.basename(params_file))
-        with open(params_file, 'w') as f:
+        log_statement.append(leader + os.path.basename(self.paramfile))
+        with open(self.paramfile, 'w') as f:
             for line in params:
                 f.write(line + '\n')
         files = self._generate_logfiles(multi_agent)
