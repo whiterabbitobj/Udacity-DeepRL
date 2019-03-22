@@ -135,7 +135,7 @@ class Logger:
         logged every episode.
     """
     def __init__(self,
-                 agent=None,
+                 multi_agent=None,
                  args=None,
                  save_dir = '.',
                  log_every = 100,
@@ -145,16 +145,17 @@ class Logger:
         """
         self.save_dir = save_dir
         if agent==None or args==None:
-            print("Blank init for Logger object.")
+            print("Blank init for Logger object. Most functionality limited.")
             return
         self.eval = args.eval
-        self.framework = agent.framework
+        self.framework =  multi_agent.framework
         self.max_eps = args.num_episodes
         self.quietmode = args.quiet
         self.log_every = log_every
-        self.agent_count = agent.agent_count
+        self.agent_count =  multi_agent.agent_count
         self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
         self.filename = os.path.basename(self.save_dir)
+        self.logs_basename = os.path.join(self.log_dir, self.filename)
         self.start_time = self.prev_timestamp =  time.time()
         self.scores = deque(maxlen=print_every)
         self.print_every = print_every
@@ -166,9 +167,11 @@ class Logger:
             print_bracketing(statement)
 
             check_dir(self.log_dir)
-            self._init_logs(self._collect_params(args, agent))
+            params = self._collect_params(args,  multi_agent)
 
-    def log(self, rewards, agent):
+            self._init_logs(params)
+
+    def log(self, rewards, multi_agent):
         """
         After each timestep, keep track of loss and reward data.
         """
@@ -177,18 +180,17 @@ class Logger:
         if self.eval:
             return
 
-        self.loss = agent.loss
+        # self.loss = agent.loss
         # Writes the loss data to an on-disk logfile every LOG_EVERY timesteps
         if agent.t_step % self.log_every == 0:
-            self._write_losses()
+            self._write_losses(multi_agent)
 
-
-    def step(self, eps_num, epsilon='1'):
+    def step(self, eps_num, multi_agent):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
-        # print_every = 3
+
         self.scores.append(self._update_score())
         self._init_rewards()
 
@@ -197,10 +199,12 @@ class Logger:
             return
 
         if eps_num % self.print_every == 0:
-            eps_time, total = self._runtime()
-            print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total))
+            eps_time, total_time = self._runtime()
+            print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total_time))
             if not self.quietmode:
-                print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
+                for idx, agent in enumerate(multi_agent.agents):
+                    print("Agent {}... actorloss: {}, criticloss: {}".format(idx, agent.actor_loss, agent.critic_loss))
+                # print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
             print("{}Avg return over previous {} episodes: {}\n".format("."*5, self.print_every, np.array(self.scores).mean()))
 
     def load_logs(self):
@@ -234,9 +238,12 @@ class Logger:
         self.sess_params = sess_params
 
     def _moving_avg(self, data, avg_across):
+        """
+        Returns a curve that is the average of a noisier curve.
+        """
+
         avg_across = int(avg_across)
         window = np.ones(avg_across)/avg_across
-        # data = np.pad(data, avg_across, mode="edge")
         data = np.pad(data, avg_across, mode="mean", stat_length=10)
         return np.convolve(data, window, 'same')[avg_across:-avg_across]
 
@@ -349,28 +356,53 @@ class Logger:
         self.load_logs()
         self.plot_logs(save_to_disk)
 
-    def _init_logs(self, params):
+    def _generate_logfiles(self):
         """
-        Outputs an initial log of all parameters provided as a list.
+        Creates empty files for later writing. Creating the empty files isn't
+        strictly necessary at this point, but it feels neater.
         """
 
-        basename = os.path.join(self.log_dir, self.filename)
-        self.paramfile = basename + "_LOG.txt"
-        self.netlossfile = basename + "_networkloss.txt"
-        self.scoresfile = basename + "_scores.txt"
+        self.scoresfile = self.logs_basename + "_scores.txt"
+        open(self.scoresfile, 'a').close() # create empty scores file
+        self.lossfiles = {}
+        statement = []
+        for idx, agent in enumerate(multi_agent.agents):
+            self.lossfiles[idx] = []
+            for name in self._get_agentlog_names(idx, agent):
+                file = self.logs_basename + name
+                self.lossfiles[idx].append(file)
+                open(file, 'a').close() #create empty loss log
+                statement.append(file)
+        return statement
+
+    def _init_logs(self, params, multi_agent):
+        """
+        Outputs an initial log of all parameters provided as a list. Initialize
+        blank logs for scores, and agent losses.
+        """
+
         # Create the log files. Params is filled on creation, the others are
         # initialized blank and filled as training proceeds.
-        files = [self.paramfile, self.netlossfile, self.scoresfile]
-        log_statement = ["Logfiles saved to: {}".format(self.log_dir)]
-        for filename in files:
-            with open(filename, 'w') as f:
-                if filename.endswith("_LOG.txt"):
-                    for line in params:
-                        f.write(line + '\n')
-                else:
-                    pass
-            log_statement.append("...{}".format(os.path.basename(filename)))
-        print_bracketing(log_statement)
+        leader = "..."
+        params_file = self.logs_basename + "_LOG.txt"
+        log_statement = ["Logfiles saved: {}".format(self.log_dir)]
+        log_statement.append(leader + params_file)
+        with open(params_file, 'w') as f:
+            for line in params:
+                f.write(line + '\n')
+        self._generate_logfiles()
+
+        log_statement.append(leader + os.path.basename(file))
+        print_bracketing(log_statement, center=False)
+
+    def _get_agentlog_names(self, agent, idx):
+        """
+        Creates a unique filename for each agent.
+        """
+
+        actorlossfile = "_agent{}_actorloss.txt".format(idx)
+        criticlossfile = "_agent{}_criticloss.txt".format(idx)
+        return actorlossfile, criticlossfile
 
     def _collect_params(self, args, agent):
         """
@@ -419,19 +451,28 @@ class Logger:
         cmdline, and then saves to the logfile.
         """
 
-        score = self.rewards.sum()
+        #Rewards are summed over each episode for each agent, during
+        score = self.rewards.max()
         # print("{}Return: {}".format("."*10, score))
         if not self.eval:
             self._write_scores(score)
         return score
 
-    def _write_losses(self):
+    def _write_losses(self, multi_agent):
         """
         Writes actor/critic loss data to file.
         """
 
-        with open(self.netlossfile, 'a') as f:
-            f.write(str(self.loss) + '\n')
+        for idx, agent in enumerate(multi_agent.agents):
+            for filename in self.lossfiles[idx]:
+                if "actorloss" in filename:
+                    loss = agent.agent_loss
+                elif "criticloss" in filename:
+                    loss = agent.critic_loss
+                else:
+                    raise ValueError
+                with open(filename, 'a') as f:
+                    f.write(str(loss) + '\n')
 
     def _write_scores(self, score):
         """
