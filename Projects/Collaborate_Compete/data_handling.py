@@ -86,13 +86,13 @@ class Saver():
         Does the actual saving bit.
         """
 
-        full_name = os.path.join(self.save_dir, save_name).replace('\\','/')
-        statement = mssg + full_name
+        basename = os.path.join(self.save_dir, save_name).replace('\\','/')
+        statement = mssg + basename + "..."
         print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         check_dir(self.save_dir)
         for idx, agent in enumerate(multi_agent.agents):
-            full_name += "agent{}".format(idx) + self.file_ext
-            torch.save(self._get_save_dict(agent), full_name)
+            suffix =  "_agent{}".format(idx+1) + self.file_ext
+            torch.save(self._get_save_dict(agent), basename + suffix)
 
     def _get_save_dict(self, agent):
         """
@@ -138,13 +138,14 @@ class Logger:
                  multi_agent=None,
                  args=None,
                  save_dir = '.',
-                 log_every = 100,
-                 print_every = 5):
+                 log_every = 50, #timesteps
+                 print_every = 5 #episodes
+                 ):
         """
         Initialize a Logger object.
         """
         self.save_dir = save_dir
-        if agent==None or args==None:
+        if multi_agent==None or args==None:
             print("Blank init for Logger object. Most functionality limited.")
             return
         self.eval = args.eval
@@ -169,7 +170,7 @@ class Logger:
             check_dir(self.log_dir)
             params = self._collect_params(args,  multi_agent)
 
-            self._init_logs(params)
+            self._init_logs(params, multi_agent)
 
     def log(self, rewards, multi_agent):
         """
@@ -182,7 +183,7 @@ class Logger:
 
         # self.loss = agent.loss
         # Writes the loss data to an on-disk logfile every LOG_EVERY timesteps
-        if agent.t_step % self.log_every == 0:
+        if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
 
     def step(self, eps_num, multi_agent):
@@ -203,9 +204,9 @@ class Logger:
             print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total_time))
             if not self.quietmode:
                 for idx, agent in enumerate(multi_agent.agents):
-                    print("Agent {}... actorloss: {}, criticloss: {}".format(idx, agent.actor_loss, agent.critic_loss))
+                    print("Agent {}... actorloss: {:5f}, criticloss: {:5f}".format(idx, agent.actor_loss, agent.critic_loss))
                 # print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
-            print("{}Avg return over previous {} episodes: {}\n".format("."*5, self.print_every, np.array(self.scores).mean()))
+            print("{}Avg return over previous {} episodes: {:5f}\n".format("."*5, self.print_every, np.array(self.scores).mean()))
 
     def load_logs(self):
         """
@@ -356,7 +357,7 @@ class Logger:
         self.load_logs()
         self.plot_logs(save_to_disk)
 
-    def _generate_logfiles(self):
+    def _generate_logfiles(self, multi_agent):
         """
         Creates empty files for later writing. Creating the empty files isn't
         strictly necessary at this point, but it feels neater.
@@ -385,24 +386,28 @@ class Logger:
         # initialized blank and filled as training proceeds.
         leader = "..."
         params_file = self.logs_basename + "_LOG.txt"
-        log_statement = ["Logfiles saved: {}".format(self.log_dir)]
-        log_statement.append(leader + params_file)
+        log_statement = ["Logfiles saved to: {}/".format(self.log_dir)]
+        log_statement.append(leader + os.path.basename(params_file))
         with open(params_file, 'w') as f:
             for line in params:
                 f.write(line + '\n')
-        self._generate_logfiles()
-
-        log_statement.append(leader + os.path.basename(file))
+        files = self._generate_logfiles(multi_agent)
+        # log_statement.append(leader + os.path.basename(file))
+        for file in files:
+            log_statement.append(leader + os.path.basename(file))
         print_bracketing(log_statement, center=False)
 
-    def _get_agentlog_names(self, agent, idx):
+    def _get_agentlog_names(self, idx, agent):
         """
         Creates a unique filename for each agent.
+        Param AGENT is currently not used, but is left in for future, more
+        robust file naming by pulling network names from the agent instead of
+        hardcoded by hand as in the current implmementation.
         """
-
+        idx = idx + 1
         actorlossfile = "_agent{}_actorloss.txt".format(idx)
         criticlossfile = "_agent{}_criticloss.txt".format(idx)
-        return actorlossfile, criticlossfile
+        return (actorlossfile, criticlossfile)
 
     def _collect_params(self, args, agent):
         """
@@ -466,7 +471,7 @@ class Logger:
         for idx, agent in enumerate(multi_agent.agents):
             for filename in self.lossfiles[idx]:
                 if "actorloss" in filename:
-                    loss = agent.agent_loss
+                    loss = agent.actor_loss
                 elif "criticloss" in filename:
                     loss = agent.critic_loss
                 else:
@@ -528,15 +533,15 @@ def gather_args():
     parser.add_argument("-vmin", "--vmin",
             help="Min value of reward projection.",
             type=float,
-            default=0.0)
+            default=-0.015)
     parser.add_argument("-vmax", "--vmax",
             help="Max value of reward projection.",
             type=float,
-            default=0.2)
+            default=0.15)
     parser.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
-            default=100)
+            default=51)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -550,11 +555,6 @@ def gather_args():
             help="Gamma (Discount rate).",
             type=float,
             default=0.99)
-    parser.add_argument("-max", "--max_steps",
-            help="How many timesteps to explore each episode, if a \
-                  Terminal state is not reached first",
-            type=int,
-            default=1000)
     parser.add_argument("--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
@@ -580,7 +580,7 @@ def gather_args():
     parser.add_argument("-se", "--save_every",
             help="How many episodes between saves.",
             type=int,
-            default=10)
+            default=25)
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,

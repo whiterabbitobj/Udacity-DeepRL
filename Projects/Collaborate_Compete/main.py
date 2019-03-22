@@ -51,7 +51,7 @@ def train(multi_agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(multi_agent, args, saver.save_dir, log_every=50, print_every=5)
+    logger = Logger(multi_agent, args, saver.save_dir, log_every=5, print_every=2)
 
     # Pre-fill the Replay Buffer
     multi_agent.initialize_memory(args.pretrain, env)
@@ -70,13 +70,13 @@ def train(multi_agent, args, env, saver):
             multi_agent.step(observations, actions, rewards, next_observations, dones)
             observations = next_observations
 
+            logger.log(rewards, multi_agent)
             if np.any(dones):
                 break
-            logger.log(rewards, multi_agent)
 
         saver.save_checkpoint(multi_agent, args.save_every)
         multi_agent.new_episode()
-        logger.step(episode, multi_agent.epsilon)
+        logger.step(episode, multi_agent)
 
     env.close()
     saver.save_final(multi_agent)
