@@ -80,7 +80,7 @@ def train(multi_agent, args, env, saver):
 
     env.close()
     saver.save_final(multi_agent)
-    # logger.graph()
+    logger.graph()
     return True
 
 def eval(agent, args, env):
