@@ -161,7 +161,7 @@ class Logger:
         self.start_time = self.prev_timestamp =  time.time()
         self.scores = deque(maxlen=print_every)
         self.print_every = print_every
-        self._init_rewards()
+        self._reset_rewards()
 
         if not self.eval:
             timestamp = time.strftime("%H:%M:%S", time.localtime())
@@ -185,17 +185,22 @@ class Logger:
         if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
 
+    @property
+    def latest_score(self):
+        return self.scores[-1]
+
     def step(self, eps_num, multi_agent):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
-
-        self.scores.append(self._update_score())
-        self._init_rewards()
+        self._update_score()
+        if not self.eval:
+            self._write_scores(score)
+        self._reset_rewards()
 
         if self.eval:
-            print("Score: {}".format(self.scores[-1]))
+            print("Score: {}".format(self.latest_score))
             return
 
         if eps_num % self.print_every == 0:
@@ -206,6 +211,17 @@ class Logger:
                     print("Agent {}... actorloss: {:5f}, criticloss: {:5f}".format(idx, agent.actor_loss, agent.critic_loss))
                 # print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
             print("{}Avg return over previous {} episodes: {:5f}\n".format("."*5, self.print_every, np.array(self.scores).mean()))
+
+    def _update_score(self):
+        """
+        Calculates the average reward for the previous episode, prints to the
+        cmdline, and then saves to the logfile.
+        """
+
+        # Rewards are summed during each episode for each agent, then choose the
+        # max score for determining training progress/goal completion
+        score = self.rewards.max()
+        self.scores.append(score)
 
     def load_logs(self):
         """
@@ -501,19 +517,6 @@ class Logger:
         h, m = divmod(m, 60)
         return "{}h{}m{}s".format(int(h), int(m), int(s))
 
-    def _update_score(self):
-        """
-        Calculates the average reward for the previous episode, prints to the
-        cmdline, and then saves to the logfile.
-        """
-
-        #Rewards are summed over each episode for each agent, during
-        score = self.rewards.max()
-        # print("{}Return: {}".format("."*10, score))
-        if not self.eval:
-            self._write_scores(score)
-        return score
-
     def _write_losses(self, multi_agent):
         """
         Writes actor/critic loss data to file.
@@ -536,9 +539,9 @@ class Logger:
         """
 
         with open(self.scoresfile, 'a') as f:
-            f.write(str(score) + '\n')
+            f.write(str(self.latest_score) + '\n')
 
-    def _init_rewards(self):
+    def _reset_rewards(self):
         """
         Resets the REWARDS matrix to zero for starting an episode.
         """
