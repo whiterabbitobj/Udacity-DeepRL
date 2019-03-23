@@ -194,23 +194,26 @@ class Logger:
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
+
         self._update_score()
-        if not self.eval:
-            self._write_scores(score)
-        self._reset_rewards()
 
         if self.eval:
             print("Score: {}".format(self.latest_score))
             return
 
+        self._write_scores()
+        self._reset_rewards()
+
         if eps_num % self.print_every == 0:
             eps_time, total_time, remaining = self._runtime(eps_num)
-            print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est. Remaining: {}".format(eps_num, self.max_eps, eps_time, total_time, remaining))
+            print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
+                  ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
             if not self.quietmode:
                 for idx, agent in enumerate(multi_agent.agents):
-                    print("Agent {}... actorloss: {:5f}, criticloss: {:5f}".format(idx, agent.actor_loss, agent.critic_loss))
-                # print("Epsilon: {:6f}, Loss: {:6f}".format(epsilon, self.loss))
-            print("{}Avg return over previous {} episodes: {:5f}\n".format("."*5, self.print_every, np.array(self.scores).mean()))
+                    print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
+                          ".format(idx, agent.actor_loss, agent.critic_loss))
+            print("{}Avg return over previous {} episodes: {:5f}\n\
+                  ".format("."*5, self.print_every, np.array(self.scores).mean()))
 
     def _update_score(self):
         """
@@ -220,6 +223,10 @@ class Logger:
 
         # Rewards are summed during each episode for each agent, then choose the
         # max score for determining training progress/goal completion
+
+        # ###DEBUG###
+        # print(self.rewards)
+
         score = self.rewards.max()
         self.scores.append(score)
 
@@ -256,7 +263,8 @@ class Logger:
         avg_across = int(avg_across)
         window = np.ones(avg_across)/avg_across
         data = np.pad(data, avg_across, mode="mean", stat_length=10)
-        return np.convolve(data, window, 'same')[avg_across:-avg_across]
+        curve = np.convolve(data, window, 'same')[avg_across:-avg_across]
+        return curve
 
     def plot_logs(self, save_to_disk=True):
         """
@@ -533,7 +541,7 @@ class Logger:
                 with open(filename, 'a') as f:
                     f.write(str(loss) + '\n')
 
-    def _write_scores(self, score):
+    def _write_scores(self):
         """
         Writes score data to file.
         """
@@ -543,7 +551,7 @@ class Logger:
 
     def _reset_rewards(self):
         """
-        Resets the REWARDS matrix to zero for starting an episode.
+        Resets the REWARDS list to zero for starting an episode.
         """
 
         self.rewards = np.zeros(self.agent_count)
