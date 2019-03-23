@@ -626,6 +626,14 @@ def gather_args():
             help="How many experiences to use in N-Step returns",
             type=int,
             default=5)
+    parser.add_argument("-pe", "--print_every",
+            help="How many episodes between print updates.",
+            type=int,
+            default=5)
+    parser.add_argument("-le", "--log_every",
+            help="How many timesteps between logging loss values.",
+            type=int,
+            default=25)
     parser.add_argument("-se", "--save_every",
             help="How many episodes between saves.",
             type=int,

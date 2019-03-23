@@ -51,7 +51,7 @@ def train(multi_agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(multi_agent, args, saver.save_dir, log_every=5, print_every=2)
+    logger = Logger(multi_agent, args, saver.save_dir, log_every=args.log_every, print_every=args.print_every)
 
     # Pre-fill the Replay Buffer
     multi_agent.initialize_memory(args.pretrain, env)
