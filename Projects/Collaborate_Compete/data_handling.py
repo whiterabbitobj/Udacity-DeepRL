@@ -199,8 +199,8 @@ class Logger:
             return
 
         if eps_num % self.print_every == 0:
-            eps_time, total_time = self._runtime()
-            print("\nEpisode {}/{}... Runtime: {}, Total: {}".format(eps_num, self.max_eps, eps_time, total_time))
+            eps_time, total_time, remaining = self._runtime(eps_num)
+            print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est. Remaining: {}".format(eps_num, self.max_eps, eps_time, total_time, remaining))
             if not self.quietmode:
                 for idx, agent in enumerate(multi_agent.agents):
                     print("Agent {}... actorloss: {:5f}, criticloss: {:5f}".format(idx, agent.actor_loss, agent.critic_loss))
@@ -478,7 +478,7 @@ class Logger:
 
         return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
 
-    def _runtime(self):
+    def _runtime(self, eps_num):
         """
         Return the time since the previous episode, as well as total time for
         the training session.
@@ -487,8 +487,10 @@ class Logger:
         current_time = time.time()
         eps_time = self._format_time(current_time, self.prev_timestamp)
         total_time = self._format_time(current_time, self.start_time)
+        projected_end = (self.max_eps / eps_num) * (current_time - self.start_time) + self.start_time
+        remaining = self._format_time(projected_end, self.prev_timestamp)
         self.prev_timestamp = current_time
-        return eps_time, total_time
+        return eps_time, total_time, remaining
 
     def _format_time(self, current, previous):
         """
