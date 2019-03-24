@@ -97,6 +97,10 @@ class Saver():
     def _get_save_dict(self, agent):
         """
         Prep a dictionary of data from the current Agent.
+
+        TO DO:
+        -revert back to single agent saves and rewrite code to load a separate
+            file for each agent so that they can be evaluated more fully.
         """
 
         checkpoint = {'actor_dict': agent.actor.state_dict(),
