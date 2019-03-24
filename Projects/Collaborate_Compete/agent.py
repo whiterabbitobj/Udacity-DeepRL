@@ -45,7 +45,7 @@ class MAD4PG_Net:
 
         self.new_episode()
         for agent in self.agents:
-            self._update_networks(agent, force_hard=True)
+            self.update_networks(agent, force_hard=True)
 
     def act(self, observations, eval=False):
         """

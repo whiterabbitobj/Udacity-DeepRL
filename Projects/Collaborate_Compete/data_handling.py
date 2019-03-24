@@ -93,7 +93,7 @@ class Saver():
         Prompts the user about what save to load, or uses the last modified save.
         """
 
-        load_file_prompt = "Load file for Agent #{} (or: q/quit): ".format(idx)
+        load_file_prompt = "Load file for Agent #{} (or: q/quit): ".format(idx+1)
         user_quit_message = "User quit process before loading a file."
         message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
         message = '\n'.join(message).replace('\\', '/')
@@ -177,8 +177,9 @@ class Saver():
             checkpoint = torch.load(load_file[idx], map_location=lambda storage, loc: storage)
             agent.actor.load_state_dict(checkpoint['actor_dict'])
             agent.critic.load_state_dict(checkpoint['critic_dict'])
-            agent.update_networks(agent)
-        statement = "Successfully loaded files:\n{}".format(load_file.join('\n')))
+            multi_agent.update_networks(agent, force_hard=True)
+        statement = ["Successfully loaded files:"]
+        statement.extend(load_file)
         print_bracketing(statement)
 
 
@@ -237,7 +238,11 @@ class Logger:
             params = self._collect_params(args,  multi_agent)
             self._init_logs(params, multi_agent)
 
-    def log(self, rewards, multi_agent):
+    @property
+    def latest_score(self):
+        return self.scores[-1]
+
+    def log(self, rewards, multi_agent=None):
         """
         After each timestep, keep track of loss and reward data.
         """
@@ -250,24 +255,20 @@ class Logger:
         if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
 
-    @property
-    def latest_score(self):
-        return self.scores[-1]
-
-    def step(self, eps_num, multi_agent):
+    def step(self, eps_num=None, multi_agent=None):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
 
         self._update_score()
+        self._reset_rewards()
 
         if self.eval:
             print("Score: {}".format(self.latest_score))
             return
 
         self._write_scores()
-        self._reset_rewards()
 
         if eps_num % self.print_every == 0:
             eps_time, total_time, remaining = self._runtime(eps_num)
@@ -288,10 +289,6 @@ class Logger:
 
         # Rewards are summed during each episode for each agent, then choose the
         # max score for determining training progress/goal completion
-
-        # ###DEBUG###
-        # print(self.rewards)
-
         score = self.rewards.max()
         self.scores.append(score)
 
@@ -668,7 +665,7 @@ def gather_args():
     parser.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
-            default=75)
+            default=51)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -720,6 +717,11 @@ def gather_args():
             help="Soft network update weighting.",
             type=float,
             default=0.0005)
+
+    ### DEBUG: LATEST and FILENAME flags are currently disabled until time
+    ### permits further development for loading/saving. Currently, saved weights
+    ### can be loaded via the cmdline prompt for each agent, fairly intuitively
+    ### although requiring more user input than strictly desired.
     # parser.add_argument("--latest",
     #         help="Use this flag to automatically use the latest save file \
     #               to run in DEMO mode (instead of choosing from a prompt).",
@@ -753,73 +755,4 @@ def gather_args():
         args.eval = True
     args.train = not args.eval
 
-
-
-    # # Determine whether to load a file, and if so, set the filename
-    # args.load_file = _get_agent_file(args)
-
     return args
-
-
-#
-# def _get_agent_file(args):
-#     """
-#     Checks to see what sort of loading, if any, to do.
-#     Returns one of:
-#         -FILENAME... if flagged with a specific filename on the cmdline
-#         -LASTEST FILE... if flagged to load the most recently saved weights
-#         -USER FILE... a user selected file from a list prompt
-#         -FALSE... if no loading is needed, return false and skip loading
-#     """
-#
-#     invalid_filename = "Requested filename is invalid."
-#     no_files_found = "Could not find any files in: {}".format(args.save_dir)
-#     if args.resume or args.eval:
-#         if args.filename is not None:
-#             assert os.path.isfile(args.filename), invalid_filename
-#             return args.filename
-#         files = _get_files(args.save_dir)
-#         assert len(files) > 0, no_files_found
-#         if args.latest:
-#             return files[-1]
-#         else:
-#             return _get_filepath(files)
-#     else:
-#         return False
-#
-#
-#
-# def _get_files(save_dir):
-#     """
-#     Returns a list of files in a given directory, sorted by last-modified.
-#     """
-#
-#     file_list = []
-#     for root, _, files in os.walk(save_dir):
-#         for file in files:
-#             if file.endswith(".agent"):
-#                 file_list.append(os.path.join(root, file))
-#     return sorted(file_list, key=lambda x: os.path.getmtime(x))
-#
-#
-#
-# def _get_filepath(files):
-#     """
-#     Prompts the user about what save to load, or uses the last modified save.
-#     """
-#
-#     load_file_prompt = " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
-#     user_quit_message = "User quit process before loading a file."
-#     message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
-#     message = '\n'.join(message).replace('\\', '/')
-#     message = message + load_file_prompt
-#     save_file = input(message)
-#     if save_file.lower() in ("q", "quit"):
-#         raise KeyboardInterrupt(user_quit_message)
-#     try:
-#         file_index = len(files) - int(save_file)
-#         assert file_index >= 0
-#         return files[file_index]
-#     except:
-#         print_bracketing('Input "{}" is INVALID...'.format(save_file))
-#         return _get_filepath(files)
