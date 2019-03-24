@@ -91,20 +91,20 @@ class MAD4PG_Net:
         before training begins.
         """
 
-        if len(self.memory) >= pretrain_length:
+        if self.memlen >= pretrain_length:
             print("Memory already filled, length: {}".format(len(self.memory)))
             return
 
         print("Initializing memory buffer.")
         observations = env.states
-        while len(self.memory) < pretrain_length:
+        while self.memlen < pretrain_length:
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_observations, rewards, dones = env.step(actions)
             self.store((observations, actions, rewards, next_observations, dones))
             observations = next_observations
 
-            if len(self.memory) % 25 == 0 or len(self.memory) >= pretrain_length:
-                print("...memory filled: {}/{}".format(len(self.memory), pretrain_length))
+            if self.memlen % 25 == 0 or self.memlen >= pretrain_length:
+                print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
         print("Done!")
 
     def new_episode(self):
@@ -167,6 +167,9 @@ class MAD4PG_Net:
         self._e = max(self.e_min, self._e * self.e_decay)
         return self._e
 
+    @property
+    def memlen(self):
+        return len(self.memory)
 
 
 class D4PG_Agent:
@@ -237,25 +240,19 @@ class D4PG_Agent:
         """
 
         target_probs = self.critic_target(next_obs, target_actions)
-        # Project the categorical distribution onto the supports
+        # Project the distribution onto the supports (return Yi)
         target_dist = self._categorical(rewards, target_probs, dones)
-
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
-        log_probs = self.critic(obs, actions.type(torch.float), log=True)
-
-        # Calculate the critic network LOSS (Cross Entropy), CE-loss is ideal
-        # for categorical value distributions as utilized in D4PG.
-        # estimates distance between target and projected values
+        log_probs = self.critic(obs, actions, log=True)
+        # Calculate the critic network LOSS (Cross Entropy)
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
 
 
         # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
         probs = self.critic(obs, predicted_actions)
-
         # Multiply probabilities by atom values and sum across columns to get
         # Q-Value
         expected_reward = (probs * self.atoms).sum(-1)
-
         # Calculate the actor network LOSS (Policy Gradient)
         # Take the mean across the batch and multiply in the negative to
         # perform gradient ascent

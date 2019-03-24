@@ -275,11 +275,12 @@ class Logger:
             print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
                   ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
             if not self.quietmode:
+                print("Timesteps: {}".format(multi_agent.t_step)
                 for idx, agent in enumerate(multi_agent.agents):
                     print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
                           ".format(idx, agent.actor_loss, agent.critic_loss))
             print("{}Avg return over previous {} episodes: {:5f}\n\
-                  ".format("."*5, self.print_every, np.array(self.scores).mean()))
+                  ".format("."*3, self.print_every, np.array(self.scores).mean()))
 
     def _update_score(self):
         """

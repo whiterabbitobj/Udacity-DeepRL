@@ -49,7 +49,7 @@ class ReplayBuffer:
         # actions = torch.stack(actions).transpose(1,0).long()
         # ashape = actions.shape
         # actions = actions.view(ashape[0]*ashape[-1], -1).to(self.device)
-        actions = torch.stack(actions).long()
+        actions = torch.stack(actions).float()#.long()
         ashape = actions.shape
         actions = actions.view(ashape[0], -1).to(self.device)
 
