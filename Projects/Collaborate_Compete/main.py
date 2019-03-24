@@ -33,14 +33,14 @@ def main():
 
     env = Environment(args)
 
-    multi_agent = MAD4PG_Net(env, args, agent_count=2)
+    multi_agent = MAD4PG_Net(env, args)
 
-    saver = Saver(multi_agent.framework, multi_agent, args.save_dir, args.load_file)
+    saver = Saver(multi_agent, args)
 
-    if args.eval:
-        eval(multi_agent, args, env)
-    else:
+    if args.train:
         train(multi_agent, args, env, saver)
+    else:
+        eval(multi_agent, args, env)
 
     return True
 
@@ -51,7 +51,7 @@ def train(multi_agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(multi_agent, args, saver.save_dir, log_every=args.log_every, print_every=args.print_every)
+    logger = Logger(multi_agent, args, saver.save_dir)
 
     # Pre-fill the Replay Buffer
     multi_agent.initialize_memory(args.pretrain, env)

@@ -17,7 +17,7 @@ class MAD4PG_Net:
     https://arxiv.org/pdf/1804.08617.pdf
     in what I will call MAD4PG.
     """
-    def __init__(self, env, args, agent_count,
+    def __init__(self, env, args,
                 e_decay = 1,
                 e_min = 0.05):
         """
@@ -36,10 +36,10 @@ class MAD4PG_Net:
         self.state_size = env.state_size
         self.action_size = env.action_size
 
-        self.agent_count = agent_count
+        self.agent_count = env.agent_count
         self.agents = [D4PG_Agent(self.state_size, self.action_size, args, self.agent_count) for _ in range(self.agent_count)]
         self.batch_size = args.batch_size
-        # self.buffer_size = args.buffer_size
+
         # Set up memory buffers, currently only standard replay is implemented #
         self.memory = ReplayBuffer(args.device, args.buffer_size, args.gamma, args.rollout)
 
@@ -65,7 +65,6 @@ class MAD4PG_Net:
         """
 
         # Current SARS' stored in short term memory, then stacked for NStep
-        #print("len of:\no: {}, a: {}, r: {}, no: {}, d: {}".format(len(observations), len(actions), len(rewards), len(next_observations), len(dones)))
         experience = (observations, actions, rewards, next_observations, dones)
         self.memory.store_trajectory(experience)
         self.t_step += 1
@@ -84,9 +83,6 @@ class MAD4PG_Net:
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
         batches = [self.memory.sample(self.batch_size) for agent in self.agents]
 
-        # target_actions = [agent.actor_target(batch[3][idx]) for idx, (agent, batch) in enumerate(zip(self.agents, batches))]
-        # predicted_actions = [agent.actor(batch[0][idx]) for idx, (agent, batch) in enumerate(zip(self.agents, batches))]
-
         target_actions = []
         predicted_actions = []
         for idx, (agent, batch) in enumerate(zip(self.agents, batches)):
@@ -99,10 +95,7 @@ class MAD4PG_Net:
         for idx, agent in enumerate(self.agents):
             obs, actions, rewards, next_obs, dones = batches[idx]
             agent.learn(obs[idx], next_obs[idx], actions, target_actions, predicted_actions, rewards[idx], dones[idx])
-            self._update_networks(agent)
-
-
-    # def _get_target_actions(self, )
+            self.update_networks(agent)
 
     def initialize_memory(self, pretrain_length, env):
         """
@@ -136,7 +129,7 @@ class MAD4PG_Net:
         self.memory.init_n_step()
         self.episode += 1
 
-    def _update_networks(self, agent, force_hard=False):
+    def update_networks(self, agent, force_hard=False):
         """
         Updates the network using either DDPG-style soft updates (w/ param TAU),
         or using a DQN/D4PG style hard update every C timesteps.
@@ -215,16 +208,12 @@ class D4PG_Agent:
         self.device = args.device
         self.framework = "D4PG"
         self.eval = args.eval
-        # self.agent_count = env.agent_count
         self.actor_learn_rate = args.actor_learn_rate
         self.critic_learn_rate = args.critic_learn_rate
-        # self.action_size = env.action_size
-        # self.state_size = env.state_size
-        # self.C = args.C
+
         self.gamma = args.gamma
         self.rollout = args.rollout
         self.tau = args.tau
-        #self.update_type = update_type
 
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin

@@ -26,27 +26,92 @@ class Saver():
             string the user desires.
     """
     def __init__(self,
-                 prefix,
-                 agent,
-                 save_dir = 'saves',
-                 load_file = None,
+                 multi_agent,
+                 args,
                  file_ext = ".agent"
                  ):
         """
         Initialize a Saver object.
         """
+        load_file = self._get_agent_file(args, multi_agent.agent_count)
 
         self.file_ext = file_ext
-        self.save_dir, self.filename = self.generate_savename(prefix, save_dir)
+        self.save_dir, self.filename = self.generate_savename(multi_agent.framework,
+                                                              args.save_dir)
+
         if load_file:
-            self._load_agent(load_file, agent)
+            self._load_agent(load_file, multi_agent)
         else:
             statement = "Saving to base filename: {}".format(self.filename)
             print_bracketing(statement)
 
+
+    def _get_agent_file(self, args, agent_count):
+        """
+        Checks to see what sort of loading, if any, to do.
+        Returns one of:
+            -FILENAME... if flagged with a specific filename on the cmdline
+            -LASTEST FILE... if flagged to load the most recently saved weights
+            -USER FILE... a user selected file from a list prompt
+            -FALSE... if no loading is needed, return false and skip loading
+        """
+
+        # invalid_filename = "Requested filename is invalid."
+        no_files_found = "Could not find any files in: {}".format(args.save_dir)
+        if args.resume or args.eval:
+            ### DEBUG: temporarily removed user-provided filepath, because it
+            ### presents problems with multi-agent loading, needs further dev
+            # if args.filename is not None:
+            #     assert os.path.isfile(args.filename), invalid_filename
+            #     return args.filename
+            files = self._get_files(args.save_dir)
+            assert len(files) > 0, no_files_found
+            return [self._get_filepath(files, i) for i in range(agent_count)]
+            ### DEBUG: temporarily removing --latest flag until further dev on
+            ### multi-agent save/loads
+            # if args.latest:
+            #     return files[-1]
+            # else:
+            #     return self._get_filepath(files)
+        else:
+            return False
+
+    def _get_files(self, save_dir):
+        """
+        Returns a list of files in a given directory, sorted by last-modified.
+        """
+
+        file_list = []
+        for root, _, files in os.walk(save_dir):
+            for file in files:
+                if file.endswith(".agent"):
+                    file_list.append(os.path.join(root, file))
+        return sorted(file_list, key=lambda x: os.path.getmtime(x))
+
+    def _get_filepath(self, files, idx):
+        """
+        Prompts the user about what save to load, or uses the last modified save.
+        """
+
+        load_file_prompt = "Load file for Agent #{} (or: q/quit): ".format(idx)
+        user_quit_message = "User quit process before loading a file."
+        message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
+        message = '\n'.join(message).replace('\\', '/')
+        message = message +  "(LATEST)\n\n" + load_file_prompt
+        save_file = input(message)
+        if save_file.lower() in ("q", "quit"):
+            raise KeyboardInterrupt(user_quit_message)
+        try:
+            file_index = len(files) - int(save_file)
+            assert file_index >= 0
+            return files[file_index]
+        except:
+            print_bracketing('Input "{}" is INVALID...'.format(save_file))
+            return _get_filepath(files)
+
     def generate_savename(self, prefix, save_dir):
         """
-        Generates an automatic savename for training files, will version-up as
+        Gener.ates an automatic savename for training files, will version-up as
         needed.
         """
         check_dir(save_dir)
@@ -97,10 +162,6 @@ class Saver():
     def _get_save_dict(self, agent):
         """
         Prep a dictionary of data from the current Agent.
-
-        TO DO:
-        -revert back to single agent saves and rewrite code to load a separate
-            file for each agent so that they can be evaluated more fully.
         """
 
         checkpoint = {'actor_dict': agent.actor.state_dict(),
@@ -108,15 +169,16 @@ class Saver():
                       }
         return checkpoint
 
-    def _load_agent(self, load_file, agent):
+    def _load_agent(self, load_file, multi_agent):
         """
         Loads a checkpoint from an earlier trained agent.
         """
-
-        checkpoint = torch.load(load_file, map_location=lambda storage, loc: storage)
-        agent.q.load_state_dict(checkpoint['q_dict'])
-        agent._hard_update(agent.q, agent.q_target)
-        statement = "Successfully loaded file: {}".format(load_file)
+        for idx, agent in enumerate(multi_agent.agents):
+            checkpoint = torch.load(load_file[idx], map_location=lambda storage, loc: storage)
+            agent.actor.load_state_dict(checkpoint['actor_dict'])
+            agent.critic.load_state_dict(checkpoint['critic_dict'])
+            agent.update_networks(agent)
+        statement = "Successfully loaded files:\n{}".format(load_file.join('\n')))
         print_bracketing(statement)
 
 
@@ -142,8 +204,6 @@ class Logger:
                  multi_agent=None,
                  args=None,
                  save_dir = '.',
-                 log_every = 50, #timesteps
-                 print_every = 5 #episodes
                  ):
         """
         Initialize a Logger object.
@@ -154,17 +214,18 @@ class Logger:
             print("Blank init for Logger object. Most functionality limited.")
             return
         self.eval = args.eval
-        self.framework =  multi_agent.framework
         self.max_eps = args.num_episodes
         self.quietmode = args.quiet
-        self.log_every = log_every
+        self.log_every = args.log_every # timesteps
+        self.print_every = args.print_every # episodes
+
+        self.framework =  multi_agent.framework
         self.agent_count =  multi_agent.agent_count
         self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
         self.filename = os.path.basename(self.save_dir)
         self.logs_basename = os.path.join(self.log_dir, self.filename)
         self.start_time = self.prev_timestamp =  time.time()
-        self.scores = deque(maxlen=print_every)
-        self.print_every = print_every
+        self.scores = deque(maxlen=self.print_every)
         self._reset_rewards()
 
         if not self.eval:
@@ -659,14 +720,14 @@ def gather_args():
             help="Soft network update weighting.",
             type=float,
             default=0.0005)
-    parser.add_argument("--latest",
-            help="Use this flag to automatically use the latest save file \
-                  to run in DEMO mode (instead of choosing from a prompt).",
-            action="store_true")
-    parser.add_argument("-file", "--filename",
-            help="Path agent weights file to load. ",
-            type=str,
-            default=None)
+    # parser.add_argument("--latest",
+    #         help="Use this flag to automatically use the latest save file \
+    #               to run in DEMO mode (instead of choosing from a prompt).",
+    #         action="store_true")
+    # parser.add_argument("-file", "--filename",
+    #         help="Path agent weights file to load. ",
+    #         type=str,
+    #         default=None)
     parser.add_argument("-savedir", "--save_dir",
             help="Directory to find saved agent weights.",
             type=str,
@@ -678,6 +739,8 @@ def gather_args():
 
     # Pretrain length can't be less than batch_size
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
+    # Ensure that ROLLOUT is 1 or greater
+    assert args.rollout >= 1, "ROLLOUT must be greater than or equal to 1."
     # Always use GPU if available
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     # Limit the length of evaluation runs unless user forces cmdline args
@@ -688,74 +751,75 @@ def gather_args():
     # FORCE_EVAL is flagged
     if args.force_eval:
         args.eval = True
-    # Ensure that ROLLOUT is 1 or greater
-    assert args.rollout >= 1, "ROLLOUT must be greater than or equal to 1."
+    args.train = not args.eval
 
-    # Determine whether to load a file, and if so, set the filename
-    args.load_file = _get_agent_file(args)
+
+
+    # # Determine whether to load a file, and if so, set the filename
+    # args.load_file = _get_agent_file(args)
 
     return args
 
 
-
-def _get_agent_file(args):
-    """
-    Checks to see what sort of loading, if any, to do.
-    Returns one of:
-        -FILENAME... if flagged with a specific filename on the cmdline
-        -LASTEST FILE... if flagged to load the most recently saved weights
-        -USER FILE... a user selected file from a list prompt
-        -FALSE... if no loading is needed, return false and skip loading
-    """
-
-    invalid_filename = "Requested filename is invalid."
-    no_files_found = "Could not find any files in: {}".format(args.save_dir)
-    if args.resume or args.eval:
-        if args.filename is not None:
-            assert os.path.isfile(args.filename), invalid_filename
-            return args.filename
-        files = _get_files(args.save_dir)
-        assert len(files) > 0, no_files_found
-        if args.latest:
-            return files[-1]
-        else:
-            return _get_filepath(files)
-    else:
-        return False
-
-
-
-def _get_files(save_dir):
-    """
-    Returns a list of files in a given directory, sorted by last-modified.
-    """
-
-    file_list = []
-    for root, _, files in os.walk(save_dir):
-        for file in files:
-            if file.endswith(".agent"):
-                file_list.append(os.path.join(root, file))
-    return sorted(file_list, key=lambda x: os.path.getmtime(x))
-
-
-
-def _get_filepath(files):
-    """
-    Prompts the user about what save to load, or uses the last modified save.
-    """
-
-    load_file_prompt = " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
-    user_quit_message = "User quit process before loading a file."
-    message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
-    message = '\n'.join(message).replace('\\', '/')
-    message = message + load_file_prompt
-    save_file = input(message)
-    if save_file.lower() in ("q", "quit"):
-        raise KeyboardInterrupt(user_quit_message)
-    try:
-        file_index = len(files) - int(save_file)
-        assert file_index >= 0
-        return files[file_index]
-    except:
-        print_bracketing('Input "{}" is INVALID...'.format(save_file))
-        return _get_filepath(files)
+#
+# def _get_agent_file(args):
+#     """
+#     Checks to see what sort of loading, if any, to do.
+#     Returns one of:
+#         -FILENAME... if flagged with a specific filename on the cmdline
+#         -LASTEST FILE... if flagged to load the most recently saved weights
+#         -USER FILE... a user selected file from a list prompt
+#         -FALSE... if no loading is needed, return false and skip loading
+#     """
+#
+#     invalid_filename = "Requested filename is invalid."
+#     no_files_found = "Could not find any files in: {}".format(args.save_dir)
+#     if args.resume or args.eval:
+#         if args.filename is not None:
+#             assert os.path.isfile(args.filename), invalid_filename
+#             return args.filename
+#         files = _get_files(args.save_dir)
+#         assert len(files) > 0, no_files_found
+#         if args.latest:
+#             return files[-1]
+#         else:
+#             return _get_filepath(files)
+#     else:
+#         return False
+#
+#
+#
+# def _get_files(save_dir):
+#     """
+#     Returns a list of files in a given directory, sorted by last-modified.
+#     """
+#
+#     file_list = []
+#     for root, _, files in os.walk(save_dir):
+#         for file in files:
+#             if file.endswith(".agent"):
+#                 file_list.append(os.path.join(root, file))
+#     return sorted(file_list, key=lambda x: os.path.getmtime(x))
+#
+#
+#
+# def _get_filepath(files):
+#     """
+#     Prompts the user about what save to load, or uses the last modified save.
+#     """
+#
+#     load_file_prompt = " (LATEST)\n\nPlease choose a saved Agent training file (or: q/quit): "
+#     user_quit_message = "User quit process before loading a file."
+#     message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
+#     message = '\n'.join(message).replace('\\', '/')
+#     message = message + load_file_prompt
+#     save_file = input(message)
+#     if save_file.lower() in ("q", "quit"):
+#         raise KeyboardInterrupt(user_quit_message)
+#     try:
+#         file_index = len(files) - int(save_file)
+#         assert file_index >= 0
+#         return files[file_index]
+#     except:
+#         print_bracketing('Input "{}" is INVALID...'.format(save_file))
+#         return _get_filepath(files)

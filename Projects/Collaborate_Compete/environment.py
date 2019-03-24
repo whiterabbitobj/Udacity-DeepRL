@@ -34,6 +34,7 @@ class Environment:
         self.brain = self.env.brains[self.brain_name]
 
         # Environment resets itself when the class is instantiated
+        # creates self.env_info property
         self.reset()
 
         self.action_size = self.brain.vector_action_space_size
