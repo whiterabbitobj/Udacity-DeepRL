@@ -71,7 +71,7 @@ def train(multi_agent, args, env, saver):
             #                INTERACT                #
             actions = multi_agent.act(observations)
             next_observations, rewards, dones = env.step(actions)
-            multi_agent.store((observations, actions, rewards, next_observations, dones))
+            multi_agent.store(observations, actions, rewards, next_observations, dones)
             ##########################################
             #                 TRAIN                  #
             multi_agent.learn()
@@ -124,7 +124,7 @@ def eval(multi_agent, args, env):
         logger.step()
 
     env.close()
-    return 
+    return
 
 if __name__ == "__main__":
     main()

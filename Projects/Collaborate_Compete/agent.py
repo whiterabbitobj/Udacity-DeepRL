@@ -17,13 +17,14 @@ class MAD4PG_Net:
     https://arxiv.org/pdf/1804.08617.pdf
     in what I will call MAD4PG.
     """
+
     def __init__(self, env, args,
                 e_decay = 1,
                 e_min = 0.05):
         """
         Initialize a MAD4PG network.
         """
-        # self.device = args.device
+
         self.update_type = "hard"
         self.framework = "MAD4PG"
         self.t_step = 0
@@ -39,8 +40,12 @@ class MAD4PG_Net:
         self.agents = [D4PG_Agent(self.state_size, self.action_size, args, self.agent_count) for _ in range(self.agent_count)]
         self.batch_size = args.batch_size
 
-        # Set up memory buffers, currently only standard replay is implemented #
-        self.memory = ReplayBuffer(args.device, args.buffer_size, args.gamma, args.rollout)
+        # Set up memory buffers, currently only standard replay is implemented
+        # For multi-agent training, only a single buffer is needed for all
+        # agents to draw upon.
+        # For certain environments, such as sparse rewards, PER would be
+        # beneficial to implement
+        self.memory = ReplayBuffer(args.device, args.buffer_size, args.gamma, args.rollout, self.agent_count)
 
         self.new_episode()
         for agent in self.agents:
@@ -58,8 +63,10 @@ class MAD4PG_Net:
         return np.clip(actions, -1, 1)
 
     def store(self, experience):
-        self.memory.store_trajectory(experience)
-
+        """
+        Store an experience tuple in the ReplayBuffer
+        """
+        self.memory.store(experience)
 
     def learn(self):
         """
@@ -69,21 +76,51 @@ class MAD4PG_Net:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
-        batches = [self.memory.sample(self.batch_size) for agent in self.agents]
+        batch = self.memory.sample(self.batch_size)
+        obs, next_obs, actions, rewards, dones = batch
 
-        target_actions = []
-        predicted_actions = []
-        for idx, (agent, batch) in enumerate(zip(self.agents, batches)):
-            predicted_actions.append(agent.actor(batch[0][idx]))
-            target_actions.append(agent.actor_target(batch[3][idx]))
+        # target_actions = []
+        # predicted_actions = []
+        # for idx, (agent, batch) in enumerate(zip(self.agents, batches)):
+        #     predicted_actions.append(agent.actor(batch[0][idx]))
+        #     target_actions.append(agent.actor_target(batch[3][idx]))
 
+        target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents])
         target_actions = torch.cat(target_actions, dim=-1).detach()
+
+        predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
 
-        for idx, agent in enumerate(self.agents):
-            obs, actions, rewards, next_obs, dones = batches[idx]
-            agent.learn(obs[idx], next_obs[idx], actions, target_actions, predicted_actions, rewards[idx], dones[idx])
+        for i, agent in enumerate(self.agents):
+            agent.learn(obs[i], next_obs[i], actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
+
+    ### DEBUG: The below LEARN method uses different batches for each agent
+    ### training, which complicates code, probably slows things down, and may
+    ### be causing difficult achieving convergence.
+    # def learn(self):
+    #     """
+    #     Perform a learning step on all agents in the network.
+    #     """
+    #     self.t_step += 1
+    #     # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
+    #     # Already calculated before storing in the replay buffer.
+    #     # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
+    #     batches = [self.memory.sample(self.batch_size) for agent in self.agents]
+    #
+    #     target_actions = []
+    #     predicted_actions = []
+    #     for idx, (agent, batch) in enumerate(zip(self.agents, batches)):
+    #         predicted_actions.append(agent.actor(batch[0][idx]))
+    #         target_actions.append(agent.actor_target(batch[3][idx]))
+    #
+    #     target_actions = torch.cat(target_actions, dim=-1).detach()
+    #     predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
+    #
+    #     for idx, agent in enumerate(self.agents):
+    #         obs, actions, rewards, next_obs, dones = batches[idx]
+    #         agent.learn(obs[idx], next_obs[idx], actions, target_actions, predicted_actions, rewards[idx], dones[idx])
+    #         self.update_networks(agent)
 
     def initialize_memory(self, pretrain_length, env):
         """
@@ -96,12 +133,12 @@ class MAD4PG_Net:
             return
 
         print("Initializing memory buffer.")
-        observations = env.states
+        obs = env.states
         while self.memlen < pretrain_length:
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-            next_observations, rewards, dones = env.step(actions)
-            self.store((observations, actions, rewards, next_observations, dones))
-            observations = next_observations
+            next_obs, rewards, dones = env.step(actions)
+            self.store(obs, next_obs, actions, rewards, dones)
+            obs = next_obs
 
             if self.memlen % 25 == 0 or self.memlen >= pretrain_length:
                 print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
@@ -239,11 +276,13 @@ class D4PG_Agent:
         Critic Zw and Zw' (categorical distribution)
         """
 
-        target_probs = self.critic_target(next_obs, target_actions)
-        # Project the distribution onto the supports (return Yi)
-        target_dist = self._categorical(rewards, target_probs, dones)
         # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
         log_probs = self.critic(obs, actions, log=True)
+
+        # Calculate TARGET distribution/project onto supports (Yi)
+        target_probs = self.critic_target(next_obs, target_actions)
+        target_dist = self._categorical(rewards, target_probs, dones)
+
         # Calculate the critic network LOSS (Cross Entropy)
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
 
@@ -290,12 +329,14 @@ class D4PG_Agent:
         gamma = self.gamma
         rollout = self.rollout
 
+        # rewards/dones shape from [batchsize,] to [batchsize,1]
         rewards = rewards.unsqueeze(-1)
-        delta_z = (vmax - vmin) / (num_atoms - 1)
         dones = dones.unsqueeze(-1).type(torch.float)
 
-        # Rewards were stored with 0->(N-1) summed, take Reward and add it to
-        # the discounted expected reward at N (ROLLOUT) timesteps
+        delta_z = (vmax - vmin) / (num_atoms - 1)
+
+        # Rewards were stored with 0->(N-1) summed
+        # shape [batchsize, num_atoms]
         projected_atoms = rewards + gamma**rollout * atoms * (1 - dones)
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z
