@@ -32,7 +32,6 @@ class MAD4PG_Net:
         self._e = args.e
         self.e_min = e_min
         self.e_decay = e_decay
-        # self.gamma = args.gamma
         self.state_size = env.state_size
         self.action_size = env.action_size
 
@@ -55,8 +54,7 @@ class MAD4PG_Net:
         assert len(observations) == len(self.agents), "Num OBSERVATIONS does not match num AGENTS."
         actions = np.array([agent.act(obs) for agent, obs in zip(self.agents, observations)])
         if not eval:
-            noise = self._gauss_noise(actions.shape)
-            actions += noise
+            actions += self._gauss_noise(actions.shape)
         return np.clip(actions, -1, 1)
 
     def step(self, observations, actions, rewards, next_observations, dones, pretrain=False):

@@ -646,7 +646,7 @@ def gather_args():
     parser.add_argument("-C", "--C",
             help="How many timesteps between hard network updates.",
             type=int,
-            default=350)
+            default=2000)
     parser.add_argument("-cpu", "--cpu",
             help="Run training on the CPU instead of the default (GPU).",
             action="store_true")
@@ -685,12 +685,12 @@ def gather_args():
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=500)
+            default=1000)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
             type=int,
-            default=5000)
+            default=500)
     parser.add_argument("--quiet",
             help="Print less while running the agent.",
             action="store_true")
@@ -704,15 +704,15 @@ def gather_args():
     parser.add_argument("-pe", "--print_every",
             help="How many episodes between print updates.",
             type=int,
-            default=5)
+            default=10)
     parser.add_argument("-le", "--log_every",
             help="How many timesteps between logging loss values.",
             type=int,
-            default=25)
+            default=15)
     parser.add_argument("-se", "--save_every",
             help="How many episodes between saves.",
             type=int,
-            default=25)
+            default=100)
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,

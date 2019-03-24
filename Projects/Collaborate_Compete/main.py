@@ -67,6 +67,7 @@ def train(multi_agent, args, env, saver):
             actions = multi_agent.act(observations)
             next_observations, rewards, dones = env.step(actions)
             # print(len(rewards), len(dones))
+            # multi_agent.store((ob))
             multi_agent.step(observations, actions, rewards, next_observations, dones)
             observations = next_observations
             # print(rewards)
