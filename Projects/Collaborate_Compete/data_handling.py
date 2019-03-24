@@ -275,7 +275,7 @@ class Logger:
             print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
                   ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
             if not self.quietmode:
-                print("Timesteps: {}".format(multi_agent.t_step)
+                print("Timesteps: {}".format(multi_agent.t_step))
                 for idx, agent in enumerate(multi_agent.agents):
                     print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
                           ".format(idx, agent.actor_loss, agent.critic_loss))
@@ -339,7 +339,7 @@ class Logger:
         num_eps = len(scores)
         # Calculate the moving average, if not enough episodes were run, then
         # don't blindly average 100, but instead use the episode length as a barometer.
-        score_window = int(min(100, num_eps/2))
+        score_window = max(1, int(min(100, num_eps/2)))
         # HARD VARS
         dtop = 0.85
         num_ticks = 5
@@ -353,8 +353,8 @@ class Logger:
                                    edgecolor=(0.2,0.3,0.6), linewidth=2)
 
         # SOFT VARS
-        gs_rows = 2
-        gs_cols = 3
+        gs_rows = self.agent_count
+        gs_cols = self.agent_count + 1
         tick_step = int(num_eps/num_ticks)
         xticks = np.linspace(0, num_eps, num_ticks, dtype=int)
 

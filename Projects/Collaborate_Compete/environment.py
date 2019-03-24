@@ -4,6 +4,7 @@ from unityagents import UnityEnvironment
 # from mlagents.envs import UnityEnvironment
 from utils import print_bracketing
 import platform
+import numpy as np
 
 class Environment:
     """

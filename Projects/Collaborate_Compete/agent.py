@@ -51,22 +51,22 @@ class MAD4PG_Net:
         for agent in self.agents:
             self.update_networks(agent, force_hard=True)
 
-    def act(self, observations, eval=False):
+    def act(self, obs, eval=False):
         """
         For each agent in the MAD4PG network, choose an action from the ACTOR
         """
 
-        assert len(observations) == len(self.agents), "Num OBSERVATIONS does not match num AGENTS."
-        actions = np.array([agent.act(obs) for agent, obs in zip(self.agents, observations)])
+        assert len(obs) == len(self.agents), "Num OBSERVATIONS does not match num AGENTS."
+        actions = np.array([agent.act(o) for agent, o in zip(self.agents, obs)])
         if not eval:
             actions += self._gauss_noise(actions.shape)
         return np.clip(actions, -1, 1)
 
-    def store(self, experience):
+    def store(self, obs, next_obs, actions, rewards, dones):
         """
         Store an experience tuple in the ReplayBuffer
         """
-        self.memory.store(experience)
+        self.memory.store(obs, next_obs, actions, rewards, dones)
 
     def learn(self):
         """
@@ -85,7 +85,7 @@ class MAD4PG_Net:
         #     predicted_actions.append(agent.actor(batch[0][idx]))
         #     target_actions.append(agent.actor_target(batch[3][idx]))
 
-        target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents])
+        target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
         target_actions = torch.cat(target_actions, dim=-1).detach()
 
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]

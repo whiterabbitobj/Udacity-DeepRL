@@ -41,7 +41,7 @@ class ActorNet(nn.Module):
 
     def forward(self, state):
         """
-        Build a network that maps state -> actions.
+        Build a network t   hat maps state -> actions.
         """
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))

@@ -31,28 +31,15 @@ class ReplayBuffer:
         """
         batch = random.sample(self.buffer, k=batch_size)
         obs, next_obs, actions, rewards, dones = zip(*batch)
-
-        # print("o: {}\na: {}\nr: {}\nno: {}\nd: {}".format(observations.shape, actions.shape, rewards.shape, next_observations.shape, dones.shape))
-
-        # For actions, stack/transpose to num_agents, batch_size, action_size,
-        # then combine the num_agents and action_size to get the "centralized
-        # action-value function" input, outputting [centralized, batch_size]
-        # for sampled experience.
-        # actions = torch.stack(actions).float()
-        # ashape = actions.shape
-        # actions = actions.view(ashape[0], -1).to(self.device)
-
-
         # Transpose the num_agents and batch_size, for easy indexing later
         # e.g. from 64 experiences of 2 agents each, to 2 agents with 64
         # experiences each
-        obs = torch.stack(observations).transpose(1,0).to(self.device)
-        next_obs = torch.stack(next_observations).transpose(1,0).to(self.device)
+        obs = torch.stack(obs).transpose(1,0).to(self.device)
+        next_obs = torch.stack(next_obs).transpose(1,0).to(self.device)
         actions = torch.stack(actions).to(self.device)
         rewards = torch.stack(rewards).transpose(1,0).to(self.device)
         dones = torch.stack(dones).transpose(1,0).to(self.device)
-        batch = (obs, next_obs, actions, rewards, dones)
-        return batch
+        return (obs, next_obs, actions, rewards, dones)
 
     def init_n_step(self):
         """
@@ -60,7 +47,7 @@ class ReplayBuffer:
         """
         self.n_step = deque(maxlen=self.rollout)
 
-    def store(self, experience):
+    def store(self, obs, next_obs, actions, rewards, dones):
         """
         Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
         memory can be added to the ReplayBuffer.
@@ -95,10 +82,10 @@ class ReplayBuffer:
         # store the current state, current action, cumulative discounted
         # reward from t -> t+n-1, and the next_state at t+n (S't+n)
         #current obs [num_agents, state_size]
-        obs = observations[0]
+        obs = obs[0]
         # next_obs for use with target predictions... should be ROLLOUT steps
         # ahead of obs, unless there is a terminal state
-        next_obs = next_observations[n_steps]
+        next_obs = next_obs[n_steps]
 
         #current actions [num_agents * action_size,]
         actions = torch.from_numpy(actions[0]).float()        # actions = torch.from_numpy(actions[0]).type(torch.float)
@@ -106,7 +93,7 @@ class ReplayBuffer:
         #rewards summed through rollout-1 [num_agents,]
         summed_rewards = torch.tensor(summed_rewards).float()
         # done state  if encountered during ROLLOUT step stacking [num_agents,]
-        dones = torch.tensor([dones[n_steps]])
+        dones = torch.tensor(dones[n_steps])
 
         experience = (obs, next_obs, actions, summed_rewards, dones)
         return experience
