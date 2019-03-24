@@ -42,7 +42,7 @@ def main():
     else:
         eval(multi_agent, args, env)
 
-    return True
+    return
 
 
 
@@ -51,12 +51,15 @@ def train(multi_agent, args, env, saver):
     Train the agent.
     """
 
+    #####################################################
+    #                   INIT DATA                       #
     logger = Logger(multi_agent, args, saver.save_dir)
-
     # Pre-fill the Replay Buffer
     multi_agent.initialize_memory(args.pretrain, env)
-
-    #Begin training loop
+    #                                                   #
+    #####################################################
+    ############################################################################
+    #                         Begin training loop                              #
     for episode in range(1, args.num_episodes+1):
         # Begin each episode with a clean environment
         env.reset()
@@ -64,25 +67,35 @@ def train(multi_agent, args, env, saver):
         observations = env.states
         # Gather experience until done or max_steps is reached
         while True:
+            ##########################################
+            #                INTERACT                #
             actions = multi_agent.act(observations)
             next_observations, rewards, dones = env.step(actions)
-            # print(len(rewards), len(dones))
-            # multi_agent.store((ob))
-            multi_agent.step(observations, actions, rewards, next_observations, dones)
+            multi_agent.store((observations, actions, rewards, next_observations, dones))
+            ##########################################
+            #                 TRAIN                  #
+            multi_agent.learn()
+            ##########################################
+            #              NEXT TIMESTEP             #
             observations = next_observations
-            # print(rewards)
             logger.log(rewards, multi_agent)
             if np.any(dones):
                 break
-
+        ###################################################
+        #              PREP FOR NEXT EPISODE              #
         saver.save_checkpoint(multi_agent, args.save_every)
         multi_agent.new_episode()
         logger.step(episode, multi_agent)
-
+    #                                                                          #
+    ############################################################################
+    ##############################################
+    #                  CLEANUP                   #
     env.close()
     saver.save_final(multi_agent)
     logger.graph()
-    return True
+    #                                            #
+    ##############################################
+    return
 
 def eval(multi_agent, args, env):
     """
@@ -111,7 +124,7 @@ def eval(multi_agent, args, env):
         logger.step()
 
     env.close()
-    return True
+    return 
 
 if __name__ == "__main__":
     main()

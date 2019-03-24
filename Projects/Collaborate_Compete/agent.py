@@ -57,25 +57,15 @@ class MAD4PG_Net:
             actions += self._gauss_noise(actions.shape)
         return np.clip(actions, -1, 1)
 
-    def step(self, observations, actions, rewards, next_observations, dones, pretrain=False):
-        """
-        Add the current SARS' tuple into the short term memory, then learn
-        """
-
-        # Current SARS' stored in short term memory, then stacked for NStep
-        experience = (observations, actions, rewards, next_observations, dones)
+    def store(self, experience):
         self.memory.store_trajectory(experience)
-        self.t_step += 1
 
-        # Don't learn if pretraining is being executed
-        if not pretrain:
-            self.learn()
 
     def learn(self):
         """
         Perform a learning step on all agents in the network.
         """
-
+        self.t_step += 1
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
@@ -110,14 +100,12 @@ class MAD4PG_Net:
         while len(self.memory) < pretrain_length:
             actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
             next_observations, rewards, dones = env.step(actions)
-            self.step(observations, actions, rewards, next_observations, dones, pretrain=True)
-            if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
-                print("Taking pretrain step {}... memory filled: {}/{}\
-                    ".format(self.t_step, len(self.memory), pretrain_length))
-
+            self.store((observations, actions, rewards, next_observations, dones))
             observations = next_observations
+
+            if len(self.memory) % 25 == 0 or len(self.memory) >= pretrain_length:
+                print("...memory filled: {}/{}".format(len(self.memory), pretrain_length))
         print("Done!")
-        self.t_step = 0
 
     def new_episode(self):
         """
