@@ -84,7 +84,6 @@ class MAD4PG_Net:
 
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
-        print(obs.shape, next_obs.shape)
         obs = obs.transpose(1,0).view(self.batch_size, -1)
         next_obs = next_obs.transpose(1,0).view(self.batch_size, -1)
         for i, agent in enumerate(self.agents):
