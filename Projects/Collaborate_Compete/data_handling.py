@@ -557,7 +557,7 @@ class Logger:
         # Manually collect agent networks for now, figure a more elegant way
         # later!
         for agent in multi_agent.agents:
-            param_list += [self._format_param(arg, agent) for arg in vars(agent) if arg not in vars(multi_agent)]
+            param_list += [self._format_param(arg, agent) for arg in vars(agent) if (arg not in vars(multi_agent)) and (arg not in vars(args))]
         if not self.quietmode: print_bracketing(param_list)
         return param_list
 

@@ -41,7 +41,7 @@ class ActorNet(nn.Module):
 
     def forward(self, state):
         """
-        Build a network t   hat maps state -> actions.
+        Build a network that maps states -> actions.
         """
         x = F.relu(self.fc1(state))
         x = F.relu(self.fc2(x))
@@ -59,6 +59,7 @@ class CriticNet(nn.Module):
     Utilizes the actions as an input to the second hidden layer in order to
     approximate the continuous control problem.
     """
+
     def __init__(self,
                  state_size,
                  action_size,
@@ -79,8 +80,9 @@ class CriticNet(nn.Module):
 
     def forward(self, state, actions, log=False):
         """
-        Build a network that maps state -> action values.
+        Build a network that estimates the value of an action given the state.
         """
+
         x = F.relu(self.fc1(state))
         x = torch.cat([x, actions], dim=1)
         x = F.relu(self.fc2(x))
