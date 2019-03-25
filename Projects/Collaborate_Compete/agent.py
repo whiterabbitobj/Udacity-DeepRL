@@ -79,21 +79,21 @@ class MAD4PG_Net:
         batch = self.memory.sample(self.batch_size)
         obs, next_obs, actions, rewards, dones = batch
 
-        # target_actions = []
-        # predicted_actions = []
-        # for idx, (agent, batch) in enumerate(zip(self.agents, batches)):
-        #     predicted_actions.append(agent.actor(batch[0][idx]))
-        #     target_actions.append(agent.actor_target(batch[3][idx]))
-
         target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
         target_actions = torch.cat(target_actions, dim=-1).detach()
 
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
 
+        obs = obs.view(self.batch_size, -1)
+        next_obs = obs.view(self.batch_size, -1)
         for i, agent in enumerate(self.agents):
-            agent.learn(obs[i], next_obs[i], actions, target_actions, predicted_actions, rewards[i], dones[i])
+            agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
+
+        # for i, agent in enumerate(self.agents):
+        #     agent.learn(obs[i], next_obs[i], actions, target_actions, predicted_actions, rewards[i], dones[i])
+        #     self.update_networks(agent)
 
     ### DEBUG: The below LEARN method uses different batches for each agent
     ### training, which complicates code, probably slows things down, and may
@@ -252,8 +252,8 @@ class D4PG_Agent:
         self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(state_size, action_size * agent_count, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(state_size, action_size * agent_count, self.num_atoms).to(self.device)
+        self.critic = CriticNet(state_size*agent_count, action_size*agent_count, self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(state_size*agent_count, action_size*agent_count, self.num_atoms).to(self.device)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
 
 

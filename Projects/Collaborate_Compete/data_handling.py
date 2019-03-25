@@ -545,15 +545,19 @@ class Logger:
         criticlossfile = "_agent{}_criticloss.txt".format(idx)
         return (actorlossfile, criticlossfile)
 
-    def _collect_params(self, args, agent):
+    def _collect_params(self, args, multi_agent):
         """
         Creates a list of all the Params used to run this training instance,
         prints this list to the command line if QUIET is not flagged, and stores
         it for later saving to the params log in the /logs/ directory.
         """
 
-        param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(agent)]
-        param_list += [self._format_param(arg, agent) for arg in vars(agent)]
+        param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(multi_agent)]
+        param_list += [self._format_param(arg, multi_agent) for arg in vars(multi_agent)]
+        # Manually collect agent networks for now, figure a more elegant way
+        # later!
+        for agent in multi_agent.agents:
+            param_list += [self._format_param(arg, agent) for arg in vars(agent) if arg not in vars(multi_agent)]
         if not self.quietmode: print_bracketing(param_list)
         return param_list
 
