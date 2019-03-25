@@ -436,7 +436,7 @@ class Logger:
         ma2_data = self._moving_avg(data, fitted_x*2)
         mean = data[-int(fitted_x):].mean()
         std = data[-int(fitted_x):].std()
-        report = "{0}eps MA actor loss: {1:.2f}\n{0}eps STD: {2:.3f}".format(
+        report = "{0}eps MA actor loss: {1:.3f}\n{0}eps STD: {2:.4f}".format(
                 score_window, mean, std)
 
         # Plot unfiltered loss data
