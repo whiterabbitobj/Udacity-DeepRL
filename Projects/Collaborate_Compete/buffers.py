@@ -43,7 +43,7 @@ class ReplayBuffer:
 
     def init_n_step(self):
         """
-        Creates (or recreates to zero an existing) deque to handle nstep returns.
+        Creates (or rezeroes an existing) deque to handle nstep returns.
         """
         self.n_step = deque(maxlen=self.rollout)
 
@@ -87,22 +87,9 @@ class ReplayBuffer:
                 break
         # store the current state, current action, cumulative discounted
         # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-        #current obs [num_agents, state_size]
         obs = obs[0]
-        # next_obs for use with target predictions... should be ROLLOUT steps
-        # ahead of obs, unless there is a terminal state
+        # next_obs is ROLLOUT steps ahead of obs, unless there is terminal state
         next_obs = next_obs[n_steps]
-        #
-        # #current actions [num_agents * action_size,]
-        # actions = torch.from_numpy(actions[0]).float()
-        #
-        # #rewards summed through rollout-1 [num_agents,]
-        # summed_rewards = torch.tensor(summed_rewards).float()
-        # # done state  if encountered during ROLLOUT step stacking [num_agents,]
-        # dones = torch.tensor(dones[n_steps])
-        #
-        # experience = (obs, next_obs, actions, summed_rewards, dones)
-        # return experience
         actions = actions[0]
         dones = dones[n_steps]
         return obs, next_obs, actions, summed_rewards, dones

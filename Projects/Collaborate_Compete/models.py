@@ -37,7 +37,7 @@ class ActorNet(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1, fc2)
         self.output = nn.Linear(fc2, action_size)
-        initialize_weights(self, weight_low, weight_high)
+        #initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state):
         """
@@ -76,7 +76,7 @@ class CriticNet(nn.Module):
         self.fc1 = nn.Linear(state_size, fc1)
         self.fc2 = nn.Linear(fc1 + action_size, fc2)
         self.output = nn.Linear(fc2, num_atoms)
-        initialize_weights(self, weight_low, weight_high)
+        #initialize_weights(self, weight_low, weight_high)
 
     def forward(self, state, actions, log=False):
         """

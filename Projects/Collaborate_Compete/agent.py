@@ -86,41 +86,11 @@ class MAD4PG_Net:
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
         # print(obs.shape)
         obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
+        # print(obs.shape)
         next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size, -1)
         for i, agent in enumerate(self.agents):
             agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
-
-        # for i, agent in enumerate(self.agents):
-        #     agent.learn(obs[i], next_obs[i], actions, target_actions, predicted_actions, rewards[i], dones[i])
-        #     self.update_networks(agent)
-
-    ### DEBUG: The below LEARN method uses different batches for each agent
-    ### training, which complicates code, probably slows things down, and may
-    ### be causing difficult achieving convergence.
-    # def learn(self):
-    #     """
-    #     Perform a learning step on all agents in the network.
-    #     """
-    #     self.t_step += 1
-    #     # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
-    #     # Already calculated before storing in the replay buffer.
-    #     # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
-    #     batches = [self.memory.sample(self.batch_size) for agent in self.agents]
-    #
-    #     target_actions = []
-    #     predicted_actions = []
-    #     for idx, (agent, batch) in enumerate(zip(self.agents, batches)):
-    #         predicted_actions.append(agent.actor(batch[0][idx]))
-    #         target_actions.append(agent.actor_target(batch[3][idx]))
-    #
-    #     target_actions = torch.cat(target_actions, dim=-1).detach()
-    #     predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
-    #
-    #     for idx, agent in enumerate(self.agents):
-    #         obs, actions, rewards, next_obs, dones = batches[idx]
-    #         agent.learn(obs[idx], next_obs[idx], actions, target_actions, predicted_actions, rewards[idx], dones[idx])
-    #         self.update_networks(agent)
 
     def initialize_memory(self, pretrain_length, env):
         """

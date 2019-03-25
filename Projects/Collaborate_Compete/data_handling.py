@@ -431,7 +431,7 @@ class Logger:
         x_axis = np.linspace(1, datapoints, datapoints)
         yticks = np.linspace(min(data), max(data), num_ticks)
         ratio = datapoints / num_eps
-        fitted_x = score_window * ratio
+        fitted_x = max(1, score_window * ratio)
         ma1_data = self._moving_avg(data, fitted_x)
         ma2_data = self._moving_avg(data, fitted_x*2)
         mean = data[-int(fitted_x):].mean()
