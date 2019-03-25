@@ -86,7 +86,7 @@ class MAD4PG_Net:
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
 
         obs = obs.view(self.batch_size, -1)
-        next_obs = obs.view(self.batch_size, -1)
+        next_obs = next_obs.view(self.batch_size, -1)
         for i, agent in enumerate(self.agents):
             agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
