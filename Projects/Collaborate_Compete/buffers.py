@@ -53,18 +53,24 @@ class ReplayBuffer:
         memory can be added to the ReplayBuffer.
         """
         actions = np.concatenate(actions)
-        experience = obs, next_obs, actions, rewards, dones
 
         if self.rollout > 1:
+            experience = obs, next_obs, actions, rewards, dones
             self.n_step.append(experience)
             # Abort if ROLLOUT steps haven't been taken in a new episode
             if len(self.n_step) < self.rollout:
                 return
-            experience = self._n_stack(experience)
+            obs, next_obs, actions, rewards, dones = self._n_stack()
+
+        actions = torch.from_numpy(actions).float()
+        rewards = torch.tensor(rewards).float()
+        dones = torch.tensor(dones)
+
+        experience = (obs, next_obs, actions, rewards, dones)
         self.buffer.append(experience)
 
 
-    def _n_stack(self, experience):
+    def _n_stack(self):
         # Unpacks and stores the SARS' tuples across ROLLOUT timesteps
         obs, next_obs, actions, rewards, dones = zip(*self.n_step)
 
@@ -86,17 +92,20 @@ class ReplayBuffer:
         # next_obs for use with target predictions... should be ROLLOUT steps
         # ahead of obs, unless there is a terminal state
         next_obs = next_obs[n_steps]
-
-        #current actions [num_agents * action_size,]
-        actions = torch.from_numpy(actions[0]).float()        # actions = torch.from_numpy(actions[0]).type(torch.float)
-
-        #rewards summed through rollout-1 [num_agents,]
-        summed_rewards = torch.tensor(summed_rewards).float()
-        # done state  if encountered during ROLLOUT step stacking [num_agents,]
-        dones = torch.tensor(dones[n_steps])
-
-        experience = (obs, next_obs, actions, summed_rewards, dones)
-        return experience
+        #
+        # #current actions [num_agents * action_size,]
+        # actions = torch.from_numpy(actions[0]).float()
+        #
+        # #rewards summed through rollout-1 [num_agents,]
+        # summed_rewards = torch.tensor(summed_rewards).float()
+        # # done state  if encountered during ROLLOUT step stacking [num_agents,]
+        # dones = torch.tensor(dones[n_steps])
+        #
+        # experience = (obs, next_obs, actions, summed_rewards, dones)
+        # return experience
+        actions = actions[0]
+        dones = dones[n_steps]
+        return obs, next_obs, actions, summed_rewards, dones
 
     def __len__(self):
         return len(self.buffer)

@@ -270,7 +270,7 @@ class Logger:
 
         self._write_scores()
 
-        if eps_num % self.print_every == 0:
+        if eps_num % self.print_every == 0 or eps_num == self.max_eps:
             eps_time, total_time, remaining = self._runtime(eps_num)
             print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
                   ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
@@ -280,7 +280,7 @@ class Logger:
                     print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
                           ".format(idx, agent.actor_loss, agent.critic_loss))
             print("{}Avg return over previous {} episodes: {:5f}\n\
-                  ".format("."*3, self.print_every, np.array(self.scores).mean()))
+                  ".format("."*3, len(self.scores), np.array(self.scores).mean()))
 
     def _update_score(self):
         """
@@ -579,7 +579,9 @@ class Logger:
         eps_time = self._format_time(current_time, self.prev_timestamp)
         total_time = self._format_time(current_time, self.start_time)
         projected_end = (self.max_eps / eps_num) * (current_time - self.start_time) + self.start_time
-        remaining = self._format_time(projected_end, self.prev_timestamp)
+        # remaining = self._format_time(projected_end, self.prev_timestamp)
+        remaining = self._format_time(projected_end, current_time)
+
         self.prev_timestamp = current_time
         return eps_time, total_time, remaining
 
