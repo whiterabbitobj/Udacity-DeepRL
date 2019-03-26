@@ -77,6 +77,22 @@ class MAD4PG_Net:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
+        # for i, agent in enumerate(self.agents):
+        #     batch = self.memory.sample(self.batch_size)
+        #     obs, next_obs, actions, rewards, dones = batch
+        #
+        #     target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
+        #     target_actions = torch.cat(target_actions, dim=-1)#.detach()
+        #
+        #     predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
+        #     predicted_actions = torch.cat(predicted_actions, dim=-1)#.detach()
+        #     # print(obs.shape)
+        #     obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
+        #     # print(obs.shape)
+        #     next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size, -1)
+        #     agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
+        #     self.update_networks(agent)
+
         batch = self.memory.sample(self.batch_size)
         obs, next_obs, actions, rewards, dones = batch
 
@@ -270,7 +286,7 @@ class D4PG_Agent:
 
         # Perform gradient ascent
         self.actor_optim.zero_grad()
-        actor_loss.backward()
+        actor_loss.backward(retain_graph=True)
         self.actor_optim.step()
 
         # Perform gradient descent
