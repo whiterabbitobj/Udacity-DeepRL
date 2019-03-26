@@ -77,35 +77,19 @@ class MAD4PG_Net:
         # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
-        # for i, agent in enumerate(self.agents):
-        #     batch = self.memory.sample(self.batch_size)
-        #     obs, next_obs, actions, rewards, dones = batch
-        #
-        #     target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
-        #     target_actions = torch.cat(target_actions, dim=-1)#.detach()
-        #
-        #     predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
-        #     predicted_actions = torch.cat(predicted_actions, dim=-1)#.detach()
-        #     # print(obs.shape)
-        #     obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
-        #     # print(obs.shape)
-        #     next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size, -1)
-        #     agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
-        #     self.update_networks(agent)
 
         batch = self.memory.sample(self.batch_size)
         obs, next_obs, actions, rewards, dones = batch
 
         target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
         target_actions = torch.cat(target_actions, dim=-1)#.detach()
-        #print(target_actions.shape)
-        #print(target_actions[0])
+
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
         predicted_actions = torch.cat(predicted_actions, dim=-1)#.detach()
-        # print(obs.shape)
+
         obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
-        # print(obs.shape)
         next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size, -1)
+
         for i, agent in enumerate(self.agents):
             agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
@@ -267,8 +251,8 @@ class D4PG_Agent:
         log_probs = self.critic(obs, actions, log=True)
 
         # Calculate TARGET distribution/project onto supports (Yi)
-        target_probs = self.critic_target(next_obs, target_actions)#.detach()
-        target_dist = self._categorical(rewards, target_probs, dones).detach()
+        target_probs = self.critic_target(next_obs, target_actions).detach()
+        target_dist = self._categorical(rewards, target_probs, dones)#.detach()
 
         # Calculate the critic network LOSS (Cross Entropy)
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
