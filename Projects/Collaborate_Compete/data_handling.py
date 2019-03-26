@@ -303,8 +303,8 @@ class Logger:
         # List of the desired params to print on the graph for later review
         params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms',
             'vmin', 'vmax', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma',
-            'learn_rate', 'buffer_size', 'batch_size', 'pretrain', 'rollout',
-            'l2_decay']
+            'actor_learn_rate', 'critic_learn_rate', 'buffer_size',
+            'batch_size', 'pretrain', 'rollout', 'l2_decay']
 
         sess_params = ''
         counter = 0
@@ -338,7 +338,7 @@ class Logger:
             scores = np.array([float(score) for score in f.read().splitlines()])
         num_eps = len(scores)
         # Calculate the moving average, if not enough episodes were run, then
-        # don't blindly average 100, but instead use the episode length as a barometer.
+        # don't blindly average 100, but instead use num_eps as a barometer.
         score_window = max(1, int(min(100, num_eps/2)))
         # HARD VARS
         dtop = 0.85
@@ -731,6 +731,10 @@ def gather_args():
                   network updates using the TAU parameter. Case insensitive.",
             type=str,
             default="hard")
+    parser.add_argument("-savedir", "--save_dir",
+            help="Directory to find saved agent weights.",
+            type=str,
+            default="saves")
 
     ### DEBUG: LATEST and FILENAME flags are currently disabled until time
     ### permits further development for loading/saving. Currently, saved weights
@@ -744,31 +748,36 @@ def gather_args():
     #         help="Path agent weights file to load. ",
     #         type=str,
     #         default=None)
-    parser.add_argument("-savedir", "--save_dir",
-            help="Directory to find saved agent weights.",
-            type=str,
-            default="saves")
+
     args = parser.parse_args()
 
     ############################################################################
-    #             PROCESS ARGS AFTER COMMAND LINE GATHERING                    #
+    #               PROCESS ARGS AFTER COMMAND LINE GATHERING                  #
 
+    # If PRETRAIN isn't explicitly set, then just collect enough samples to
+    # cover the first training batch
     if args.pretrain == None:
         args.pretrain = args.batch_size
+
     # Check Update Type
     args.update_type = args.update_type.lower()
     assert args.update_type in ['hard','soft'], "UPDATE_TYPE must be either \
             HARD or SOFT."
+
     # Pretrain length can't be less than batch_size
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
+
     # Ensure that ROLLOUT is 1 or greater
     assert args.rollout >= 1, "ROLLOUT must be greater than or equal to 1."
+
     # Always use GPU if available
     args.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
     # Limit the length of evaluation runs unless user forces cmdline args
     if args.eval and not args.force_eval:
         args.num_episodes = 1
         args.max_steps = 1000
+
     # To avoid redundant code checks elsewhere, EVAL should be set to True if
     # FORCE_EVAL is flagged
     if args.force_eval:
