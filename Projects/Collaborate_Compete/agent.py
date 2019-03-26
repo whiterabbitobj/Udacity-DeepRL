@@ -250,7 +250,7 @@ class D4PG_Agent:
         log_probs = self.critic(obs, actions, log=True)
 
         # Calculate TARGET distribution/project onto supports (Yi)
-        target_probs = self.critic_target(next_obs, target_actions)
+        target_probs = self.critic_target(next_obs, target_actions).detach()
         target_dist = self._categorical(rewards, target_probs, dones)
 
         # Calculate the critic network LOSS (Cross Entropy)
