@@ -66,7 +66,7 @@ class MAD4PG_Net:
         """
         Store an experience tuple in the ReplayBuffer
         """
-        self.memory.store(obs, next_obs, actions, rewards, dones)
+        self.memory.store((obs, next_obs, actions, rewards, dones))
 
     def learn(self):
         """
@@ -81,7 +81,7 @@ class MAD4PG_Net:
 
         target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
         target_actions = torch.cat(target_actions, dim=-1).detach()
-
+        #print(target_actions.shape)
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
         # print(obs.shape)

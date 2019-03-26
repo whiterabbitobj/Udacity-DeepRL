@@ -31,6 +31,7 @@ class ReplayBuffer:
         """
         batch = random.sample(self.buffer, k=batch_size)
         obs, next_obs, actions, rewards, dones = zip(*batch)
+
         # Transpose the num_agents and batch_size, for easy indexing later
         # e.g. from 64 experiences of 2 agents each, to 2 agents with 64
         # experiences each
@@ -47,52 +48,50 @@ class ReplayBuffer:
         """
         self.n_step = deque(maxlen=self.rollout)
 
-    def store(self, obs, next_obs, actions, rewards, dones):
+    def store(self, experience):
         """
         Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
         memory can be added to the ReplayBuffer.
         """
-        actions = np.concatenate(actions)
 
         if self.rollout > 1:
-            experience = obs, next_obs, actions, rewards, dones
             self.n_step.append(experience)
             # Abort if ROLLOUT steps haven't been taken in a new episode
             if len(self.n_step) < self.rollout:
                 return
-            obs, next_obs, actions, rewards, dones = self._n_stack()
+            experience = self._n_stack()
 
-        actions = torch.from_numpy(actions).float()
-        rewards = torch.tensor(rewards).float()
-        dones = torch.tensor(dones)
+        obs, next_obs, actions, rewards, dones = experience
+        actions = torch.from_numpy(np.concatenate(actions)).float()
+        rewards = torch.from_numpy(rewards).float()
+        dones = torch.tensor(dones).float()
 
-        experience = (obs, next_obs, actions, rewards, dones)
-        self.buffer.append(experience)
+        self.buffer.append((obs, next_obs, actions, rewards, dones))
 
 
     def _n_stack(self):
-        # Unpacks and stores the SARS' tuples across ROLLOUT timesteps
+        """
+        Takes a stack of experience tuples of depth ROLLOUT, and calculates
+        the discounted real rewards, then returns the next_obs at ROLLOUT
+        timesteps to be used with a nstep trajectory structure Q value.
+        """
+
         obs, next_obs, actions, rewards, dones = zip(*self.n_step)
 
-        n_steps = self.rollout - 1
-        # Calculate n-step discounted reward
-        # If encountering a terminal state (next_observation == None) then sum
-        # the rewards only until the terminal state and report back a terminal
-        # state for the trajectory tuple.
-        summed_rewards = np.zeros(self.agent_count)
-        for i in range(n_steps):
+        # n_steps = self.rollout - 1
+        # summed_rewards = np.zeros(self.agent_count)
+        summed_rewards = rewards[0]
+        for i in range(1, self.rollout):
             summed_rewards += self.gamma**i * rewards[i]
             if np.any(dones[i]):
-                n_steps = i
+                #n_steps = i
                 break
-        # store the current state, current action, cumulative discounted
-        # reward from t -> t+n-1, and the next_state at t+n (S't+n)
+
         obs = obs[0]
-        # next_obs is ROLLOUT steps ahead of obs, unless there is terminal state
-        next_obs = next_obs[n_steps]
+        nstep_obs = next_obs[i]
         actions = actions[0]
-        dones = dones[n_steps]
-        return obs, next_obs, actions, summed_rewards, dones
+        dones = dones[i]
+        return (obs, nstep_obs, actions, summed_rewards, dones)
 
     def __len__(self):
         return len(self.buffer)
