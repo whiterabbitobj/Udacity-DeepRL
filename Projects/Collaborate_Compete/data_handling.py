@@ -721,7 +721,7 @@ def gather_args():
             help="How many episodes between saves.",
             type=int,
             default=100)
-    parser.add_argument("-t", "--tau",
+    parser.add_argument("-tau", "--tau",
             help="Soft network update weighting.",
             type=float,
             default=0.001)

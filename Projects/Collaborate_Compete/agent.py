@@ -81,11 +81,11 @@ class MAD4PG_Net:
         obs, next_obs, actions, rewards, dones = batch
 
         target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
-        target_actions = torch.cat(target_actions, dim=-1).detach()
+        target_actions = torch.cat(target_actions, dim=-1)#.detach()
         #print(target_actions.shape)
         #print(target_actions[0])
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
-        predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
+        predicted_actions = torch.cat(predicted_actions, dim=-1)#.detach()
         # print(obs.shape)
         obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
         # print(obs.shape)
@@ -251,8 +251,8 @@ class D4PG_Agent:
         log_probs = self.critic(obs, actions, log=True)
 
         # Calculate TARGET distribution/project onto supports (Yi)
-        target_probs = self.critic_target(next_obs, target_actions).detach()
-        target_dist = self._categorical(rewards, target_probs, dones)
+        target_probs = self.critic_target(next_obs, target_actions)#.detach()
+        target_dist = self._categorical(rewards, target_probs, dones).detach()
 
         # Calculate the critic network LOSS (Cross Entropy)
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
