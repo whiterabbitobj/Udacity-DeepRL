@@ -695,9 +695,10 @@ def gather_args():
             default=1000)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
-                  ReplayBuffer before training begins.",
+                  ReplayBuffer before training begins. Defaults to BATCH_SIZE \
+                  if not set explicitly by the user.",
             type=int,
-            default=500)
+            default=None)
     parser.add_argument("--quiet",
             help="Print less while running the agent.",
             action="store_true")
@@ -752,6 +753,8 @@ def gather_args():
     ############################################################################
     #             PROCESS ARGS AFTER COMMAND LINE GATHERING                    #
 
+    if args.pretrain == None:
+        args.pretrain = args.batch_size
     # Check Update Type
     args.update_type = args.update_type.lower()
     assert args.update_type in ['hard','soft'], "UPDATE_TYPE must be either \
