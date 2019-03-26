@@ -71,7 +71,7 @@ def train(multi_agent, args, env, saver):
             #                INTERACT                #
             actions = multi_agent.act(obs)
             next_obs, rewards, dones = env.step(actions)
-            multi_agent.store(obs, next_obs, actions, rewards, dones)
+            multi_agent.store((obs, next_obs, actions, rewards, dones))
             ##########################################
             #                 TRAIN                  #
             multi_agent.learn()
@@ -109,12 +109,12 @@ def eval(multi_agent, args, env):
         # Begin each episode with a clean environment
         env.reset()
         # Get initial state
-        observations = env.states
+        obs = env.states
         # Gather experience until done or max_steps is reached
         while True:
-            actions = multi_agent.act(observations)
-            next_observations, rewards, dones = env.step(actions)
-            observations = next_observations
+            actions = multi_agent.act(obs, training=False)
+            next_obs, rewards, dones = env.step(actions)
+            observations = next_obs
 
             logger.log(rewards)
             if np.any(dones):

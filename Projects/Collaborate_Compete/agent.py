@@ -25,58 +25,87 @@ class MAD4PG_Net:
         Initialize a MAD4PG network.
         """
 
-        self.update_type = args.update_type
         self.framework = "MAD4PG"
         self.t_step = 0
         self.episode = 0
         self.C = args.C
         self._e = args.e
-        self.e_min = e_min
-        self.e_decay = e_decay
+        self.e_min = args.e_min
+        self.e_decay = args.e_decay
+        self.update_type = args.update_type
         self.tau = args.tau
         self.state_size = env.state_size
         self.action_size = env.action_size
 
+        # Create all the agents to be trained in the environment
         self.agent_count = env.agent_count
-        self.agents = [D4PG_Agent(self.state_size, self.action_size, args, self.agent_count) for _ in range(self.agent_count)]
+        self.agents = [D4PG_Agent(self.state_size,
+                                  self.action_size,
+                                  args,
+                                  self.agent_count
+                                  )
+                       for _ in range(self.agent_count)]
         self.batch_size = args.batch_size
 
         # Set up memory buffers, currently only standard replay is implemented
-        # For multi-agent training, only a single buffer is needed for all
-        # agents to draw upon.
-        # For certain environments, such as sparse rewards, PER would be
-        # beneficial to implement
-        self.memory = ReplayBuffer(args.device, args.buffer_size, args.gamma, args.rollout, self.agent_count)
+        self.memory = ReplayBuffer(args.device,
+                                   args.buffer_size,
+                                   args.gamma,
+                                   args.rollout,
+                                   self.agent_count)
 
         self.new_episode()
         for agent in self.agents:
             self.update_networks(agent, force_hard=True)
 
-    def act(self, obs, eval=False):
+    def initialize_memory(self, pretrain_length, env):
+        """
+        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of
+        experiences before training begins.
+        """
+
+        if self.memlen >= pretrain_length:
+            print("Memory already filled, length: {}".format(len(self.memory)))
+            return
+
+        print("Initializing memory buffer.")
+        obs = env.states
+        while self.memlen < pretrain_length:
+            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
+            next_obs, rewards, dones = env.step(actions)
+            self.store((obs, next_obs, actions, rewards, dones))
+            obs = next_obs
+
+            if self.memlen % 25 == 0 or self.memlen >= pretrain_length:
+                print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
+        print("Done!")
+
+    def act(self, obs, training=True):
         """
         For each agent in the MAD4PG network, choose an action from the ACTOR
         """
 
-        assert len(obs) == len(self.agents), "Num OBSERVATIONS does not match num AGENTS."
-        actions = np.array([agent.act(o) for agent, o in zip(self.agents, obs)])
-        if not eval:
+        assert len(obs) == len(self.agents), "Num OBSERVATIONS does not match \
+                                              num AGENTS."
+        with torch.no_grad():
+            actions = np.array([agent.act(o)
+                                for agent, o in zip(self.agents, obs)])
+        if training:
             actions += self._gauss_noise(actions.shape)
         return np.clip(actions, -1, 1)
 
-    def store(self, obs, next_obs, actions, rewards, dones):
+    def store(self, experience):
         """
         Store an experience tuple in the ReplayBuffer
         """
-        self.memory.store((obs, next_obs, actions, rewards, dones))
+        self.memory.store(experience)
 
     def learn(self):
         """
         Perform a learning step on all agents in the network.
         """
         self.t_step += 1
-        # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
-        # Already calculated before storing in the replay buffer.
-        # NEXT_OBSERVATIONS are ROLLOUT steps ahead of OBSERVATIONS
+        # Sample from replay buffer, which already has nstep rollout calculated.
 
         batch = self.memory.sample(self.batch_size)
         obs, next_obs, actions, rewards, dones = batch
@@ -93,28 +122,6 @@ class MAD4PG_Net:
         for i, agent in enumerate(self.agents):
             agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
-
-    def initialize_memory(self, pretrain_length, env):
-        """
-        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
-        before training begins.
-        """
-
-        if self.memlen >= pretrain_length:
-            print("Memory already filled, length: {}".format(len(self.memory)))
-            return
-
-        print("Initializing memory buffer.")
-        obs = env.states
-        while self.memlen < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-            next_obs, rewards, dones = env.step(actions)
-            self.store(obs, next_obs, actions, rewards, dones)
-            obs = next_obs
-
-            if self.memlen % 25 == 0 or self.memlen >= pretrain_length:
-                print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
-        print("Done!")
 
     def new_episode(self):
         """

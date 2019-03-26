@@ -3,7 +3,8 @@ import sys
 import numpy as np
 import time
 from utils import print_bracketing, check_dir
-from argparse import ArgumentParser
+#from argparse import ArgumentParser
+import argparse
 import torch
 import os.path
 import re
@@ -303,7 +304,7 @@ class Logger:
         # List of the desired params to print on the graph for later review
         params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms',
             'vmin', 'vmax', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma',
-            'actor_learn_rate', 'critic_learn_rate', 'buffer_size', 'tau', 
+            'actor_learn_rate', 'critic_learn_rate', 'buffer_size', 'tau',
             'batch_size', 'pretrain', 'rollout', 'l2_decay', 'update_type']
 
         sess_params = ''
@@ -631,110 +632,140 @@ def gather_args():
     """
     Generate arguments passed from the command line.
     """
-    parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
-            usage="")
 
-    parser.add_argument("-alr", "--actor_learn_rate",
-            help="Actor Learning Rate.",
-            type=float,
-            default=0.001)
-    parser.add_argument("-clr", "--critic_learn_rate",
-            help="Critic Learning Rate.",
-            type=float,
-            default=0.001)
-    parser.add_argument("-bs", "--batch_size",
-            help="Size of each batch between learning updates",
-            type=int,
-            default=128)
-    parser.add_argument("-buffer", "--buffer_size",
-            help="How many past timesteps to keep in memory.",
-            type=int,
-            default=300000)
-    parser.add_argument("-C", "--C",
-            help="How many timesteps between hard network updates.",
-            type=int,
-            default=2000)
-    parser.add_argument("-cpu", "--cpu",
-            help="Run training on the CPU instead of the default (GPU).",
-            action="store_true")
-    parser.add_argument("-e", "--e",
-            help="Noisey exploration rate.",
-            type=float,
-            default=0.3)
-    parser.add_argument("-vmin", "--vmin",
-            help="Min value of reward projection.",
-            type=float,
-            default=0)
-    parser.add_argument("-vmax", "--vmax",
-            help="Max value of reward projection.",
-            type=float,
-            default=0.25)
-    parser.add_argument("-atoms", "--num_atoms",
-            help="Number of atoms to project categorically.",
-            type=int,
-            default=51)
-    parser.add_argument("-eval", "--eval",
+    parser = argparse.ArgumentParser(description="Collect arguments for a Deep \
+            Reinforcement Learning Agent.",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    ############################################################################
+    #                                                                          #
+    general_group = parser.add_argument_group("General", "General params.")
+    general_group.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
                   to 1 and MAX_STEPS to 1000.",
             action="store_true")
-    parser.add_argument("-feval", "--force_eval",
+    general_group.add_argument("-feval", "--force_eval",
             help="Force evaluation mode to run with specified NUM_EPISODES \
                   and MAX_STEPS param.",
             action="store_true")
-    parser.add_argument("-gamma",
-            help="Gamma (Discount rate).",
-            type=float,
-            default=0.99)
-    parser.add_argument("--nographics",
+    general_group.add_argument("--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
-    parser.add_argument("-num", "--num_episodes",
-            help="How many episodes to train?",
+    general_group.add_argument("--quiet",
+            help="Print less while running the agent.",
+            action="store_true")
+    ############################################################################
+    #                                                                          #
+    net_group = parser.add_argument_group("Network Params", "Params associated \
+            with the agent networks.")
+    net_group.add_argument("-alr", "--actor_learn_rate",
+            help="Actor Learning Rate.",
+            type=float,
+            default=0.001)
+    net_group.add_argument("-clr", "--critic_learn_rate",
+            help="Critic Learning Rate.",
+            type=float,
+            default=0.001)
+    net_group.add_argument("-gamma",
+            help="Discount rate.",
+            type=float,
+            default=0.99)
+    net_group.add_argument("-utype", "--update_type",
+            help="What type of target network updating to use? If \
+                  HARD, network updates every C timesteps, if SOFT then \
+                  network updates using the TAU parameter.",
+            type=str,
+            default="hard",
+            choices = ['hard', 'soft'])
+    net_group.add_argument("-C", "--C",
+            help="How many timesteps between hard network updates.",
             type=int,
-            default=1000)
-    parser.add_argument("-pre", "--pretrain",
+            default=2000)
+    net_group.add_argument("-tau", "--tau",
+            help="Soft network update weighting.",
+            type=float,
+            default=0.001)
+    net_group.add_argument("-e", "--e",
+            help="Epsilon / Noisey exploration rate.",
+            type=float,
+            default=0.3)
+    net_group.add_argument("-em", "--e_min",
+            help="Minimum value for epsilon.",
+            type=float,
+            default=0.05)
+    net_group.add_argument("-ed", "--e_decay",
+            help="Decay rate for Epsilon value.",
+            type=float,
+            default=1)
+    net_group.add_argument("-vmin", "--vmin",
+            help="Min value of reward projection for categorical networks.",
+            type=float,
+            default=0)
+    net_group.add_argument("-vmax", "--vmax",
+            help="Max value of reward projection for categorical networks.",
+            type=float,
+            default=0.25)
+    net_group.add_argument("-atoms", "--num_atoms",
+            help="Number of atoms to project categorically.",
+            type=int,
+            default=51)
+    ############################################################################
+    #                                                                          #
+    buffer_group = parser.add_argument_group("Replay Buffer", "Params \
+            associated with the Replay Buffer.")
+    buffer_group.add_argument("-bs", "--batch_size",
+            help="Size of each batch between learning updates",
+            type=int,
+            default=128)
+    buffer_group.add_argument("-buffer", "--buffer_size",
+            help="How many past timesteps to keep in memory.",
+            type=int,
+            default=300000)
+    buffer_group.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins. Defaults to BATCH_SIZE \
                   if not set explicitly by the user.",
             type=int,
             default=None)
-    parser.add_argument("--quiet",
-            help="Print less while running the agent.",
-            action="store_true")
-    parser.add_argument("--resume",
-            help="Resume training from a checkpoint.",
-            action="store_true")
-    parser.add_argument("-roll", "--rollout",
+    buffer_group.add_argument("-roll", "--rollout",
             help="How many experiences to use in N-Step returns",
             type=int,
             default=5)
-    parser.add_argument("-pe", "--print_every",
+    ############################################################################
+    #                                                                          #
+    train_group = parser.add_argument_group("Training", "Params associated \
+            with training the Agent(s).")
+    train_group.add_argument("-cpu", "--cpu",
+            help="Run training on the CPU instead of the default (GPU).",
+            action="store_true")
+    train_group.add_argument("-num", "--num_episodes",
+            help="How many episodes to train?",
+            type=int,
+            default=2000)
+    ############################################################################
+    #                                                                          #
+    log_group = parser.add_argument_group("Data Handling", "Params associated \
+            with logging and saving data.")
+    log_group.add_argument("-pe", "--print_every",
             help="How many episodes between print updates.",
             type=int,
             default=10)
-    parser.add_argument("-le", "--log_every",
+    log_group.add_argument("-le", "--log_every",
             help="How many timesteps between logging loss values.",
             type=int,
             default=15)
-    parser.add_argument("-se", "--save_every",
-            help="How many episodes between saves.",
-            type=int,
-            default=100)
-    parser.add_argument("-tau", "--tau",
-            help="Soft network update weighting.",
-            type=float,
-            default=0.001)
-    parser.add_argument("-utype", "--update_type",
-            help="What type of target network updating to use? (HARD/SOFT) If \
-                  HARD, network updates every C timesteps, if SOFT then \
-                  network updates using the TAU parameter. Case insensitive.",
-            type=str,
-            default="hard")
-    parser.add_argument("-savedir", "--save_dir",
+    log_group.add_argument("--resume",
+            help="Resume training from a checkpoint.",
+            action="store_true")
+    log_group.add_argument("-savedir", "--save_dir",
             help="Directory to find saved agent weights.",
             type=str,
             default="saves")
+    log_group.add_argument("-se", "--save_every",
+            help="How many episodes between saves.",
+            type=int,
+            default=100)
 
     ### DEBUG: LATEST and FILENAME flags are currently disabled until time
     ### permits further development for loading/saving. Currently, saved weights
@@ -758,11 +789,6 @@ def gather_args():
     # cover the first training batch
     if args.pretrain == None:
         args.pretrain = args.batch_size
-
-    # Check Update Type
-    args.update_type = args.update_type.lower()
-    assert args.update_type in ['hard','soft'], "UPDATE_TYPE must be either \
-            HARD or SOFT."
 
     # Pretrain length can't be less than batch_size
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
