@@ -723,7 +723,13 @@ def gather_args():
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,
-            default=0.0005)
+            default=0.001)
+    parser.add_argument("-utype", "--update_type",
+            help="What type of target network updating to use? (HARD/SOFT) If \
+                  HARD, network updates every C timesteps, if SOFT then \
+                  network updates using the TAU parameter. Case insensitive.",
+            type=str,
+            default="hard")
 
     ### DEBUG: LATEST and FILENAME flags are currently disabled until time
     ### permits further development for loading/saving. Currently, saved weights
@@ -746,6 +752,10 @@ def gather_args():
     ############################################################################
     #             PROCESS ARGS AFTER COMMAND LINE GATHERING                    #
 
+    # Check Update Type
+    args.update_type = args.update_type.lower()
+    assert args.update_type in ['hard','soft'], "UPDATE_TYPE must be either \
+            HARD or SOFT."
     # Pretrain length can't be less than batch_size
     assert args.pretrain >= args.batch_size, "PRETRAIN less than BATCHSIZE."
     # Ensure that ROLLOUT is 1 or greater

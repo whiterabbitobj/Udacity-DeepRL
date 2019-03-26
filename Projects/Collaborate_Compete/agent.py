@@ -25,7 +25,7 @@ class MAD4PG_Net:
         Initialize a MAD4PG network.
         """
 
-        self.update_type = "hard"
+        self.update_type = args.update_type
         self.framework = "MAD4PG"
         self.t_step = 0
         self.episode = 0
@@ -33,6 +33,7 @@ class MAD4PG_Net:
         self._e = args.e
         self.e_min = e_min
         self.e_decay = e_decay
+        self.tau = args.tau
         self.state_size = env.state_size
         self.action_size = env.action_size
 
@@ -82,6 +83,7 @@ class MAD4PG_Net:
         target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
         target_actions = torch.cat(target_actions, dim=-1).detach()
         #print(target_actions.shape)
+        #print(target_actions[0])
         predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
         predicted_actions = torch.cat(predicted_actions, dim=-1).detach()
         # print(obs.shape)
@@ -140,7 +142,6 @@ class MAD4PG_Net:
         Slowly updated the network using every-step partial network copies
         modulated by parameter TAU.
         """
-
         for t_param, param in zip(target.parameters(), active.parameters()):
             t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
 
@@ -209,7 +210,7 @@ class D4PG_Agent:
 
         self.gamma = args.gamma
         self.rollout = args.rollout
-        self.tau = args.tau
+        # self.tau = args.tau
 
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
