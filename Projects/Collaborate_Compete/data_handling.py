@@ -303,8 +303,8 @@ class Logger:
         # List of the desired params to print on the graph for later review
         params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms',
             'vmin', 'vmax', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma',
-            'actor_learn_rate', 'critic_learn_rate', 'buffer_size',
-            'batch_size', 'pretrain', 'rollout', 'l2_decay']
+            'actor_learn_rate', 'critic_learn_rate', 'buffer_size', 'tau', 
+            'batch_size', 'pretrain', 'rollout', 'l2_decay', 'update_type']
 
         sess_params = ''
         counter = 0
