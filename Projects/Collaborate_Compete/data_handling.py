@@ -232,7 +232,8 @@ class Logger:
         self.filename = os.path.basename(self.save_dir)
         self.logs_basename = os.path.join(self.log_dir, self.filename)
         self.start_time = self.prev_timestamp =  time.time()
-        self.scores = deque(maxlen=self.print_every)
+        # self.scores = deque(maxlen=self.print_every)
+        self.scores = []
         self._reset_rewards()
 
         if not self.eval:
@@ -292,6 +293,9 @@ class Logger:
         self._update_score()
         self._reset_rewards()
 
+        avg_across = 50
+        multi_agent.avg_score = self._moving_avg(self.scores, avg_across)[-1]
+
         if self.eval:
             print("Score: {}".format(self.latest_score))
             return
@@ -305,20 +309,23 @@ class Logger:
         """
         Print status info to the command line.
         """
-
+        leader = "..."
         # TIME INFORMATION
         eps_time, total_time, remaining = self._runtime(eps_num)
         timestamp = time.strftime("%H:%M:%S", time.localtime())
         print("\nEp: {}/{} - {} steps - @{}".format(eps_num, self.max_eps, multi_agent.t_step, timestamp))
-        print("...Batch: {}, Total: {}, Est.Remain: {}".format(eps_time, total_time, remaining))
+        print("{}Batch: {}, Total: {}, Est.Remain: {}".format(leader, eps_time, total_time, remaining))
         # LOSS INFORMATION
         if not self.quietmode:
             for idx, agent in enumerate(multi_agent.agents):
-                print("Agent #{} losses... Actor: {:.4f}, Critic: {:.4f}\
-                      ".format(idx+1, agent.actor_loss, agent.critic_loss))
+                print("{0}Actor#{1} Loss: {2:.4f}, Critic:#{1} {3:.4f}\
+                      ".format(leader, idx+1, agent.actor_loss, agent.critic_loss))
+            print("{}E: {:.4f}".format(leader, multi_agent.e))
         # SCORE DATA
-        print("...Avg return over previous {} episodes: {:.4f}\n".format(
-                len(self.scores), np.array(self.scores).mean()))
+        prev_scores = self.scores[-self.print_every:]
+        print("Avg RETURN over previous {} episodes: {:.4f}\n".format(
+                self.print_every, np.array(prev_scores).mean()))
+        #print(", ".join(map(str, prev_scores)))
 
     def _update_score(self):
         """
@@ -434,7 +441,7 @@ class Logger:
         x_axis = np.linspace(1, num_eps, num_eps)
         score_mean = scores[-score_window:].mean()
         score_std = scores[-score_window:].std()
-        score_report = "{0}eps MA score: {1:.3f}\n{0}eps STD: {2:.3f}".format(
+        report = "{0}eps MA score: {1:.3f}\n{0}eps STD: {2:.3f}".format(
                 score_window, score_mean, score_std)
 
         # Plot unfiltered scores
@@ -457,7 +464,7 @@ class Logger:
         ax.legend(loc="upper left", markerscale=2.5, fontsize=15)
         ax.axvspan(x_axis[-score_window], x_axis[-1],
                    color=self.highlight_color, alpha=self.highlight_alpha)
-        ax.annotate(score_report, xy=(1,1), xycoords="figure points",
+        ax.annotate(report, xy=(1,1), xycoords="figure points",
                     xytext=(0.925,0.05), textcoords="axes fraction",
                     horizontalalignment="right", size=20, color='white',
                     bbox = self.annotate_props)
@@ -475,7 +482,7 @@ class Logger:
         ma2_data = self._moving_avg(data, fitted_x*2)
         mean = data[-int(fitted_x):].mean()
         std = data[-int(fitted_x):].std()
-        report = "{0}eps MA actor loss: {1:.3f}\n{0}eps STD: {2:.4f}".format(
+        report = "{0}eps MA actor loss: {1:.4f}\n{0}eps STD: {2:.4f}".format(
                 score_window, mean, std)
 
         # Plot unfiltered loss data

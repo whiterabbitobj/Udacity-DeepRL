@@ -18,9 +18,7 @@ class MAD4PG_Net:
     in what I will call MAD4PG.
     """
 
-    def __init__(self, env, args,
-                e_decay = 1,
-                e_min = 0.05):
+    def __init__(self, env, args):
         """
         Initialize a MAD4PG network.
         """
@@ -36,7 +34,7 @@ class MAD4PG_Net:
         self.tau = args.tau
         self.state_size = env.state_size
         self.action_size = env.action_size
-
+        self.avg_score = 0
         # Create all the agents to be trained in the environment
         self.agent_count = env.agent_count
         self.agents = [D4PG_Agent(self.state_size,
@@ -126,7 +124,7 @@ class MAD4PG_Net:
         """
         Handle any cleanup or steps to begin a new episode of training.
         """
-
+        
         self.memory.init_n_step()
         self.episode += 1
 
@@ -178,8 +176,12 @@ class MAD4PG_Net:
         always some noisiness to the policy actions. Returns as a property.
         """
 
-        self._e = max(self.e_min, self._e * self.e_decay)
-        return self._e
+        # self._e = max(self.e_min, self._e * self.e_decay)
+        x = self.avg_score * 15 -5
+        e = np.exp(x) / (1 + np.exp(x))
+        e = (-e + 1) / 3.33333
+        e = np.clip(e, self.e_min, self._e)
+        return e
 
     @property
     def memlen(self):
