@@ -69,6 +69,7 @@ class Saver():
             files = self._get_files(args.save_dir)
             assert len(files) > 0, no_files_found
             return [self._get_filepath(files, i) for i in range(agent_count)]
+
             ### DEBUG: temporarily removing --latest flag until further dev on
             ### multi-agent save/loads
             # if args.latest:
@@ -95,7 +96,7 @@ class Saver():
         Prompts the user about what save to load, or uses the last modified save.
         """
 
-        load_file_prompt = "Load file for Agent #{} (or: q/quit): ".format(idx+1)
+        load_file_prompt = "Load file for Agent #{} (or: q/quit): ".format(idx)
         user_quit_message = "User quit process before loading a file."
         message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
         message = '\n'.join(message).replace('\\', '/')
@@ -113,7 +114,7 @@ class Saver():
 
     def generate_savename(self, prefix, save_dir):
         """
-        Gener.ates an automatic savename for training files, will version-up as
+        Generates an automatic savename for training files, will version-up as
         needed.
         """
         check_dir(save_dir)
@@ -130,42 +131,47 @@ class Saver():
         save_dir = os.path.join(save_dir, filename)
         return save_dir, filename
 
-    def save(self, agent, final=False):
+    def save(self, multi_agent, final=False):
         """
         Preps a weights save file at intervals controlled by SAVE_EVERY or when
         training is finished.
         """
 
-        mssg = "Saving Agent weights to: "
-        if final:
-            save_name = "{}_eps{:04d}_FINAL".format(self.filename, agent.episode-1)
-        else:
-            save_name = "{}_eps{:04d}_ckpt".format(self.filename, agent.episode)
-        if agent.episode % self.save_every == 0 or final:
-            self._write_save(agent, save_name, mssg)
+        if multi_agent.episode % self.save_every == 0 or final:
+            if final:
+                base_save = "{}_eps{:04d}_FINAL".format(self.filename,
+                                                        multi_agent.episode-1)
+            else:
+                base_save = "{}_eps{:04d}_ckpt".format(self.filename,
+                                                       multi_agent.episode)
+            base_save = os.path.join(self.save_dir, base_save).replace('\\','/')
+            self._write_save(multi_agent, base_save)
 
-    def _write_save(self, multi_agent, save_name, mssg):
+
+    def _write_save(self, multi_agent, base_save):
         """
         Does the actual saving bit.
         """
 
-        basename = os.path.join(self.save_dir, save_name).replace('\\','/')
-        statement = mssg + basename + "..."
-        print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         check_dir(self.save_dir)
+        mssg = ["Saving Agent weights to: "]
         for idx, agent in enumerate(multi_agent.agents):
             suffix =  "_agent{}".format(idx+1) + self.file_ext
-            torch.save(self._get_save_dict(agent), basename + suffix)
+            fullname = base_save + suffix
+            torch.save(self._get_save_dict(agent), fullname)
+            mssg.append(fullname)
+        pad = len(max(mssg, key=len))
+        print("{0}\n{1}\n{0}".format("#"*pad, '\n'.join(mssg)))
 
     def _get_save_dict(self, agent):
         """
         Prep a dictionary of data from the current Agent.
         """
 
-        checkpoint = {'actor_dict': agent.actor.state_dict(),
-                      'critic_dict': agent.critic.state_dict()
-                      }
-        return checkpoint
+        data = {'actor_dict': agent.actor.state_dict(),
+                'critic_dict': agent.critic.state_dict()
+                }
+        return data
 
     def _load_agent(self, load_file, multi_agent):
         """
@@ -179,6 +185,7 @@ class Saver():
             multi_agent.update_networks(agent, force_hard=True)
         statement = ["Successfully loaded files:"]
         statement.extend(load_file)
+
         print_bracketing(statement)
 
 
@@ -268,9 +275,9 @@ class Logger:
         self._write_scores()
 
         if eps_num % self.print_every == 0 or eps_num == self.max_eps:
-            self._print_status(eps_num)
+            self._print_status(eps_num, multi_agent)
 
-    def _print_status(self, eps_num):
+    def _print_status(self, eps_num, multi_agent):
         """
         Print status info to the command line.
         """
@@ -650,7 +657,7 @@ def gather_args():
     parser = argparse.ArgumentParser(description="Collect arguments for a Deep \
             Reinforcement Learning Agent.",
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
+    #                                                                          #
     ############################################################################
     #                                                                          #
     general_group = parser.add_argument_group("General", "General params.")
@@ -663,12 +670,17 @@ def gather_args():
             help="Force evaluation mode to run with specified NUM_EPISODES \
                   and MAX_STEPS param.",
             action="store_true")
-    general_group.add_argument("--nographics",
+    general_group.add_argument("-ng", "--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
     general_group.add_argument("--quiet",
             help="Print less while running the agent.",
             action="store_true")
+    general_group.add_argument("--observe",
+            help="Run the environment in evaluation mode, even if training.\
+                  NOT RECOMMENDED except for observation debugging purposes.",
+            action="store_true")
+    #                                                                          #
     ############################################################################
     #                                                                          #
     net_group = parser.add_argument_group("Network Params", "Params associated \
@@ -724,6 +736,7 @@ def gather_args():
             help="Number of atoms to project categorically.",
             type=int,
             default=51)
+    #                                                                          #
     ############################################################################
     #                                                                          #
     buffer_group = parser.add_argument_group("Replay Buffer", "Params \
@@ -746,6 +759,7 @@ def gather_args():
             help="How many experiences to use in N-Step returns",
             type=int,
             default=5)
+    #                                                                          #
     ############################################################################
     #                                                                          #
     train_group = parser.add_argument_group("Training", "Params associated \
@@ -757,6 +771,11 @@ def gather_args():
             help="How many episodes to train?",
             type=int,
             default=2000)
+    train_group.add_argument("-msteps", "--max_steps",
+            help="Maximum timesteps to allow before forcing an episode reset.",
+            type=int,
+            default=1000)            
+    #                                                                          #
     ############################################################################
     #                                                                          #
     log_group = parser.add_argument_group("Data Handling", "Params associated \
@@ -772,6 +791,10 @@ def gather_args():
     log_group.add_argument("--resume",
             help="Resume training from a checkpoint.",
             action="store_true")
+    parser.add_argument("-latest", "--latest",
+            help="Use this flag to automatically use the latest save file \
+                  to run in DEMO mode (instead of choosing from a prompt).",
+            action="store_true")
     log_group.add_argument("-savedir", "--save_dir",
             help="Directory to find saved agent weights.",
             type=str,
@@ -785,10 +808,7 @@ def gather_args():
     ### permits further development for loading/saving. Currently, saved weights
     ### can be loaded via the cmdline prompt for each agent, fairly intuitively
     ### although requiring more user input than strictly desired.
-    # parser.add_argument("--latest",
-    #         help="Use this flag to automatically use the latest save file \
-    #               to run in DEMO mode (instead of choosing from a prompt).",
-    #         action="store_true")
+
     # parser.add_argument("-file", "--filename",
     #         help="Path agent weights file to load. ",
     #         type=str,
@@ -815,8 +835,8 @@ def gather_args():
 
     # Limit the length of evaluation runs unless user forces cmdline args
     if args.eval and not args.force_eval:
-        args.num_episodes = 1
-        args.max_steps = 1000
+        args.num_episodes = min(10, args.num_episodes)
+        args.max_steps = min(args.max_steps, 1000)
 
     # To avoid redundant code checks elsewhere, EVAL should be set to True if
     # FORCE_EVAL is flagged

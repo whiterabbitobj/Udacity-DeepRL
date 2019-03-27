@@ -25,28 +25,6 @@ class ReplayBuffer:
         self.rollout = rollout
         self.agent_count = agent_count
 
-    def sample(self, batch_size):
-        """
-        Return a sample of size BATCH_SIZE as a tuple.
-        """
-        batch = random.sample(self.buffer, k=batch_size)
-        obs, next_obs, actions, rewards, dones = zip(*batch)
-
-        # Transpose the num_agents and batch_size, for easy indexing later
-        # e.g. from 64 samples of 2 agents each, to 2 agents with 64 samples
-        obs = torch.stack(obs).transpose(1,0).to(self.device)
-        next_obs = torch.stack(next_obs).transpose(1,0).to(self.device)
-        actions = torch.stack(actions).to(self.device)
-        rewards = torch.stack(rewards).transpose(1,0).to(self.device)
-        dones = torch.stack(dones).transpose(1,0).to(self.device)
-        return (obs, next_obs, actions, rewards, dones)
-
-    def init_n_step(self):
-        """
-        Creates (or rezeroes an existing) deque to handle nstep returns.
-        """
-        self.n_step = deque(maxlen=self.rollout)
-
     def store(self, experience):
         """
         Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
@@ -64,9 +42,31 @@ class ReplayBuffer:
         actions = torch.from_numpy(np.concatenate(actions)).float()
         rewards = torch.from_numpy(rewards).float()
         dones = torch.tensor(dones).float()
-
         self.buffer.append((obs, next_obs, actions, rewards, dones))
 
+    def sample(self, batch_size):
+        """
+        Return a sample of size BATCH_SIZE as a tuple.
+        """
+        
+        batch = random.sample(self.buffer, k=batch_size)
+        obs, next_obs, actions, rewards, dones = zip(*batch)
+
+        # Transpose the num_agents and batch_size, for easy indexing later
+        # e.g. from 64 samples of 2 agents each, to 2 agents with 64 samples
+        obs = torch.stack(obs).transpose(1,0).to(self.device)
+        next_obs = torch.stack(next_obs).transpose(1,0).to(self.device)
+        actions = torch.stack(actions).to(self.device)
+        rewards = torch.stack(rewards).transpose(1,0).to(self.device)
+        dones = torch.stack(dones).transpose(1,0).to(self.device)
+        return (obs, next_obs, actions, rewards, dones)
+
+    def init_n_step(self):
+        """
+        Creates (or rezeroes an existing) deque to handle nstep returns.
+        """
+
+        self.n_step = deque(maxlen=self.rollout)
 
     def _n_stack(self):
         """

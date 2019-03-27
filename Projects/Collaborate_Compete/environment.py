@@ -17,13 +17,17 @@ class Environment:
         Initialize an environment wrapper.
         """
 
-        self.train = not args.eval
+        if args.observe:
+            self.train = False
+        else:
+            self.train = args.train
 
         print("LOADING ON SYSTEM: {}".format(platform.system()))
 
         print_bracketing(do_lower=False)
         if platform.system() == 'Linux':
             unity_filename = "Tennis_Linux_NoVis/Tennis.x86_64"
+            args.nographics = True
         elif platform.system() == 'Darwin':
             print("MacOS not supported in this code!")
         else:
