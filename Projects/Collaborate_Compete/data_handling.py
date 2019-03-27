@@ -225,7 +225,7 @@ class Logger:
         self.quietmode = args.quiet
         self.log_every = args.log_every # timesteps
         self.print_every = args.print_every # episodes
-
+        self.verbose = args.verbose
         self.framework =  multi_agent.framework
         self.agent_count =  multi_agent.agent_count
         self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
@@ -244,6 +244,11 @@ class Logger:
             params = self._collect_params(args,  multi_agent)
             self._init_logs(params, multi_agent)
 
+        if self.verbose:
+            self.steplog = deque(maxlen=self.log_every*3)
+            self.steptime = time.time()
+            self.stepfile = self.logs_basename + "_timestep_avg.txt"
+
     @property
     def latest_score(self):
         return self.scores[-1]
@@ -256,8 +261,27 @@ class Logger:
         self.rewards += rewards
         if self.eval:
             return
+
+        if self.verbose:
+            elapsed = time.time() - self.steptime
+            self.steplog.append(elapsed)
+            self.steptime = time.time()
+            if multi_agent.t_step % self.steplog.maxlen == 0:
+                avg_time = np.array(self.steplog).mean()
+                print("Avg timestep over prev {} steps: {:7f}s".format(self.steplog.maxlen, avg_time))
+                self._write_timestep_cost(avg_time)
+
+
         if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
+
+    def _write_timestep_cost(self, avg_time):
+        """
+        Writes time data to file.
+        """
+
+        with open(self.stepfile, 'a') as f:
+            f.write(str(avg_time) + '\n')
 
     def step(self, eps_num=None, multi_agent=None):
         """
@@ -284,8 +308,9 @@ class Logger:
 
         # TIME INFORMATION
         eps_time, total_time, remaining = self._runtime(eps_num)
-        print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
-              ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
+        timestamp = time.strftime("%H:%M:%S", time.localtime())
+        print("\n@{} - Ep: {}/{}... Batch: {}, Total: {}, Est.Remain: {}\
+              ".format(timestamp, eps_num, self.max_eps, eps_time, total_time, remaining))
 
         # LOSS INFORMATION
         if not self.quietmode:
@@ -498,6 +523,10 @@ class Logger:
         self.plot_logs(save_to_disk)
 
     def _manual_graph_load(self, logdir):
+        """
+        Collect log files if a log directory is manually provided to Logger.
+        """
+
         self.log_dir = logdir
         self.filename = logdir.split('/')[-2]
         self.framework = self.filename.split('_')[0]
@@ -614,7 +643,14 @@ class Logger:
 
         m, s = divmod(current - previous, 60)
         h, m = divmod(m, 60)
-        return "{}h{}m{}s".format(int(h), int(m), int(s))
+        time = ""
+        if h != 0:
+            time += "{}h".format(int(h))
+        if m != 0:
+            time += "{}m".format(int(m))
+        time += "{}s".format(int(s))
+        # return "{}h{}m{}s".format(int(h), int(m), int(s))
+        return time
 
     def _write_losses(self, multi_agent):
         """
@@ -676,6 +712,9 @@ def gather_args():
     general_group.add_argument("--quiet",
             help="Print less while running the agent.",
             action="store_true")
+    general_group.add_argument("--verbose",
+            help="Print extra data for performance metric purposes.",
+            action="store_true")
     general_group.add_argument("--observe",
             help="Run the environment in evaluation mode, even if training.\
                   NOT RECOMMENDED except for observation debugging purposes.",
@@ -702,7 +741,7 @@ def gather_args():
                   HARD, network updates every C timesteps, if SOFT then \
                   network updates using the TAU parameter.",
             type=str,
-            default="hard",
+            default="soft",
             choices = ['hard', 'soft'])
     net_group.add_argument("-C", "--C",
             help="How many timesteps between hard network updates.",
@@ -711,7 +750,7 @@ def gather_args():
     net_group.add_argument("-tau", "--tau",
             help="Soft network update weighting.",
             type=float,
-            default=0.001)
+            default=0.0001)
     net_group.add_argument("-e", "--e",
             help="Epsilon / Noisey exploration rate.",
             type=float,
@@ -727,15 +766,15 @@ def gather_args():
     net_group.add_argument("-vmin", "--vmin",
             help="Min value of reward projection for categorical networks.",
             type=float,
-            default=0)
+            default=-0.02)
     net_group.add_argument("-vmax", "--vmax",
             help="Max value of reward projection for categorical networks.",
             type=float,
-            default=0.25)
+            default=1.0)
     net_group.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
-            default=51)
+            default=75)
     #                                                                          #
     ############################################################################
     #                                                                          #
@@ -774,7 +813,7 @@ def gather_args():
     train_group.add_argument("-msteps", "--max_steps",
             help="Maximum timesteps to allow before forcing an episode reset.",
             type=int,
-            default=1000)            
+            default=1000)
     #                                                                          #
     ############################################################################
     #                                                                          #
@@ -783,11 +822,11 @@ def gather_args():
     log_group.add_argument("-pe", "--print_every",
             help="How many episodes between print updates.",
             type=int,
-            default=10)
+            default=50)
     log_group.add_argument("-le", "--log_every",
             help="How many timesteps between logging loss values.",
             type=int,
-            default=15)
+            default=50)
     log_group.add_argument("--resume",
             help="Resume training from a checkpoint.",
             action="store_true")
