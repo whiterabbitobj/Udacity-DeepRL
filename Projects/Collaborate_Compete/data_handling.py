@@ -318,7 +318,7 @@ class Logger:
         # LOSS INFORMATION
         if not self.quietmode:
             for idx, agent in enumerate(multi_agent.agents):
-                print("{0}Actor#{1} Loss: {2:.4f}, Critic:#{1} {3:.4f}\
+                print("{0}Actor #{1} Loss: {2:.4f}, Critic #{1} Loss: {3:.4f}\
                       ".format(leader, idx+1, agent.actor_loss, agent.critic_loss))
             print("{}E: {:.4f}".format(leader, multi_agent.e))
         # SCORE DATA

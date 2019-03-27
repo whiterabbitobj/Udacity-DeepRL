@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import torch
 from unityagents import UnityEnvironment
-# from mlagents.envs import UnityEnvironment
 from utils import print_bracketing
 import platform
 import numpy as np
@@ -39,7 +38,7 @@ class Environment:
         self.brain = self.env.brains[self.brain_name]
 
         # Environment resets itself when the class is instantiated
-        # creates self.env_info property
+        # creates the ENV_INFO property
         self.reset()
 
         self.action_size = self.brain.vector_action_space_size

@@ -38,10 +38,10 @@ class MAD4PG_Net:
         # Create all the agents to be trained in the environment
         self.agent_count = env.agent_count
         self.agents = [D4PG_Agent(self.state_size,
-                                  self.action_size,
-                                  args,
-                                  self.agent_count
-                                  )
+                       self.action_size,
+                       args,
+                       self.agent_count
+                       )
                        for _ in range(self.agent_count)]
         self.batch_size = args.batch_size
 
@@ -103,7 +103,6 @@ class MAD4PG_Net:
         """
         self.t_step += 1
         # Sample from replay buffer, which already has nstep rollout calculated.
-
         batch = self.memory.sample(self.batch_size)
         obs, next_obs, actions, rewards, dones = batch
 
@@ -124,7 +123,7 @@ class MAD4PG_Net:
         """
         Handle any cleanup or steps to begin a new episode of training.
         """
-        
+
         self.memory.init_n_step()
         self.episode += 1
 
@@ -146,6 +145,7 @@ class MAD4PG_Net:
         Slowly updated the network using every-step partial network copies
         modulated by parameter TAU.
         """
+
         for t_param, param in zip(target.parameters(), active.parameters()):
             t_param.data.copy_(self.tau*param.data + (1-self.tau)*t_param.data)
 
@@ -176,7 +176,6 @@ class MAD4PG_Net:
         always some noisiness to the policy actions. Returns as a property.
         """
 
-        # self._e = max(self.e_min, self._e * self.e_decay)
         x = self.avg_score * 15 -5
         e = np.exp(x) / (1 + np.exp(x))
         e = (-e + 1) / 3.33333
@@ -185,6 +184,10 @@ class MAD4PG_Net:
 
     @property
     def memlen(self):
+        """
+        Returns length of memory buffer as a property.
+        """
+
         return len(self.memory)
 
 
@@ -258,19 +261,15 @@ class D4PG_Agent:
         # Calculate TARGET distribution/project onto supports (Yi)
         target_probs = self.critic_target(next_obs, target_actions).detach()
         target_dist = self._categorical(rewards, target_probs, dones)#.detach()
-
         # Calculate the critic network LOSS (Cross Entropy)
         critic_loss = -(target_dist * log_probs).sum(-1).mean()
 
 
         # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
         probs = self.critic(obs, predicted_actions)
-        # Multiply probabilities by atom values and sum across columns to get
-        # Q-Value
+        # Mult value probs by atom values and sum across columns to get Q-Value
         expected_reward = (probs * self.atoms).sum(-1)
         # Calculate the actor network LOSS (Policy Gradient)
-        # Take the mean across the batch and multiply in the negative to
-        # perform gradient ascent
         actor_loss = -expected_reward.mean()
 
         # Perform gradient ascent
