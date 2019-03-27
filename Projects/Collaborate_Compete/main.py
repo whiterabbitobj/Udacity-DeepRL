@@ -83,7 +83,7 @@ def train(multi_agent, args, env, saver):
                 break
         ###################################################
         #              PREP FOR NEXT EPISODE              #
-        saver.save_checkpoint(multi_agent, args.save_every)
+        saver.save(multi_agent)
         multi_agent.new_episode()
         logger.step(episode, multi_agent)
     #                                                                          #
@@ -91,7 +91,7 @@ def train(multi_agent, args, env, saver):
     ##############################################
     #                  CLEANUP                   #
     env.close()
-    saver.save_final(multi_agent)
+    saver.save(multi_agent, final=True)
     logger.graph()
     #                                            #
     ##############################################

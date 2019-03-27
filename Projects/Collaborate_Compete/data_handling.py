@@ -39,6 +39,7 @@ class Saver():
         self.file_ext = file_ext
         self.save_dir, self.filename = self.generate_savename(multi_agent.framework,
                                                               args.save_dir)
+        self.save_every = args.save_every
 
         if load_file:
             self._load_agent(load_file, multi_agent)
@@ -108,7 +109,7 @@ class Saver():
             return files[file_index]
         except:
             print_bracketing('Input "{}" is INVALID...'.format(save_file))
-            return _get_filepath(files)
+            return self._get_filepath(files, idx)
 
     def generate_savename(self, prefix, save_dir):
         """
@@ -129,25 +130,21 @@ class Saver():
         save_dir = os.path.join(save_dir, filename)
         return save_dir, filename
 
-    def save_checkpoint(self, agent, save_every):
+    def save(self, agent, final=False):
         """
-        Preps a checkpoint save file at intervals controlled by SAVE_EVERY.
+        Preps a weights save file at intervals controlled by SAVE_EVERY or when
+        training is finished.
         """
-        if not agent.episode % save_every == 0:
-            return
-        mssg = "Saving Agent checkpoint to: "
-        save_name = "{}_eps{:04d}_ckpt".format(self.filename, agent.episode)
-        self._save(agent, save_name, mssg)
 
-    def save_final(self, agent):
-        """
-        Preps a final savefile after training has finished.
-        """
-        mssg = "Saved final Agent weights to: "
-        save_name = "{}_eps{:04d}_FINAL".format(self.filename, agent.episode-1)
-        self._save(agent, save_name, mssg)
+        mssg = "Saving Agent weights to: "
+        if final:
+            save_name = "{}_eps{:04d}_FINAL".format(self.filename, agent.episode-1)
+        else:
+            save_name = "{}_eps{:04d}_ckpt".format(self.filename, agent.episode)
+        if agent.episode % self.save_every == 0 or final:
+            self._write_save(agent, save_name, mssg)
 
-    def _save(self, multi_agent, save_name, mssg):
+    def _write_save(self, multi_agent, save_name, mssg):
         """
         Does the actual saving bit.
         """
@@ -174,10 +171,11 @@ class Saver():
         """
         Loads a checkpoint from an earlier trained agent.
         """
+
         for idx, agent in enumerate(multi_agent.agents):
-            checkpoint = torch.load(load_file[idx], map_location=lambda storage, loc: storage)
-            agent.actor.load_state_dict(checkpoint['actor_dict'])
-            agent.critic.load_state_dict(checkpoint['critic_dict'])
+            weights = torch.load(load_file[idx], map_location=lambda storage, loc: storage)
+            agent.actor.load_state_dict(weights['actor_dict'])
+            agent.critic.load_state_dict(weights['critic_dict'])
             multi_agent.update_networks(agent, force_hard=True)
         statement = ["Successfully loaded files:"]
         statement.extend(load_file)
@@ -199,9 +197,8 @@ class Logger:
         the training session details.
     save_dir - directory where current session saves are being stored. Logger
         will create a /logs/ directory here for storing data.
-    log_every - how many timesteps between each logging of losses. Scores are
-        logged every episode.
     """
+
     def __init__(self,
                  multi_agent=None,
                  args=None,
@@ -210,6 +207,7 @@ class Logger:
         """
         Initialize a Logger object.
         """
+
         self.save_dir = save_dir
         self.lossfiles = {}
         if multi_agent==None or args==None:
@@ -251,8 +249,6 @@ class Logger:
         self.rewards += rewards
         if self.eval:
             return
-
-        # Writes the loss data to an on-disk logfile every LOG_EVERY timesteps
         if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
 
@@ -272,16 +268,28 @@ class Logger:
         self._write_scores()
 
         if eps_num % self.print_every == 0 or eps_num == self.max_eps:
-            eps_time, total_time, remaining = self._runtime(eps_num)
-            print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
-                  ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
-            if not self.quietmode:
-                print("Timesteps: {}".format(multi_agent.t_step))
-                for idx, agent in enumerate(multi_agent.agents):
-                    print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
-                          ".format(idx, agent.actor_loss, agent.critic_loss))
-            print("{}Avg return over previous {} episodes: {:5f}\n\
-                  ".format("."*3, len(self.scores), np.array(self.scores).mean()))
+            self._print_status(eps_num)
+
+    def _print_status(self, eps_num):
+        """
+        Print status info to the command line.
+        """
+
+        # TIME INFORMATION
+        eps_time, total_time, remaining = self._runtime(eps_num)
+        print("\nEpisode {}/{}... Runtime: {}, Total: {}, Est.Remaining: {}\
+              ".format(eps_num, self.max_eps, eps_time, total_time, remaining))
+
+        # LOSS INFORMATION
+        if not self.quietmode:
+            print("Timesteps: {}".format(multi_agent.t_step))
+            for idx, agent in enumerate(multi_agent.agents):
+                print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
+                      ".format(idx, agent.actor_loss, agent.critic_loss))
+
+        # SCORE DATA
+        print("...Avg return over previous {} episodes: {:5f}\n".format(
+                len(self.scores), np.array(self.scores).mean()))
 
     def _update_score(self):
         """
@@ -289,8 +297,6 @@ class Logger:
         cmdline, and then saves to the logfile.
         """
 
-        # Rewards are summed during each episode for each agent, then choose the
-        # max score for determining training progress/goal completion
         score = self.rewards.max()
         self.scores.append(score)
 
@@ -361,10 +367,13 @@ class Logger:
 
         fig = plt.figure(figsize=(gs_cols*fig_scale, gs_rows/2 * fig_scale))
         fig.suptitle("{} Training Run".format(self.framework), size=40)
+
+        # Create dummy plot for adding training params to the graph
         gs_params = GridSpec(1,1, bottom=dtop-0.01, top=dtop)
         dummyax = fig.add_subplot(gs_params[0,0])
         dummyax.set_title(self.sess_params, size=13)
         dummyax.axis("off")
+
         gs = GridSpec(gs_rows, gs_cols, hspace=.5, wspace=.2, top=dtop-0.08)
 
         # Create the plot for the SCORES
@@ -472,27 +481,34 @@ class Logger:
         """
 
         if logdir != None:
-            self.log_dir = logdir
-            # self.filename = os.path.basename(logdir)
-            self.filename = logdir.split('/')[-2]
-            self.framework = self.filename.split('_')[0]
-            loss_list = []
-            for file in os.listdir(self.log_dir):
-                file = os.path.join(self.log_dir,file).replace('\\','/')
-                if file.endswith("_LOG.txt"):
-                    self.paramfile = file
-                elif file.endswith("_scores.txt"):
-                    self.scoresfile = file
-                elif file.endswith("loss.txt"):
-                    loss_list.append(file)
-            for file in loss_list:
-                idx = int(re.search(r'agent(\d*)', file).group(1)) - 1
-                try:
-                    self.lossfiles[idx].append(file)
-                except:
-                    self.lossfiles[idx] = [file]
+            try:
+                self._manual_graph_load(logdir)
+            except:
+                print("Something went wrong trying to load logs from provided \
+                       path. Please ensure path is in the format:\n\
+                       ../FRAMEWORK_savename/logs/")
         self.load_logs()
         self.plot_logs(save_to_disk)
+
+    def _manual_graph_load(self, logdir):
+        self.log_dir = logdir
+        self.filename = logdir.split('/')[-2]
+        self.framework = self.filename.split('_')[0]
+        loss_list = []
+        for file in os.listdir(self.log_dir):
+            file = os.path.join(self.log_dir,file).replace('\\','/')
+            if file.endswith("_LOG.txt"):
+                self.paramfile = file
+            elif file.endswith("_scores.txt"):
+                self.scoresfile = file
+            elif file.endswith("loss.txt"):
+                loss_list.append(file)
+        for file in loss_list:
+            idx = int(re.search(r'agent(\d*)', file).group(1)) - 1
+            try:
+                self.lossfiles[idx].append(file)
+            except:
+                self.lossfiles[idx] = [file]
 
     def _generate_logfiles(self, multi_agent):
         """
@@ -529,7 +545,6 @@ class Logger:
             for line in params:
                 f.write(line + '\n')
         files = self._generate_logfiles(multi_agent)
-        # log_statement.append(leader + os.path.basename(file))
         for file in files:
             log_statement.append(leader + os.path.basename(file))
         print_bracketing(log_statement, center=False)
@@ -577,12 +592,11 @@ class Logger:
         """
 
         current_time = time.time()
+        projected_end = (self.max_eps / eps_num) * (current_time - self.start_time) + self.start_time
+
         eps_time = self._format_time(current_time, self.prev_timestamp)
         total_time = self._format_time(current_time, self.start_time)
-        projected_end = (self.max_eps / eps_num) * (current_time - self.start_time) + self.start_time
-        # remaining = self._format_time(projected_end, self.prev_timestamp)
         remaining = self._format_time(projected_end, current_time)
-
         self.prev_timestamp = current_time
         return eps_time, total_time, remaining
 

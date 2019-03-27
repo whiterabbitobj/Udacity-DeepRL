@@ -88,8 +88,7 @@ class MAD4PG_Net:
         assert len(obs) == len(self.agents), "Num OBSERVATIONS does not match \
                                               num AGENTS."
         with torch.no_grad():
-            actions = np.array([agent.act(o)
-                                for agent, o in zip(self.agents, obs)])
+            actions = np.array([agent.act(o) for agent, o in zip(self.agents, obs)])
         if training:
             actions += self._gauss_noise(actions.shape)
         return np.clip(actions, -1, 1)
@@ -209,16 +208,14 @@ class D4PG_Agent:
         Initialize a D4PG Agent.
         """
 
-        self.device = args.device
         self.framework = "D4PG"
+        self.device = args.device
         self.eval = args.eval
+
         self.actor_learn_rate = args.actor_learn_rate
         self.critic_learn_rate = args.critic_learn_rate
-
         self.gamma = args.gamma
         self.rollout = args.rollout
-        # self.tau = args.tau
-
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
         self.vmax = args.vmax
@@ -230,16 +227,16 @@ class D4PG_Agent:
         self.actor_target = ActorNet(state_size, action_size).to(self.device)
         self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(state_size*agent_count, action_size*agent_count, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(state_size*agent_count, action_size*agent_count, self.num_atoms).to(self.device)
+        c_input_size = state_size * agent_count
+        c_action_size = action_size * agent_count
+        self.critic = CriticNet(c_input_size, c_action_size, self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(c_input_size, c_action_size, self.num_atoms).to(self.device)
         self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
 
 
     def act(self, obs, eval=False):
         """
-        Predict an action using a policy/ACTOR network π.
-        Scaled noise N (gaussian distribution) is added to all actions todo
-        encourage exploration.
+        Choose an action using a policy/ACTOR network π.
         """
 
         obs = obs.to(self.device)
@@ -254,9 +251,8 @@ class D4PG_Agent:
         Critic Zw and Zw' (categorical distribution)
         """
 
-        # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
+        # Calculate log probability DISTRIBUTION w.r.t. stored actions
         log_probs = self.critic(obs, actions, log=True)
-
         # Calculate TARGET distribution/project onto supports (Yi)
         target_probs = self.critic_target(next_obs, target_actions).detach()
         target_dist = self._categorical(rewards, target_probs, dones)#.detach()
@@ -313,8 +309,6 @@ class D4PG_Agent:
 
         delta_z = (vmax - vmin) / (num_atoms - 1)
 
-        # Rewards were stored with 0->(N-1) summed
-        # shape [batchsize, num_atoms]
         projected_atoms = rewards + gamma**rollout * atoms * (1 - dones)
         projected_atoms.clamp_(vmin, vmax)
         b = (projected_atoms - vmin) / delta_z

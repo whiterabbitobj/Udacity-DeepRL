@@ -33,8 +33,7 @@ class ReplayBuffer:
         obs, next_obs, actions, rewards, dones = zip(*batch)
 
         # Transpose the num_agents and batch_size, for easy indexing later
-        # e.g. from 64 experiences of 2 agents each, to 2 agents with 64
-        # experiences each
+        # e.g. from 64 samples of 2 agents each, to 2 agents with 64 samples
         obs = torch.stack(obs).transpose(1,0).to(self.device)
         next_obs = torch.stack(next_obs).transpose(1,0).to(self.device)
         actions = torch.stack(actions).to(self.device)
@@ -78,13 +77,10 @@ class ReplayBuffer:
 
         obs, next_obs, actions, rewards, dones = zip(*self.n_step)
 
-        # n_steps = self.rollout - 1
-        # summed_rewards = np.zeros(self.agent_count)
         summed_rewards = rewards[0]
         for i in range(1, self.rollout):
             summed_rewards += self.gamma**i * rewards[i]
             if np.any(dones[i]):
-                #n_steps = i
                 break
 
         obs = obs[0]
