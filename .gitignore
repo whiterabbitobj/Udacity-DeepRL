@@ -4,6 +4,7 @@ _ARCHIVE/
 saves/
 unity-environment.log
 /Class_Reference/
+*.bat
 
 # Mac OS
 .DS_Store

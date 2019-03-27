@@ -268,7 +268,7 @@ class Logger:
             self.steptime = time.time()
             if multi_agent.t_step % self.steplog.maxlen == 0:
                 avg_time = np.array(self.steplog).mean()
-                print("Avg timestep over prev {} steps: {:7f}s".format(self.steplog.maxlen, avg_time))
+                print("==> {:.3f}s avg/timestep over prev {} steps".format(avg_time, self.steplog.maxlen))
                 self._write_timestep_cost(avg_time)
 
 
@@ -309,18 +309,15 @@ class Logger:
         # TIME INFORMATION
         eps_time, total_time, remaining = self._runtime(eps_num)
         timestamp = time.strftime("%H:%M:%S", time.localtime())
-        print("\n@{} - Ep: {}/{}... Batch: {}, Total: {}, Est.Remain: {}\
-              ".format(timestamp, eps_num, self.max_eps, eps_time, total_time, remaining))
-
+        print("\nEp: {}/{} - {} steps - @{}".format(eps_num, self.max_eps, multi_agent.t_step, timestamp))
+        print("...Batch: {}, Total: {}, Est.Remain: {}".format(eps_time, total_time, remaining))
         # LOSS INFORMATION
         if not self.quietmode:
-            print("Timesteps: {}".format(multi_agent.t_step))
             for idx, agent in enumerate(multi_agent.agents):
-                print("Agent {}... actorloss: {:5f}, criticloss: {:5f}\
-                      ".format(idx, agent.actor_loss, agent.critic_loss))
-
+                print("Agent #{} losses... Actor: {:.4f}, Critic: {:.4f}\
+                      ".format(idx+1, agent.actor_loss, agent.critic_loss))
         # SCORE DATA
-        print("...Avg return over previous {} episodes: {:5f}\n".format(
+        print("...Avg return over previous {} episodes: {:.4f}\n".format(
                 len(self.scores), np.array(self.scores).mean()))
 
     def _update_score(self):
