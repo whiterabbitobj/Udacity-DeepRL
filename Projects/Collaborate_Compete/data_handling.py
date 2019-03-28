@@ -420,13 +420,16 @@ class Logger:
         # Plot however many LOSS graphs are needed
         for col in range(1, gs_cols):
             for row in range(gs_rows):
-                file = self.lossfiles[col-1][row]
+                file = self.lossfiles[col-1][row].replace("\\", "/")
                 with open(file, 'r') as f:
                     data = np.array([float(loss) for loss in f.read().splitlines()])
                 ax = fig.add_subplot(gs[row,col])
                 label = re.match(r'(.*)_(.*)loss', file).group(2).title()
-                self._create_loss_plot(ax, data, score_window, num_eps, num_ticks, xticks, label)
-
+                try:
+                    self._create_loss_plot(ax, data, score_window, num_eps, num_ticks, xticks, label)
+                except:
+                    print("Something went wrong with plotting the losses for",
+                          "{}, likely the file was empty.".format(file))
         if save_to_disk:
             save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
             fig.savefig(save_file)
@@ -729,6 +732,12 @@ def gather_args():
     #                                                                          #
     net_group = parser.add_argument_group("Network Params", "Params associated \
             with the agent networks.")
+    parser.add_argument("-layers", "--layer_sizes",
+            help="The size of the hidden layers for the networks (Actor/Critic \
+            currently use the same network sizes).",
+            nargs="+",
+            type=int,
+            default=[400,300])
     net_group.add_argument("-alr", "--actor_learn_rate",
             help="Actor Learning Rate.",
             type=float,
@@ -863,6 +872,10 @@ def gather_args():
     ############################################################################
     #               PROCESS ARGS AFTER COMMAND LINE GATHERING                  #
 
+    # Ensure that LAYER_SIZES is only 2 layers deep. This might change in future
+    # implementations!
+    assert len(args.layer_sizes) == 2, "LAYER_SIZES length must equal 2."
+
     # If PRETRAIN isn't explicitly set, then just collect enough samples to
     # cover the first training batch
     if args.pretrain == None:
@@ -886,6 +899,9 @@ def gather_args():
     # FORCE_EVAL is flagged
     if args.force_eval:
         args.eval = True
+
+    # TRAIN is always the opposite of EVAL mode, and is default to True by
+    # virtue of EVAL needing to be explicitly called
     args.train = not args.eval
 
     return args

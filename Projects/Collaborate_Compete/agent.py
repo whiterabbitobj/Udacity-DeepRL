@@ -183,7 +183,7 @@ class MAD4PG_Net:
         x = self.avg_score
         yhigh = self._e
         ylow = self.e_min
-        xhigh = 0.7
+        xhigh = 0.75
         xlow = 0
         steep_mult = 8
 
@@ -241,15 +241,29 @@ class D4PG_Agent:
         self.atoms = self.atoms.unsqueeze(0)
 
         #                    Initialize ACTOR networks                         #
-        self.actor = ActorNet(state_size, action_size).to(self.device)
-        self.actor_target = ActorNet(state_size, action_size).to(self.device)
-        self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
+        self.actor = ActorNet(args.layer_sizes,
+                              state_size,
+                              action_size).to(self.device)
+        self.actor_target = ActorNet(args.layer_sizes,
+                                     state_size,
+                                     action_size).to(self.device)
+        self.actor_optim = optim.Adam(self.actor.parameters(),
+                                      lr=self.actor_learn_rate,
+                                      weight_decay=l2_decay)
         #                   Initialize CRITIC networks                         #
         c_input_size = state_size * agent_count
         c_action_size = action_size * agent_count
-        self.critic = CriticNet(c_input_size, c_action_size, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(c_input_size, c_action_size, self.num_atoms).to(self.device)
-        self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
+        self.critic = CriticNet(args.layer_sizes,
+                                c_input_size,
+                                c_action_size,
+                                self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(args.layer_sizes,
+                                       c_input_size,
+                                       c_action_size,
+                                       self.num_atoms).to(self.device)
+        self.critic_optim = optim.Adam(self.critic.parameters(),
+                                       lr=self.critic_learn_rate,
+                                       weight_decay=l2_decay)
 
 
     def act(self, obs, eval=False):

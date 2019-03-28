@@ -6,7 +6,7 @@ import numpy as np
 
 
 
-LAYER_SIZES = [400,300]
+# LAYER_SIZES = [400,300]
 WEIGHT_LOW = -3e-2
 WEIGHT_HIGH = 3e-2
 
@@ -23,9 +23,9 @@ class ActorNet(nn.Module):
     Actor network that approximates the non-linear function π(θ)
     """
     def __init__(self,
+                 layer_sizes,
                  state_size,
                  action_size,
-                 layer_sizes = LAYER_SIZES,
                  weight_low = WEIGHT_LOW,
                  weight_high = WEIGHT_HIGH):
         super(ActorNet, self).__init__()
@@ -61,10 +61,10 @@ class CriticNet(nn.Module):
     """
 
     def __init__(self,
+                 layer_sizes,
                  state_size,
                  action_size,
                  num_atoms,
-                 layer_sizes = LAYER_SIZES,
                  weight_low = WEIGHT_LOW,
                  weight_high = WEIGHT_HIGH):
         super(CriticNet, self).__init__()
