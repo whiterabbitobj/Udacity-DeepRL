@@ -180,9 +180,13 @@ class MAD4PG_Net:
         Anneals the epsilon rate down to a specified minimum to ensure there is
         always some noisiness to the policy actions. Returns as a property.
         """
-        x = self.avg_score
         yhigh = self._e
         ylow = self.e_min
+        # clip the average score to the value where the max amt of annealing is
+        # reached, so that outliers do not over-weight the annealing and allow
+        # for more stable training
+        x = np.clip(self.avg_score, 0, yhigh)
+
         xhigh = 0.75
         xlow = 0
         steep_mult = 8
