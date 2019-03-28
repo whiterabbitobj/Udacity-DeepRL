@@ -306,9 +306,6 @@ class Logger:
             print("Score: {}".format(self.latest_score))
             return
 
-        avg_across = 50
-        # multi_agent.avg_score = self._moving_avg(self.scores, avg_across)[-1]
-        multi_agent.avg_score = np.array(self.scores[-avg_across:]).mean()
         self._write_scores()
 
         if eps_num % self.print_every == 0:

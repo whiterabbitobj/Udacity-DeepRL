@@ -124,10 +124,14 @@ class MAD4PG_Net:
             agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
 
-    def new_episode(self):
+    def new_episode(self, scores):
         """
         Handle any cleanup or steps to begin a new episode of training.
         """
+
+
+        avg_across = 50
+        self.avg_score = np.array(scores[-avg_across:]).mean()
 
         self.memory.init_n_step()
         self.episode += 1
