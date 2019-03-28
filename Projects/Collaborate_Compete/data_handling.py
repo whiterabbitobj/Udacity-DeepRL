@@ -345,10 +345,10 @@ class Logger:
             loglines = f.read().splitlines()
 
         # List of the desired params to print on the graph for later review
-        params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms',
-            'vmin', 'vmax', 'epsilon', 'epsilon_decay', 'epsilon_min', 'gamma',
-            'actor_learn_rate', 'critic_learn_rate', 'buffer_size', 'tau',
-            'batch_size', 'pretrain', 'rollout', 'l2_decay', 'update_type']
+        params_to_print = ['max_steps', 'num_episodes', 'c', 'num_atoms', 'tau',
+            'vmin', 'vmax', 'epsilon', 'epsilon_min', 'gamma', 'layer_sizes',
+            'actor_learn_rate', 'critic_learn_rate', 'buffer_size', 'rollout',
+            'batch_size', 'pretrain', 'l2_decay', 'update_type']
 
         sess_params = ''
         counter = 0
