@@ -729,7 +729,7 @@ def gather_args():
             action="store_true")
     #                                                                          #
     ############################################################################
-    #                                                                          #
+    #                         NETWORK PARAMS                                   #
     net_group = parser.add_argument_group("Network Params", "Params associated \
             with the agent networks.")
     parser.add_argument("-layers", "--layer_sizes",
@@ -791,7 +791,7 @@ def gather_args():
             default=75)
     #                                                                          #
     ############################################################################
-    #                                                                          #
+    #                             REPLAY BUFFER                                #
     buffer_group = parser.add_argument_group("Replay Buffer", "Params \
             associated with the Replay Buffer.")
     buffer_group.add_argument("-bs", "--batch_size",
@@ -814,7 +814,7 @@ def gather_args():
             default=5)
     #                                                                          #
     ############################################################################
-    #                                                                          #
+    #                                TRAINING                                  #
     train_group = parser.add_argument_group("Training", "Params associated \
             with training the Agent(s).")
     train_group.add_argument("-cpu", "--cpu",
@@ -830,7 +830,7 @@ def gather_args():
             default=1000)
     #                                                                          #
     ############################################################################
-    #                                                                          #
+    #                              DATA HANDLING                               #
     log_group = parser.add_argument_group("Data Handling", "Params associated \
             with logging and saving data.")
     log_group.add_argument("-pe", "--print_every",
