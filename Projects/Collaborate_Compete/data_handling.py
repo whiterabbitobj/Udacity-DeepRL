@@ -844,9 +844,9 @@ def gather_args():
     log_group.add_argument("--resume",
             help="Resume training from a checkpoint.",
             action="store_true")
-    parser.add_argument("-latest", "--latest",
-            help="Use this flag to automatically use the latest save file \
-                  to run in DEMO mode (instead of choosing from a prompt).",
+    log_group.add_argument("-latest", "--latest",
+            help="Load the latest save file(s) instead of prompting from a \
+                  list.",
             action="store_true")
     log_group.add_argument("-savedir", "--save_dir",
             help="Directory to find saved agent weights.",
