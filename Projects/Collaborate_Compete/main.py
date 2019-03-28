@@ -81,11 +81,25 @@ def train(multi_agent, args, env, saver):
             logger.log(rewards, multi_agent)
             if np.any(dones):
                 break
+            # Because it is possible for the agents to learn to perfectly
+            # respond to one another, the score can balloon and training takes
+            # forever as they just play perfectly until the environment hard
+            # resets. Because the goal score for this environment is +0.5, a
+            # score of >1 is just gravy, so we cancel out and begin the next
+            # episode. Theoretically, any agent capable of hitting a 10-volley
+            # game is equally likely to continue playing a perfect game and
+            # there is nothing too much to learn from continuing to train beyond
+            # this cutoff (and quite possibly before, frankly)
+            if np.any(logger.rewards) > 1:
+                break
         ###################################################
         #              PREP FOR NEXT EPISODE              #
         saver.save(multi_agent)
         multi_agent.new_episode()
         logger.step(episode, multi_agent)
+        if len(logger.scores) > 200:
+            if np.array(logger.scores[-200:]).mean() > 0.5:
+                break
     #                                                                          #
     ############################################################################
     ##############################################

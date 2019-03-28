@@ -73,8 +73,13 @@ class MAD4PG_Net:
             next_obs, rewards, dones = env.step(actions)
             self.store((obs, next_obs, actions, rewards, dones))
             obs = next_obs
+            if np.any(dones):
+                env.reset()
+                obs = env.states
+                self.memory.init_n_step()
 
-            if self.memlen % 25 == 0 or self.memlen >= pretrain_length:
+            interval = max(10, int(pretrain_length/25))
+            if self.memlen % interval == 0 or self.memlen >= pretrain_length:
                 print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
         print("Done!")
 
@@ -176,7 +181,7 @@ class MAD4PG_Net:
         always some noisiness to the policy actions. Returns as a property.
         """
 
-        x = self.avg_score * 15 -5
+        x = self.avg_score * 15 - 5
         e = np.exp(x) / (1 + np.exp(x))
         e = (-e + 1) / 3.33333
         e = np.clip(e, self.e_min, self._e)
@@ -246,7 +251,9 @@ class D4PG_Agent:
 
         obs = obs.to(self.device)
         with torch.no_grad():
-            actions = self.actor(obs).detach().cpu().numpy()
+            # actions = self.actor(obs).detach().cpu().numpy()
+            actions = self.actor(obs).cpu().numpy()
+
         return actions
 
     def learn(self, obs, next_obs, actions, target_actions, predicted_actions, rewards, dones):

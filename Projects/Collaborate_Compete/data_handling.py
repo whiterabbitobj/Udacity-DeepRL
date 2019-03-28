@@ -269,7 +269,8 @@ class Logger:
             self.steptime = time.time()
             if multi_agent.t_step % self.steplog.maxlen == 0:
                 avg_time = np.array(self.steplog).mean()
-                print("==> {:.3f}s avg/timestep over prev {} steps".format(avg_time, self.steplog.maxlen))
+                print("==> {:.3f}s avg/timestep over prev {} steps. (E: {:.4f)\
+                      ".format(avg_time, self.steplog.maxlen, multi_agent.e))
                 self._write_timestep_cost(avg_time)
 
 
@@ -293,13 +294,12 @@ class Logger:
         self._update_score()
         self._reset_rewards()
 
-        avg_across = 50
-        multi_agent.avg_score = self._moving_avg(self.scores, avg_across)[-1]
-
         if self.eval:
             print("Score: {}".format(self.latest_score))
             return
 
+        avg_across = 50
+        multi_agent.avg_score = self._moving_avg(self.scores, avg_across)[-1]
         self._write_scores()
 
         if eps_num % self.print_every == 0 or eps_num == self.max_eps:
@@ -314,7 +314,7 @@ class Logger:
         eps_time, total_time, remaining = self._runtime(eps_num)
         timestamp = time.strftime("%H:%M:%S", time.localtime())
         print("\nEp: {}/{} - {} steps - @{}".format(eps_num, self.max_eps, multi_agent.t_step, timestamp))
-        print("{}Batch: {}, Total: {}, Est.Remain: {}".format(leader, eps_time, total_time, remaining))
+        print("Batch: {}, Total: {}, Est.Remain: {}".format(eps_time, total_time, remaining))
         # LOSS INFORMATION
         if not self.quietmode:
             for idx, agent in enumerate(multi_agent.agents):
