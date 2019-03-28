@@ -269,7 +269,7 @@ class Logger:
             self.steptime = time.time()
             if multi_agent.t_step % self.steplog.maxlen == 0:
                 avg_time = np.array(self.steplog).mean()
-                print("==> {:.3f}s avg/timestep over prev {} steps. (E: {:.4f)\
+                print("==> {:.3f}s avg/timestep over prev {} steps. (E: {:.4f})\
                       ".format(avg_time, self.steplog.maxlen, multi_agent.e))
                 self._write_timestep_cost(avg_time)
 
@@ -299,7 +299,8 @@ class Logger:
             return
 
         avg_across = 50
-        multi_agent.avg_score = self._moving_avg(self.scores, avg_across)[-1]
+        # multi_agent.avg_score = self._moving_avg(self.scores, avg_across)[-1]
+        multi_agent.avg_score = np.array(self.scores[-avg_across:]).mean()
         self._write_scores()
 
         if eps_num % self.print_every == 0 or eps_num == self.max_eps:

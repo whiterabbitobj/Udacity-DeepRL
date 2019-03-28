@@ -79,7 +79,7 @@ class MAD4PG_Net:
                 self.memory.init_n_step()
 
             interval = max(10, int(pretrain_length/25))
-            if self.memlen % interval == 0 or self.memlen >= pretrain_length:
+            if self.memlen % interval == 1 or self.memlen >= pretrain_length:
                 print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
         print("Done!")
 
@@ -180,11 +180,19 @@ class MAD4PG_Net:
         Anneals the epsilon rate down to a specified minimum to ensure there is
         always some noisiness to the policy actions. Returns as a property.
         """
+        x = self.avg_score
+        yhigh = self._e
+        ylow = self.e_min
+        xhigh = 0.7
+        xlow = 0
+        steep_mult = 8
 
-        x = self.avg_score * 15 - 5
-        e = np.exp(x) / (1 + np.exp(x))
-        e = (-e + 1) / 3.33333
-        e = np.clip(e, self.e_min, self._e)
+        steepness = steep_mult / (xhigh - xlow)
+        offset = (xhigh + xlow) / 2
+        midpoint = yhigh - ylow
+
+        x = steepness * (x - offset)
+        e = ylow + midpoint / (1 + np.exp(x))
         return e
 
     @property
