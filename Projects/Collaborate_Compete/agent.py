@@ -25,7 +25,7 @@ class MAD4PG_Net:
 
         self.framework = "MAD4PG"
         self.t_step = 0
-        self.episode = 0
+        self.episode = 1
         self.C = args.C
         self._e = args.e
         self.e_min = args.e_min
@@ -51,8 +51,8 @@ class MAD4PG_Net:
                                    args.gamma,
                                    args.rollout,
                                    self.agent_count)
+        self.memory.init_n_step()
 
-        self.new_episode()
         for agent in self.agents:
             self.update_networks(agent, force_hard=True)
 
@@ -130,7 +130,7 @@ class MAD4PG_Net:
         """
 
 
-        avg_across = 50
+        avg_across = min(len(scores)+1, 50)
         self.avg_score = np.array(scores[-avg_across:]).mean()
 
         self.memory.init_n_step()
@@ -190,7 +190,6 @@ class MAD4PG_Net:
         # reached, so that outliers do not over-weight the annealing and allow
         # for more stable training
         x = np.clip(self.avg_score, 0, yhigh)
-
         xhigh = 0.75
         xlow = 0
         steep_mult = 8

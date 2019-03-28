@@ -389,7 +389,7 @@ class Logger:
         # don't blindly average 100, but instead use num_eps as a barometer.
         score_window = max(1, int(min(100, num_eps/2)))
         # HARD VARS
-        dtop = 0.85
+        dtop = 0.83
         num_ticks = 5
         fig_scale = 10
         self.bg_color = (0.925, 0.925, 0.925)
@@ -616,12 +616,19 @@ class Logger:
         it for later saving to the params log in the /logs/ directory.
         """
 
-        param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(multi_agent)]
+        param_list = [self._format_param(arg, args) for arg in vars(args) if arg.rstrip('_') not in vars(multi_agent)]
         param_list += [self._format_param(arg, multi_agent) for arg in vars(multi_agent)]
         # Manually collect agent networks for now, figure a more elegant way
         # later!
         for agent in multi_agent.agents:
-            param_list += [self._format_param(arg, agent) for arg in vars(agent) if (arg not in vars(multi_agent)) and (arg not in vars(args))]
+            for arg in vars(agent):
+                if arg.rstrip('_') in vars(multi_agent):
+                    continue
+                if arg.rstrip('_') in vars(args):
+                    continue
+                param_list.append(self._format_param(arg, agent))
+
+            # param_list += [self._format_param(arg, agent) for arg in vars(agent) if (arg.rstrip('_') not in vars(multi_agent)) and (arg.rstrip('_') not in vars(args))]
         if not self.quietmode: print_bracketing(param_list)
         return param_list
 
@@ -630,8 +637,10 @@ class Logger:
         Formats into PARAM: VALUE for reporting. Strips leading underscores for
         placeholder params where @properties are used for the real value.
         """
-
-        return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
+        value = getattr(args, arg)
+        if type(value) is list:
+            value = ', '.join(map(str, value))
+        return "{}: {}".format(arg.upper().lstrip("_"), value)
 
     def _runtime(self, eps_num):
         """
@@ -795,7 +804,7 @@ def gather_args():
     net_group.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
-            default=75)
+            default=51)
     #                                                                          #
     ############################################################################
     #                             REPLAY BUFFER                                #
