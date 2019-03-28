@@ -90,7 +90,8 @@ def train(multi_agent, args, env, saver):
             # game is equally likely to continue playing a perfect game and
             # there is nothing too much to learn from continuing to train beyond
             # this cutoff (and quite possibly before, frankly)
-            if np.any(logger.rewards) > 1:
+            ###print(logger.rewards.max())
+            if logger.rewards.max() > 1:
                 break
         ###################################################
         #              PREP FOR NEXT EPISODE              #
