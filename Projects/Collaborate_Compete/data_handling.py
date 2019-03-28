@@ -285,7 +285,15 @@ class Logger:
         with open(self.stepfile, 'a') as f:
             f.write(str(avg_time) + '\n')
 
-    def step(self, eps_num=None, multi_agent=None, final=False):
+    def final(self, eps_num, multi_agent):
+        """
+        Prints a final status message when training has finished, whether
+        max_eps has been reached or not.
+        """
+        self._print_status(eps_num, multi_agent)
+
+
+    def step(self, eps_num=None, multi_agent=None):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
@@ -303,7 +311,7 @@ class Logger:
         multi_agent.avg_score = np.array(self.scores[-avg_across:]).mean()
         self._write_scores()
 
-        if eps_num % self.print_every == 0 or final:
+        if eps_num % self.print_every == 0:
             self._print_status(eps_num, multi_agent)
 
     def _print_status(self, eps_num, multi_agent):
@@ -326,7 +334,6 @@ class Logger:
         prev_scores = self.scores[-self.print_every:]
         print("Avg RETURN over previous {} episodes: {:.4f}\n".format(
                 self.print_every, np.array(prev_scores).mean()))
-        #print(", ".join(map(str, prev_scores)))
 
     def _update_score(self):
         """

@@ -105,7 +105,7 @@ def train(multi_agent, args, env, saver):
     ############################################################################
     ##############################################
     #                  CLEANUP                   #
-    logger.step(episode, multi_agent, final=True
+    logger.final(episode, multi_agent)
     env.close()
     saver.save(multi_agent, final=True)
     logger.graph()
