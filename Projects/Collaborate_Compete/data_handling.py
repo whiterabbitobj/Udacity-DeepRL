@@ -285,7 +285,7 @@ class Logger:
         with open(self.stepfile, 'a') as f:
             f.write(str(avg_time) + '\n')
 
-    def step(self, eps_num=None, multi_agent=None):
+    def step(self, eps_num=None, multi_agent=None, final=False):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
@@ -303,7 +303,7 @@ class Logger:
         multi_agent.avg_score = np.array(self.scores[-avg_across:]).mean()
         self._write_scores()
 
-        if eps_num % self.print_every == 0 or eps_num == self.max_eps:
+        if eps_num % self.print_every == 0 or final:
             self._print_status(eps_num, multi_agent)
 
     def _print_status(self, eps_num, multi_agent):
