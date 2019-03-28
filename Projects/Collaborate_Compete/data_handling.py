@@ -707,8 +707,9 @@ def gather_args():
     general_group = parser.add_argument_group("General", "General params.")
     general_group.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
-                  training mode. In default EVAL mode, NUM_EPISODES is set \
-                  to 1 and MAX_STEPS to 1000.",
+                  training mode. In default EVAL mode, NUM_EPISODES & \
+                  MAX_STEPS are limited. Use FORCE_EVAL to specify these \
+                  params explicitly.",
             action="store_true")
     general_group.add_argument("-feval", "--force_eval",
             help="Force evaluation mode to run with specified NUM_EPISODES \
@@ -724,8 +725,10 @@ def gather_args():
             help="Print extra data for performance metric purposes.",
             action="store_true")
     general_group.add_argument("--observe",
-            help="Run the environment in evaluation mode, even if training.\
-                  NOT RECOMMENDED except for observation debugging purposes.",
+            help="Run the environment with TRAIN=FALSE mode, even if training.\
+                  NOT RECOMMENDED except for observation debugging purposes. \
+                  This will run each timestep at a drastically, human-sight \
+                  speed.",
             action="store_true")
     #                                                                          #
     ############################################################################
