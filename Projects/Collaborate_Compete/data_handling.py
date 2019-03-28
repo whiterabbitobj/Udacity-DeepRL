@@ -732,7 +732,7 @@ def gather_args():
     #                         NETWORK PARAMS                                   #
     net_group = parser.add_argument_group("Network Params", "Params associated \
             with the agent networks.")
-    parser.add_argument("-layers", "--layer_sizes",
+    net_group.add_argument("-layers", "--layer_sizes",
             help="The size of the hidden layers for the networks (Actor/Critic \
             currently use the same network sizes).",
             nargs="+",
