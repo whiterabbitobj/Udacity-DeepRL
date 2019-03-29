@@ -800,7 +800,7 @@ def gather_args():
     net_group.add_argument("-em", "--e_min",
             help="Minimum value for epsilon.",
             type=float,
-            default=0.05)
+            default=0.01)
     net_group.add_argument("-ed", "--e_decay",
             help="Decay rate for Epsilon value.",
             type=float,
