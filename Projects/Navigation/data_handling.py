@@ -563,6 +563,10 @@ def gather_args():
             help="How many episodes between saves.",
             type=int,
             default=50)
+    parser.add_argument("-C", "--C",
+            help="How many timesteps between hard updating of the networks.",
+            type=int,
+            default=650)            
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,

@@ -4,6 +4,10 @@
 
 # Project 1: Navigation
 
+### Deep Reinforcement - DQN/Double-DQN Implementation
+
+This project uses vanilla Deep Q-Learning (DQN), or (default) a slightly more advanced Double Deep Q-Learning Agent (D2DQN), to train a Reinforcement Learning Agent. Future implementations may include Dueling DQN (DDQN), Prioritized Experience Replay, or a _Rainbow_ implementation using features from all of these networks.
+
 ### Introduction
 
 This project will train an agent to navigate (and collect bananas!) in a large, square world.  
@@ -20,38 +24,44 @@ The state space has 37 dimensions and contains the agent's velocity, along with 
 
 The task is episodic, and in order to solve the environment, your agent must get an average score of +13 over 100 consecutive episodes.
 
-### Getting Started
+### Dependencies
 
 1. The environment for this project is included in the repository as both a Window environment and Linux environment. There is a "Visual" environment that can be used to train the agent from pixel data using a Convolutional Network. This functionality is limited in this code implementation but is present. 
 
     The environment can also be downloaded from one of the links below.  You need only select the environment that matches your operating system:
     - Linux: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Linux.zip)
-    - Mac OSX: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana.app.zip) (Not supported in this codebase)
-    - Windows (32-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Windows_x86.zip)
     - Windows (64-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Windows_x86_64.zip)
-    
-    (_For Windows users_) Check out [this link](https://support.microsoft.com/en-us/help/827218/how-to-determine-whether-a-computer-is-running-a-32-bit-version-or-64) if you need help with determining if your computer is running a 32-bit version or 64-bit version of the Windows operating system.
 
-    (_For AWS_) If you'd like to train the agent on AWS (and have not [enabled a virtual screen](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Training-on-Amazon-Web-Service.md)), then please use [this link](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/Banana_Linux_NoVis.zip) to obtain the environment.
+2. The environment folder should live in the base directory with the python files. This github repository can be used as-is if cloned.
 
-2. Place the file in the DRLND GitHub repository, in the `p1_navigation/` folder, and unzip (or decompress) the file. 
+3. Use pip to install requirements.txt 
+
+4. Use Conda to install the environment.yml file.
+
+5. In some environments, such as linux, some of the packages may throw errors. It should be safe to safely remove these.
+
+6. There are no unusual packages utilized and a clean environment with Python 3.6+, Pytorch 1.0+, Matplotlib, and Numpy installed should suffice.
 
 ### Instructions
 
-Follow the instructions in `Navigation.ipynb` to get started with training your own agent!  
+This agent can be trained or evaluated from the same python file **main.py.**
 
-### (Optional) Challenge: Learning from Pixels
+Use _python main.py --help_ for full details of available parameters, but these are the most important for training in the Banana environment:
 
-After you have successfully completed the project, if you're looking for an additional challenge, you have come to the right place!  In the project, your agent learned from information such as its velocity, along with ray-based perception of objects around its forward direction.  A more challenging task would be to learn directly from pixels!
+**-lr/--learn_rate** - adjust the learning rate of the Q network.
+**-bs/--batch_size** - size of ReplayBuffer samples.
+**--eval** - Used to watch a trained agent. If EVAL not flagged, TRAINING is the default mode for this code. EVAL will prompt the user to select a savefile, unless --latest is flagged, which will naively choose the most recently created savefile in the save_dir.
+**-e/--epsilon** - Rate at which a random action should be chosen instead of the agent returning an action.
+**-ed/--epsilon_decay** - Rate at which epsilon reduces to encourage greedy exploitation.
+**-pre/--pretrain** - How many experiences utilizing random actions should be collected before the Agent begins to learn.
+**-C/--C** - Number of timesteps between updating the network if training with HARD updates.
+**-t/--tau** - Rate of soft transfer of network weights when training with SOFT updates.
 
-To solve this harder task, you'll need to download a new Unity environment.  This environment is almost identical to the project environment, where the only difference is that the state is an 84 x 84 RGB image, corresponding to the agent's first-person view.  (**Note**: Udacity students should not submit a project with this new environment.)
+### Challenge: Learning from Pixels
 
-You need only select the environment that matches your operating system:
+This agent can be trained using pixel-data with a convolutional network using the:
+**--pixels** flag. There is a special environment required for this training that is also included in the repository, or can be downloaded below:
 - Linux: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana_Linux.zip)
-- Mac OSX: [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana.app.zip)
-- Windows (32-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana_Windows_x86.zip)
 - Windows (64-bit): [click here](https://s3-us-west-1.amazonaws.com/udacity-drlnd/P1/Banana/VisualBanana_Windows_x86_64.zip)
 
-Then, place the file in the `p1_navigation/` folder in the DRLND GitHub repository, and unzip (or decompress) the file.  Next, open `Navigation_Pixels.ipynb` and follow the instructions to learn how to use the Python API to control the agent.
-
-(_For AWS_) If you'd like to train the agent on AWS, you must follow the instructions to [set up X Server](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Training-on-Amazon-Web-Service.md), and then download the environment for the **Linux** operating system above.
+This codebase is **extremely inconsistent** with convolutional network training and has not been fully optimized or implemented. While it does run, this optional challenge for Udacity's project was superceded by other projects in more advanced settings.
