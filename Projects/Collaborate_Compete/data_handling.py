@@ -617,18 +617,6 @@ class Logger:
         prints this list to the command line if QUIET is not flagged, and stores
         it for later saving to the params log in the /logs/ directory.
         """
-        #
-        # param_list = [self._format_param(arg, args) for arg in vars(args) if arg.rstrip('_') not in vars(multi_agent)]
-        # param_list += [self._format_param(arg, multi_agent) for arg in vars(multi_agent)]
-        # # Manually collect agent networks for now, figure a more elegant way
-        # # later!
-        # for agent in multi_agent.agents:
-        #     for arg in vars(agent):
-        #         if arg.rstrip('_') in vars(multi_agent):
-        #             continue
-        #         if arg.rstrip('_') in vars(args):
-        #             continue
-        #         param_list.append(self._format_param(arg, agent))
 
         param_dict = {key:getattr(args, key) for key in vars(args)}
         for key in vars(multi_agent):
@@ -651,12 +639,9 @@ class Logger:
             param_dict.pop('C', None)
         else:
             param_dict.pop('tau', None)
-        #print(param_dict)
         param_list = ["{}: {}".format(key, value) for (key, value) in param_dict.items()]
         print_bracketing(param_list)
 
-            # param_list += [self._format_param(arg, agent) for arg in vars(agent) if (arg.rstrip('_') not in vars(multi_agent)) and (arg.rstrip('_') not in vars(args))]
-        #if not self.quietmode: print_bracketing(param_list)
         return param_list
 
     def _format_param(self, arg, args):
