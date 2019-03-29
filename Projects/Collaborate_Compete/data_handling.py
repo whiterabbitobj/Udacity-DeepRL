@@ -617,21 +617,46 @@ class Logger:
         prints this list to the command line if QUIET is not flagged, and stores
         it for later saving to the params log in the /logs/ directory.
         """
+        #
+        # param_list = [self._format_param(arg, args) for arg in vars(args) if arg.rstrip('_') not in vars(multi_agent)]
+        # param_list += [self._format_param(arg, multi_agent) for arg in vars(multi_agent)]
+        # # Manually collect agent networks for now, figure a more elegant way
+        # # later!
+        # for agent in multi_agent.agents:
+        #     for arg in vars(agent):
+        #         if arg.rstrip('_') in vars(multi_agent):
+        #             continue
+        #         if arg.rstrip('_') in vars(args):
+        #             continue
+        #         param_list.append(self._format_param(arg, agent))
 
-        param_list = [self._format_param(arg, args) for arg in vars(args) if arg.rstrip('_') not in vars(multi_agent)]
-        param_list += [self._format_param(arg, multi_agent) for arg in vars(multi_agent)]
-        # Manually collect agent networks for now, figure a more elegant way
-        # later!
+        param_dict = {key:getattr(args, key) for key in vars(args)}
+        for key in vars(multi_agent):
+            param_dict[key.lstrip('_')] = getattr(multi_agent, key)
         for agent in multi_agent.agents:
-            for arg in vars(agent):
-                if arg.rstrip('_') in vars(multi_agent):
-                    continue
-                if arg.rstrip('_') in vars(args):
-                    continue
-                param_list.append(self._format_param(arg, agent))
+            for key in vars(agent):
+                param_dict[key.lstrip('_')] = getattr(agent, key)
+        param_dict.pop('nographics', None)
+        param_dict.pop('log_every', None)
+        param_dict.pop('save_every', None)
+        param_dict.pop('print_every', None)
+        param_dict.pop('verbose', None)
+        param_dict.pop('quiet', None)
+        param_dict.pop('latest', None)
+        param_dict.pop('save_every', None)
+        param_dict.pop('avg_score', None)
+        param_dict.pop('episode', None)
+        param_dict.pop('t_step', None)
+        if param_dict['update_type'] == 'soft':
+            param_dict.pop('C', None)
+        else:
+            param_dict.pop('tau', None)
+        #print(param_dict)
+        param_list = ["{}: {}".format(key, value) for (key, value) in param_dict.items()]
+        print_bracketing(param_list)
 
             # param_list += [self._format_param(arg, agent) for arg in vars(agent) if (arg.rstrip('_') not in vars(multi_agent)) and (arg.rstrip('_') not in vars(args))]
-        if not self.quietmode: print_bracketing(param_list)
+        #if not self.quietmode: print_bracketing(param_list)
         return param_list
 
     def _format_param(self, arg, args):
@@ -798,11 +823,11 @@ def gather_args():
     net_group.add_argument("-vmin", "--vmin",
             help="Min value of reward projection for categorical networks.",
             type=float,
-            default=-0.02)
+            default=-0.01)
     net_group.add_argument("-vmax", "--vmax",
             help="Max value of reward projection for categorical networks.",
             type=float,
-            default=1.0)
+            default=0.55)
     net_group.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,

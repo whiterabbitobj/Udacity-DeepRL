@@ -189,7 +189,7 @@ class MAD4PG_Net:
         # clip the average score to the value where the max amt of annealing is
         # reached, so that outliers do not over-weight the annealing and allow
         # for more stable training
-        xhigh = 0.55
+        xhigh = 0.7
         xlow = 0
         steep_mult = 8
 
