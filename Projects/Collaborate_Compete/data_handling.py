@@ -528,6 +528,7 @@ class Logger:
         if logdir != None:
             try:
                 self._manual_graph_load(logdir)
+                self.save_dir = os.path.dirname(logdir)
             except:
                 print("Something went wrong trying to load logs from provided \
                        path. Please ensure path is in the format:\n\
