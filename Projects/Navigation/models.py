@@ -130,7 +130,6 @@ class QNetwork(nn.Module):
         Initialize parameters and build model.
         """
         super(QNetwork, self).__init__()
-        # _, state_size = state_size
         self.seed = torch.manual_seed(seed)
         self.hidden_layers = nn.ModuleList([nn.Linear(state_size, layer_sizes[0])])
         self.output = nn.Linear(layer_sizes[-1], action_size)
@@ -162,5 +161,4 @@ class WeightedLoss(nn.Module):
         errors = torch.abs(values - targets)
         loss = (errors<1).float()*(errors**2) + (errors>=1).float()*(errors - 0.5)
         weighted_loss = (weights * loss).sum()
-        #weighted_loss = weighted_loss.sum()
         return weighted_loss, errors.detach().cpu().numpy()

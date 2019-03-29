@@ -529,6 +529,10 @@ def gather_args():
             help="How many episodes to train?",
             type=int,
             default=500)
+    parser.add_argument("-max", "--max_steps",
+            help="How many timesteps before forcing an episode reset.",
+            type=int,
+            default=1000)
     parser.add_argument("-o", "--optimizer",
             help="Choose an optimizer for the network. (RMSprop/Adam/SGD)",
             type=str,
