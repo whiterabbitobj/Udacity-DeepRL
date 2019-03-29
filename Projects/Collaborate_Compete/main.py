@@ -84,14 +84,12 @@ def train(multi_agent, args, env, saver):
             # Because it is possible for the agents to learn to perfectly
             # respond to one another, the score can balloon and training takes
             # forever as they just play perfectly until the environment hard
-            # resets. Because the goal score for this environment is +0.5, a
-            # score of >1 is just gravy, so we cancel out and begin the next
-            # episode. Theoretically, any agent capable of hitting a 10-volley
-            # game is equally likely to continue playing a perfect game and
-            # there is nothing too much to learn from continuing to train beyond
-            # this cutoff (and quite possibly before, frankly)
-            ###print(logger.rewards.max())
-            if logger.rewards.max() >= 1:
+            # resets. So we start a new episode if a score threshold is reached,
+            # the threshold being drawn from a normal distribution around 1.
+            # By using a random threshold, the agent should receive more robust
+            # training than a static threashold.
+            threshold = np.clip(np.random.normal(1,.2), 0.5, 1.5)
+            if logger.rewards.max() >= threshold:
                 break
         ###################################################
         #              PREP FOR NEXT EPISODE              #
