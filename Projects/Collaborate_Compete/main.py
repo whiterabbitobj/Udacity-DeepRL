@@ -91,7 +91,7 @@ def train(multi_agent, args, env, saver):
             # there is nothing too much to learn from continuing to train beyond
             # this cutoff (and quite possibly before, frankly)
             ###print(logger.rewards.max())
-            if logger.rewards.max() > 1:
+            if logger.rewards.max() >= 1:
                 break
         ###################################################
         #              PREP FOR NEXT EPISODE              #
@@ -105,10 +105,9 @@ def train(multi_agent, args, env, saver):
     ############################################################################
     ##############################################
     #                  CLEANUP                   #
-    logger.final(episode, multi_agent)
     env.close()
+    logger.final(episode, multi_agent)
     saver.save(multi_agent, final=True)
-    logger.graph()
     #                                            #
     ##############################################
     return

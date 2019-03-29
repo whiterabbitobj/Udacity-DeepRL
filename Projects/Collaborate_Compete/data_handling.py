@@ -291,6 +291,7 @@ class Logger:
         max_eps has been reached or not.
         """
         self._print_status(eps_num, multi_agent)
+        self.graph()
 
 
     def step(self, eps_num=None, multi_agent=None):
