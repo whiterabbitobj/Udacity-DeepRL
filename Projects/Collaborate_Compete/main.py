@@ -97,7 +97,7 @@ def train(multi_agent, args, env, saver):
         logger.step(episode, multi_agent)
         multi_agent.new_episode(logger.scores)
         if len(logger.scores) > 250:
-            if np.array(logger.scores[-200:]).mean() > 0.5:
+            if np.array(logger.scores[-200:]).mean() > 0.525:
                 break
     #                                                                          #
     ############################################################################
