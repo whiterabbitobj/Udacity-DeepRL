@@ -88,9 +88,9 @@ def train(multi_agent, args, env, saver):
             # the threshold being drawn from a normal distribution around 1.
             # By using a random threshold, the agent should receive more robust
             # training than a static threashold.
-            # threshold = np.clip(np.random.normal(1.1,.1), 1, 1.5)
-            threshold = np.random.normal(2,.5)
-            if logger.rewards.max() >= threshold:
+            ep_threshold = np.clip(np.random.normal(1.5,.1), 1.3, 2)
+            # threshold = np.random.normal(1.5,.1)
+            if logger.rewards.max() >= ep_threshold:
                 break
         ###################################################
         #              PREP FOR NEXT EPISODE              #
@@ -98,7 +98,7 @@ def train(multi_agent, args, env, saver):
         logger.step(episode, multi_agent)
         multi_agent.new_episode(logger.scores)
         if len(logger.scores) > 250:
-            if np.array(logger.scores[-250:]).mean() > 0.525:
+            if np.array(logger.scores[-250:]).mean() > args.quit_threshold:
                 break
     #                                                                          #
     ############################################################################

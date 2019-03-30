@@ -189,6 +189,7 @@ class Saver():
         print_bracketing(statement)
 
 
+
 class Logger:
     """
     Handles logging training data and printing to log files. Creates a graph at
@@ -293,7 +294,6 @@ class Logger:
         self._print_status(eps_num, multi_agent)
         self.graph()
 
-
     def step(self, eps_num=None, multi_agent=None):
         """
         After each episode, report data on runtime and score. If not in
@@ -358,7 +358,10 @@ class Logger:
         sess_params = ''
         counter = 0
         for line in loglines:
-            if line.split(':')[0].lower() in params_to_print:
+            key, *value = line.split(':')
+            if key.lower() == 'log_every':
+                self.log_every = int(''.join(value))
+            if key.lower() in params_to_print:
                 line += '  '
                 counter += len(line)
                 if counter > 80:
@@ -430,15 +433,17 @@ class Logger:
                     data = np.array([float(loss) for loss in f.read().splitlines()])
                 ax = fig.add_subplot(gs[row,col])
                 label = re.match(r'(.*)_(.*)loss', file).group(2).title()
-                try:
-                    self._create_loss_plot(ax, data, score_window, num_eps, num_ticks, xticks, label)
-                except:
-                    print("Something went wrong with plotting the losses for",
-                          "{}, likely the file was empty.".format(file))
+                # try:
+                self._create_loss_plot(ax, data, score_window, num_eps,
+                                           num_ticks, xticks, label, col)
+                # except:
+                #     print("Something went wrong with plotting the losses for",
+                #           "{}, likely the file was empty.".format(file))
         if save_to_disk:
             save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
             fig.savefig(save_file)
-            statement = "Saved graph data to: {}".format(save_file).replace("\\", "/")
+            save_file = save_file.replace("\\", "/")
+            statement = "Saved graph data to: {}".format(save_file)
             print("{0}\n{1}\n{0}".format("#"*len(statement), statement))
         else:
             fig.show()
@@ -450,7 +455,7 @@ class Logger:
         x_axis = np.linspace(1, num_eps, num_eps)
         score_mean = scores[-score_window:].mean()
         score_std = scores[-score_window:].std()
-        report = "{0}eps MA score: {1:.3f}\n{0}eps STD: {2:.3f}".format(
+        report = "{0}eps MA score: {1:.3f}, STD: {2:.3f}".format(
                 score_window, score_mean, score_std)
 
         # Plot unfiltered scores
@@ -470,29 +475,33 @@ class Logger:
         ax.set_ylabel("Score")
         ax.set_facecolor(self.bg_color)
         ax.grid()
+        ax.set_ylim(bottom=scores.min() - (scores.max()-scores.min())*.12)
         ax.legend(loc="upper left", markerscale=2.5, fontsize=15)
         ax.axvspan(x_axis[-score_window], x_axis[-1],
                    color=self.highlight_color, alpha=self.highlight_alpha)
         ax.annotate(report, xy=(1,1), xycoords="figure points",
-                    xytext=(0.925,0.05), textcoords="axes fraction",
+                    xytext=(0.955,0.04), textcoords="axes fraction",
                     horizontalalignment="right", size=20, color='white',
                     bbox = self.annotate_props)
 
-    def _create_loss_plot(self, ax, data, score_window, num_eps, num_ticks, xticks, label):
+    def _create_loss_plot(self, ax, data, score_window, num_eps, num_ticks,
+                          xticks, label, col):
         """
         Creates a standardized graph plot of LOSSES for a training session.
         """
         datapoints = len(data)
-        x_axis = np.linspace(1, datapoints, datapoints)
-        yticks = np.linspace(min(data), max(data), num_ticks)
+        timesteps = datapoints * self.log_every
+        x_axis = np.linspace(1, timesteps, datapoints)
+        #xticks = np.linspace(0, num_eps, num_ticks, dtype=int)
+        ylim = (data.max()-data.min())*0.45 + data.max()
+        yticks = np.linspace(min(data), ylim, num_ticks*1.5)
         ratio = datapoints / num_eps
         fitted_x = max(1, score_window * ratio)
         ma1_data = self._moving_avg(data, fitted_x)
         ma2_data = self._moving_avg(data, fitted_x*2)
         mean = data[-int(fitted_x):].mean()
         std = data[-int(fitted_x):].std()
-        report = "{0}eps MA actor loss: {1:.4f}\n{0}eps STD: {2:.4f}".format(
-                score_window, mean, std)
+        report = "Loss: {:.4f}\nSTD: {:.4f}".format(mean, std)
 
         # Plot unfiltered loss data
         ax.plot(x_axis, data)
@@ -503,18 +512,19 @@ class Logger:
         ax.plot(x_axis, ma2_data, color=self.ma2_color, lw=3,
                 label="{}eps MA".format(score_window*2))
 
-        ax.set_xticks(np.linspace(0, datapoints, num_ticks))
-        ax.set_xticklabels(xticks)
+        ax.set_xticks(np.linspace(0, timesteps, 5))
         ax.set_yticks(yticks)
-        ax.set_title("{} Loss".format(label))
+        ax.set_title("{} #{} Loss".format(label, col))
         ax.set_ylabel("Loss", labelpad=15)
+        ax.set_xlabel("Timesteps")
         ax.set_facecolor(self.bg_color)
         ax.grid()
         ax.legend(loc="upper left", markerscale=1.5, fontsize=12)
-        ax.axvspan(x_axis[-int(fitted_x)], x_axis[-1],
-                    color=self.highlight_color, alpha=self.highlight_alpha)
+        ax.set_ylim(top=ylim)
+        # ax.axvspan(x_axis[-int(fitted_x)], x_axis[-1],
+        #             color=self.highlight_color, alpha=self.highlight_alpha)
         ax.annotate(report, xy=(0,0), xycoords="figure points",
-                     xytext=(.935,.79), textcoords="axes fraction",
+                     xytext=(.975,.79), textcoords="axes fraction",
                      horizontalalignment="right", size=14, color='white',
                      bbox = self.annotate_props)
 
@@ -625,7 +635,7 @@ class Logger:
             for key in vars(agent):
                 param_dict[key.lstrip('_')] = getattr(agent, key)
         param_dict.pop('nographics', None)
-        param_dict.pop('log_every', None)
+        # param_dict.pop('log_every', None)
         param_dict.pop('save_every', None)
         param_dict.pop('print_every', None)
         param_dict.pop('verbose', None)
@@ -682,7 +692,6 @@ class Logger:
         if m != 0:
             time += "{}m".format(int(m))
         time += "{}s".format(int(s))
-        # return "{}h{}m{}s".format(int(h), int(m), int(s))
         return time
 
     def _write_losses(self, multi_agent):
@@ -800,7 +809,11 @@ def gather_args():
     net_group.add_argument("-em", "--e_min",
             help="Minimum value for epsilon.",
             type=float,
-            default=0.01)
+            default=0.005)
+    net_group.add_argument("-amax", "--anneal_max",
+            help="Value at which Epsilon will be annealed to e_min.",
+            type=float,
+            default=0.7)
     net_group.add_argument("-ed", "--e_decay",
             help="Decay rate for Epsilon value.",
             type=float,
@@ -860,7 +873,7 @@ def gather_args():
             help="Training will quit if average score over previous 250 \
             episodes reaches this number.",
             type=float,
-            default=0.525)            
+            default=0.525)
     #                                                                          #
     ############################################################################
     #                              DATA HANDLING                               #
