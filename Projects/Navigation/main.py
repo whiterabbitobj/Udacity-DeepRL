@@ -38,7 +38,7 @@ def main():
     else:
         train(agent, args, env, saver)
 
-    return True
+    return
 
 
 
@@ -65,9 +65,6 @@ def train(agent, args, env, saver):
             next_state, reward, done = env.step(action)
             if done:
                 next_state = None
-                # print("terminal state reached!")
-            # if reward:
-            #     print("{} ".format(reward), end="")
             agent.step(state, action, reward, next_state)
             state = next_state
 
@@ -81,7 +78,7 @@ def train(agent, args, env, saver):
     env.close()
     saver.save_final(agent)
     logger.graph()
-    return True
+    return
 
 def eval(agent, args, env):
     """
@@ -110,7 +107,7 @@ def eval(agent, args, env):
         logger.step(episode)
 
     env.close()
-    return True
+    return
 
 if __name__ == "__main__":
     main()

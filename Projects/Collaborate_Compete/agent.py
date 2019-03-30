@@ -30,6 +30,7 @@ class MAD4PG_Net:
         self._e = args.e
         self.e_min = args.e_min
         self.e_decay = args.e_decay
+        self.anneal_max = args.anneal_max
         self.update_type = args.update_type
         self.tau = args.tau
         self.state_size = env.state_size
@@ -184,13 +185,13 @@ class MAD4PG_Net:
         Anneals the epsilon rate down to a specified minimum to ensure there is
         always some noisiness to the policy actions. Returns as a property.
         """
-        yhigh = self._e
+
         ylow = self.e_min
-        # clip the average score to the value where the max amt of annealing is
-        # reached, so that outliers do not over-weight the annealing and allow
-        # for more stable training
-        xhigh = 0.7
+        yhigh = self._e
+
         xlow = 0
+        xhigh = self.anneal_max
+
         steep_mult = 8
 
         steepness = steep_mult / (xhigh - xlow)

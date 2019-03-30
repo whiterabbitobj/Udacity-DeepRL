@@ -426,6 +426,7 @@ class Logger:
         self._create_scores_plot(ax, scores, score_window, num_eps, num_ticks)
 
         # Plot however many LOSS graphs are needed
+        print(self.lossfiles)
         for col in range(1, gs_cols):
             for row in range(gs_rows):
                 file = self.lossfiles[col-1][row].replace("\\", "/")
@@ -809,7 +810,7 @@ def gather_args():
     net_group.add_argument("-em", "--e_min",
             help="Minimum value for epsilon.",
             type=float,
-            default=0.005)
+            default=0.0)
     net_group.add_argument("-amax", "--anneal_max",
             help="Value at which Epsilon will be annealed to e_min.",
             type=float,
