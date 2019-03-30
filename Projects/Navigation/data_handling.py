@@ -450,7 +450,7 @@ class Logger:
 
 
 
-def gather_args():
+def gather_args(manual_args=None):
     """
     Generate arguments passed from the command line.
     """
@@ -481,10 +481,6 @@ def gather_args():
             help="How many past timesteps to keep in memory.",
             type=int,
             default=100000)
-    parser.add_argument("-C",
-            help="How many timesteps between updating Q' to match Q",
-            type=int,
-            default=300*2.4)
     parser.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
                   training mode. In default EVAL mode, NUM_EPISODES is set \
@@ -566,7 +562,7 @@ def gather_args():
     parser.add_argument("-C", "--C",
             help="How many timesteps between hard updating of the networks.",
             type=int,
-            default=650)            
+            default=650)
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,
@@ -583,7 +579,7 @@ def gather_args():
             help="Directory to find saved agent weights.",
             type=str,
             default="saves")
-    args = parser.parse_args()
+    args = parser.parse_args(manual_args)
 
     ############################################################################
     #             PROCESS ARGS AFTER COMMAND LINE GATHERING                    #

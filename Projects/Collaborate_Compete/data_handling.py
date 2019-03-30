@@ -856,6 +856,11 @@ def gather_args():
             help="Maximum timesteps to allow before forcing an episode reset.",
             type=int,
             default=1000)
+    train_group.add_argument("--quit_threshold",
+            help="Training will quit if average score over previous 250 \
+            episodes reaches this number.",
+            type=float,
+            default=0.525)            
     #                                                                          #
     ############################################################################
     #                              DATA HANDLING                               #
