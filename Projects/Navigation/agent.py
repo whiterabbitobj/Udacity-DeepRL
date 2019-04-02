@@ -13,11 +13,7 @@ class DQN_Agent:
     """
     PyTorch Implementation of DQN/DDQN.
     """
-    def __init__(self,
-                 state_size,
-                 action_size,
-                 args,
-                ):
+    def __init__(self, state_size, action_size, args):
         """
         Initialize a D4PG Agent.
         """
@@ -43,23 +39,33 @@ class DQN_Agent:
         self.l2_decay = 0.0001
         self.update_type = "hard"
 
-
         self.t_step = 0
         self.episode = 0
         self.seed = 0
 
         # Set up memory buffers
         if args.prioritized_experience_replay:
-            self.memory = PERBuffer(args.buffersize, self.batchsize, self.framestack, self.device, args.alpha, args.beta)
+            self.memory = PERBuffer(args.buffersize,
+                                    self.batchsize,
+                                    self.framestack,
+                                    self.device,
+                                    args.alpha,
+                                    args.beta)
             self.criterion = WeightedLoss()
         else:
-            self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
+            self.memory = ReplayBuffer(self.device,
+                                       self.buffer_size,
+                                       self.gamma,
+                                       self.rollout)
 
         #                    Initialize Q networks                         #
         self.q = self._make_model(state_size, action_size, args.pixels)
         self.q_target = self._make_model(state_size, action_size, args.pixels)
         self._hard_update(self.q, self.q_target)
-        self.q_optimizer = self._set_optimizer(self.q.parameters(), lr=self.learn_rate, decay=self.l2_decay, momentum=self.momentum)
+        self.q_optimizer = self._set_optimizer(self.q.parameters(),
+                                               lr=self.learn_rate,
+                                               decay=self.l2_decay,
+                                               momentum=self.momentum)
 
 
         self.new_episode()
@@ -75,8 +81,6 @@ class DQN_Agent:
         """
 
         self._epsilon = max(self.epsilon_min, self.epsilon_decay ** self.t_step)
-        # self._epsilon = max(self.epsilon_min, self.epsilon_decay * self._epsilon)
-
         return self._epsilon
 
     def act(self, state, eval=False, pretrain=False):
@@ -87,10 +91,8 @@ class DQN_Agent:
 
         if np.random.random() > self.epsilon or not eval and not pretrain:
             state = state.to(self.device)
-            #self.q.eval()
             with torch.no_grad():
                 action_values = self.q(state).detach().cpu()
-            #self.q.train()
             action = action_values.argmax(dim=1).unsqueeze(0).numpy()
         else:
             action = np.random.randint(self.action_size, size=(1,1))
@@ -103,10 +105,9 @@ class DQN_Agent:
 
         # Current SARS' stored in short term memory, then stacked for NStep
         experience = (state, action, reward, next_state)
-        # print("SENDING MEMORY:")
-        # print(experience)
         if self.rollout == 1:
-            self.memory.store_trajectory(state, torch.from_numpy(action), torch.tensor([reward]), next_state)
+            self.memory.store_trajectory(state, torch.from_numpy(action),
+                                         torch.tensor([reward]), next_state)
         else:
             self.memory.store_experience(experience)
         self.t_step += 1
@@ -141,7 +142,6 @@ class DQN_Agent:
             # Use the active network action to get the value of the stable
             # target network
             q_values[terminal_mask] = self.q_target(next_states).detach().gather(1, max_actions).squeeze(1)
-            # q_values[terminal_mask] = self.q_target(next_states).gather(1, max_actions).squeeze(1)
 
         targets = rewards + (self.gamma**self.rollout * q_values)
 
@@ -150,7 +150,6 @@ class DQN_Agent:
 
         #Huber Loss provides better results than MSE
         if is_weights is None:
-            #loss = F.smooth_l1_loss(values, targets)
             loss = F.smooth_l1_loss(values, targets)
 
         #Compute Huber Loss manually to utilize is_weights with Prioritization

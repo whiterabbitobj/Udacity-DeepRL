@@ -10,18 +10,11 @@ def main():
     Primary code for training or testing an agent using one of several
     optional network types. Deep Q-Network, Double DQN, etcself.
 
-    This is a project designed for Udacity's Deep Reinforcement Learning Nanodegree
-    and uses a special version of Unity's Banana learning environment. This
-    environment should be available via the github repository at:
-    https://github.com/whiterabbitobj/udacity-deep-reinforcement-learning/tree/master/p1_navigation
+    This is a project designed for Udacity's Deep Reinforcement Learning
+    Nanodegree and uses a special version of Unity's Banana learning
+    environment. This environment should be available via the github repository at:
+    https://github.com/udacity/deep-reinforcement-learning
     """
-
-    """
-    Sets up a few global variables to condense code:
-        args - arguments from command line, including defaults
-        sep - separator used for print statements
-        start_time - start time of program initialization
-        device - which device to run on (usually GPU)    """
 
     args = gather_args()
 
@@ -47,7 +40,7 @@ def train(agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(agent, args, saver.save_dir, log_every=50, print_every=5)
+    logger = Logger(agent, args, saver.save_dir, log_every=50)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)

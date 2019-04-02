@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import torch
 from unityagents import UnityEnvironment
-# from mlagents.envs import UnityEnvironment
 from utils import print_bracketing
 import platform
 
@@ -11,7 +10,7 @@ class Environment:
     main body code a bit more neat and allows for easier access to certain
     params elsewhere.
     """
-    def __init__(self, args, id=0):
+    def __init__(self, args, id=10):
         """
         Initialize an environment wrapper.
         """
@@ -30,7 +29,8 @@ class Environment:
             unity_filename = "Banana_Windows_x86_64_Visual/Banana.exe"
         else:
             unity_filename = "Banana_Windows_x86_64/Banana.exe"
-        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
+        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id,
+                                    no_graphics=args.nographics)
         print_bracketing(do_upper=False)
 
         self.brain_name = self.env.brain_names[0]

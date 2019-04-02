@@ -65,11 +65,8 @@ class ReplayBuffer:
             return
 
         # Unpacks and stores the SARS' tuple for each actor in the environment
-        # for actor in zip(*self.n_step):
         states, actions, rewards, next_states = zip(*self.n_step)
         n_steps = self.rollout - 1
-        # print(n_steps)
-        # print(self.n_step)
 
         # Calculate n-step discounted reward
         # If encountering a terminal state (next_state == None) then sum the
@@ -79,18 +76,12 @@ class ReplayBuffer:
             r = torch.tensor(0, dtype=torch.float)
             for i in range(n_steps):
                 if next_states[i] is  None:
-                    # print("Encountered terminal state in ROLLOUT stacking! Reward calculated from {} steps: {}".format(i+1, rewards))
                     n_steps = i
                     break
                 else:
                     r += self.gamma**i * rewards[i]
             rewards = r
-        # else:
-            # print("STORING MEMORY")
-            # print(states, actions, rewards, next_states)
 
-            #rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
-            #rewards = rewards.sum()
 
         # store the current state, current action, cumulative discounted
         # reward from t -> t+n-1, and the next_state at t+n (S't+n)

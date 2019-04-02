@@ -233,7 +233,6 @@ class Logger:
         self.filename = os.path.basename(self.save_dir)
         self.logs_basename = os.path.join(self.log_dir, self.filename)
         self.start_time = self.prev_timestamp =  time.time()
-        # self.scores = deque(maxlen=self.print_every)
         self.scores = []
         self._reset_rewards()
 
@@ -426,7 +425,6 @@ class Logger:
         self._create_scores_plot(ax, scores, score_window, num_eps, num_ticks)
 
         # Plot however many LOSS graphs are needed
-        print(self.lossfiles)
         for col in range(1, gs_cols):
             for row in range(gs_rows):
                 file = self.lossfiles[col-1][row].replace("\\", "/")
