@@ -29,7 +29,7 @@ def main():
     else:
         train(agent, args, env, saver)
 
-    return True
+    return
 
 
 
@@ -38,7 +38,7 @@ def train(agent, args, env, saver):
     Train the agent.
     """
 
-    logger = Logger(agent, args, saver.save_dir, log_every=50)
+    logger = Logger(agent, args, saver.save_dir)
 
     # Pre-fill the Replay Buffer
     agent.initialize_memory(args.pretrain, env)
@@ -62,12 +62,12 @@ def train(agent, args, env, saver):
 
         saver.save_checkpoint(agent, args.save_every)
         agent.new_episode()
-        logger.step(episode)
+        logger.step(episode, agent)
 
     env.close()
     saver.save_final(agent)
     logger.graph()
-    return True
+    return
 
 def eval(agent, args, env):
     """
@@ -96,7 +96,7 @@ def eval(agent, args, env):
         logger.step(episode)
 
     env.close()
-    return True
+    return
 
 if __name__ == "__main__":
     main()

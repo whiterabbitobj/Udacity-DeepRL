@@ -43,10 +43,8 @@ class D4PG_Agent:
     stability of learning. Thus, it too has been left out of this
     implementation but may be added as a future TODO item.
     """
-    def __init__(self,
-                 env,
-                 args,
-                 e_decay = 1, #0.99999,
+    def __init__(self, env, args,
+                 e_decay = 1,
                  e_min = 0.05,
                  l2_decay = 0.0001,
                  update_type = "hard"):
@@ -85,15 +83,30 @@ class D4PG_Agent:
         self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
 
         #                    Initialize ACTOR networks                         #
-        self.actor = ActorNet(self.state_size, self.action_size).to(self.device)
-        self.actor_target = ActorNet(self.state_size, self.action_size).to(self.device)
+        self.actor = ActorNet(args.layer_sizes,
+                              self.state_size,
+                              self.action_size).to(self.device)
+        self.actor_target = ActorNet(args.layer_sizes,
+                                     self.state_size,
+                                     self.action_size).to(self.device)
         self._hard_update(self.actor, self.actor_target)
-        self.actor_optim = optim.Adam(self.actor.parameters(), lr=self.actor_learn_rate, weight_decay=l2_decay)
+        self.actor_optim = optim.Adam(self.actor.parameters(),
+                                      lr=self.actor_learn_rate,
+                                      weight_decay=l2_decay)
+                                      
         #                   Initialize CRITIC networks                         #
-        self.critic = CriticNet(self.state_size, self.action_size, self.num_atoms).to(self.device)
-        self.critic_target = CriticNet(self.state_size, self.action_size, self.num_atoms).to(self.device)
+        self.critic = CriticNet(args.layer_sizes,
+                                self.state_size,
+                                self.action_size,
+                                self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(args.layer_sizes,
+                                       self.state_size,
+                                       self.action_size,
+                                       self.num_atoms).to(self.device)
         self._hard_update(self.actor, self.actor_target)
-        self.critic_optim = optim.Adam(self.critic.parameters(), lr=self.critic_learn_rate, weight_decay=l2_decay)
+        self.critic_optim = optim.Adam(self.critic.parameters(),
+                                       lr=self.critic_learn_rate,
+                                       weight_decay=l2_decay)
 
         self.new_episode()
 

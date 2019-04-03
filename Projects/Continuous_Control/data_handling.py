@@ -3,7 +3,7 @@ import sys
 import numpy as np
 import time
 from utils import print_bracketing, check_dir
-from argparse import ArgumentParser
+import argparse
 import torch
 import os.path
 import re
@@ -24,6 +24,7 @@ class Saver():
     file_ext - extension to append to saved weights files. Can be any arbitrary
             string the user desires.
     """
+
     def __init__(self,
                  prefix,
                  agent,
@@ -77,6 +78,7 @@ class Saver():
         """
         Preps a final savefile after training has finished.
         """
+
         mssg = "Saved final Agent weights to: "
         save_name = "{}_eps{:04d}_FINAL".format(self.filename, agent.episode-1)
         self._save(agent, save_name, mssg)
@@ -137,11 +139,11 @@ class Logger:
     log_every - how many timesteps between each logging of losses. Scores are
         logged every episode.
     """
+
     def __init__(self,
                  agent=None,
                  args=None,
-                 save_dir = '.',
-                 log_every = 100):
+                 save_dir = '.'):
         """
         Initialize a Logger object.
         """
@@ -153,14 +155,16 @@ class Logger:
         self.framework = agent.framework
         self.max_eps = args.num_episodes
         self.quietmode = args.quiet
-        self.log_every = log_every
+        self.log_every = args.log_every
+        self.print_every = args.print_every
         self.agent_count = agent.agent_count
         self.save_dir = save_dir
         self.log_dir = os.path.join(self.save_dir, 'logs').replace('\\','/')
         self.filename = os.path.basename(self.save_dir)
         self.start_time = self.prev_timestamp =  time.time()
+        self.scores = []
+        self._reset_rewards()
 
-        self._init_rewards()
         if not self.eval:
 
             timestamp = time.strftime("%H:%M:%S", time.localtime())
@@ -169,6 +173,10 @@ class Logger:
 
             check_dir(self.log_dir)
             self._init_logs(self._collect_params(args, agent))
+
+    @property
+    def latest_score(self):
+        return self.scores[-1]
 
     def log(self, rewards, agent):
         """
@@ -185,16 +193,46 @@ class Logger:
         if agent.t_step % self.log_every == 0:
             self._write_losses()
 
-    def step(self, epsnum):
+    def step(self, eps_num=None, agent=None):
         """
         After each episode, report data on runtime and score. If not in
         QUIETMODE, then also report the most recent losses.
         """
 
-        epstime, total = self._runtime()
-        print("\nEpisode {}/{}... RUNTIME: {}, TOTAL: {}".format(epsnum, self.max_eps, epstime, total))
+        # epstime, total = self._runtime()
+        # print("\nEpisode {}/{}... RUNTIME: {}, TOTAL: {}".format(epsnum, self.max_eps, epstime, total))
         self._update_score()
-        self._init_rewards()
+        self._reset_rewards()
+
+        if self.eval:
+            print("Score: {}".format(self.latest_score))
+            return
+
+        self._write_scores()
+
+        if eps_num % self.print_every == 0:
+            self._print_status(eps_num, agent)
+
+    def _print_status(self, eps_num, agent):
+        """
+        Print status info to the command line.
+        """
+        leader = "..."
+        # TIME INFORMATION
+        eps_time, total_time, remaining = self._runtime(eps_num)
+        timestamp = time.strftime("%H:%M:%S", time.localtime())
+        print("\nEp: {}/{} - {} steps - @{}".format(eps_num, self.max_eps, agent.t_step, timestamp))
+        print("Batch: {}, Total: {}, Est.Remain: {}".format(eps_time, total_time, remaining))
+        # LOSS INFORMATION
+        if not self.quietmode:
+            print("{}Actor Loss: {:.4f}, Critic Loss: {:.4f}\
+                  ".format(leader, agent.actor_loss, agent.critic_loss))
+            # print("{}E: {:.4f}".format(leader, multi_agent.e))
+        # SCORE DATA
+        prev_scores = self.scores[-self.print_every:]
+        print("Avg RETURN over previous {} episodes: {:.4f}\n".format(
+                self.print_every, np.array(prev_scores).mean()))
+
 
     def load_logs(self):
         """
@@ -229,9 +267,12 @@ class Logger:
         self.sess_params = sess_params
 
     def _moving_avg(self, data, avg_across):
+        """
+        Averages a curve, interpolates at boundaries.
+        """
+
         avg_across = int(avg_across)
         window = np.ones(avg_across)/avg_across
-        # data = np.pad(data, avg_across, mode="edge")
         data = np.pad(data, avg_across, mode="mean", stat_length=5)
         return np.convolve(data, window, 'same')[avg_across:-avg_across]
 
@@ -421,18 +462,42 @@ class Logger:
         """
 
         return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
+    #
+    # def _runtime(self):
+    #     """
+    #     Return the time since the previous episode, as well as total time for
+    #     the training session.
+    #     """
+    #
+    #     current_time = time.time()
+    #     eps_time = self._format_time(current_time, self.prev_timestamp)
+    #     total_time = self._format_time(current_time, self.start_time)
+    #     self.prev_timestamp = current_time
+    #     return eps_time, total_time
+    #
+    # def _format_time(self, current, previous):
+    #     """
+    #     Formats time difference into Hours, Minutes, Seconds.
+    #     """
+    #
+    #     m, s = divmod(current - previous, 60)
+    #     h, m = divmod(m, 60)
+    #     return "{}h{}m{}s".format(int(h), int(m), int(s))
 
-    def _runtime(self):
+    def _runtime(self, eps_num):
         """
         Return the time since the previous episode, as well as total time for
         the training session.
         """
 
         current_time = time.time()
+        projected_end = (self.max_eps / eps_num) * (current_time - self.start_time) + self.start_time
+
         eps_time = self._format_time(current_time, self.prev_timestamp)
         total_time = self._format_time(current_time, self.start_time)
+        remaining = self._format_time(projected_end, current_time)
         self.prev_timestamp = current_time
-        return eps_time, total_time
+        return eps_time, total_time, remaining
 
     def _format_time(self, current, previous):
         """
@@ -441,7 +506,13 @@ class Logger:
 
         m, s = divmod(current - previous, 60)
         h, m = divmod(m, 60)
-        return "{}h{}m{}s".format(int(h), int(m), int(s))
+        time = ""
+        if h != 0:
+            time += "{}h".format(int(h))
+        if m != 0:
+            time += "{}m".format(int(m))
+        time += "{}s".format(int(s))
+        return time
 
     def _update_score(self):
         """
@@ -450,13 +521,14 @@ class Logger:
         """
 
         score = self.rewards.mean()
-        print("{}Return: {}".format("."*10, score))
-        if not self.eval:
-            self._write_scores(score)
-            if self.quietmode:
-                return
-            print("A LOSS: ", self.actor_loss)
-            print("C LOSS: ", self.critic_loss)
+        self.scores.append(score)
+        # print("{}Return: {}".format("."*10, score))
+        # if not self.eval:
+        #     self._write_scores(score)
+        #     if self.quietmode:
+        #         return
+        #     print("A LOSS: ", self.actor_loss)
+        #     print("C LOSS: ", self.critic_loss)
 
     def _write_losses(self):
         """
@@ -468,15 +540,15 @@ class Logger:
         with open(self.clossfile, 'a') as f:
             f.write(str(self.critic_loss) + '\n')
 
-    def _write_scores(self, score):
+    def _write_scores(self):
         """
         Writes score data to file.
         """
 
         with open(self.scoresfile, 'a') as f:
-            f.write(str(score) + '\n')
+            f.write(str(self.latest_score) + '\n')
 
-    def _init_rewards(self):
+    def _reset_rewards(self):
         """
         Resets the REWARDS matrix to zero for starting an episode.
         """
@@ -489,8 +561,9 @@ def gather_args():
     """
     Generate arguments passed from the command line.
     """
-    parser = ArgumentParser(description="Continuous control environment for Udacity DeepRL course.",
-            usage="")
+    parser = argparse.ArgumentParser(description="Continuous control environment for \
+            Udacity DeepRL course.",
+            formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument("-alr", "--actor_learn_rate",
             help="Actor Learning Rate.",
@@ -512,6 +585,12 @@ def gather_args():
             help="How many timesteps between hard network updates.",
             type=int,
             default=350)
+    parser.add_argument("-layers", "--layer_sizes",
+            help="The size of the hidden layers for the networks (Actor/Critic \
+            currently use the same network sizes).",
+            nargs="+",
+            type=int,
+            default=[400,300])
     parser.add_argument("-cpu", "--cpu",
             help="Run training on the CPU instead of the default (GPU).",
             action="store_true")
@@ -549,7 +628,7 @@ def gather_args():
                   Terminal state is not reached first",
             type=int,
             default=1000)
-    parser.add_argument("--nographics",
+    parser.add_argument("-ng", "--nographics",
             help="Run Unity environment without graphics displayed.",
             action="store_true")
     parser.add_argument("-num", "--num_episodes",
@@ -575,6 +654,14 @@ def gather_args():
             help="How many episodes between saves.",
             type=int,
             default=10)
+    parser.add_argument("-le", "--log_every",
+            help="How many timesteps between writing a log step.",
+            type=int,
+            default=50)
+    parser.add_argument("-pe", "--print_every",
+            help="How many episodes between status printouts.",
+            type=int,
+            default=3)                        
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,

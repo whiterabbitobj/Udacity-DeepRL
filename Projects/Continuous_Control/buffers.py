@@ -18,6 +18,7 @@ class ReplayBuffer:
 
     where n=ROLLOUT.
     """
+
     def __init__(self, device, buffer_size=100000, gamma=0.99, rollout=5):
         self.buffer = deque(maxlen=buffer_size)
         self.device = device
@@ -67,7 +68,7 @@ class ReplayBuffer:
         # for the Udacity environment this means 20 memories each timestep.
         for actor in zip(*self.n_step):
             states, actions, rewards, next_states = zip(*actor)
-            n_steps = self.rollout - 1
+            n_steps = self.rollout# - 1
 
             # Calculate n-step discounted reward
             rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)

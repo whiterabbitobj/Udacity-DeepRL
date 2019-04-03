@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import torch
 from unityagents import UnityEnvironment
-# from mlagents.env import UnityEnvironment
 from utils import print_bracketing
 import platform
 
@@ -11,6 +10,7 @@ class Environment:
     main body code a bit more neat and allows for easier access to certain
     params elsewhere.
     """
+    
     def __init__(self, args, id=33):
 
         self.train = not args.eval
@@ -25,7 +25,6 @@ class Environment:
             print("MacOS not supported in this code!")
         else:
             unity_filename = 'Reacher_Windows_x86_64/Reacher.exe'
-        # unity_filename = 'Reacher_Windows_x86_64/Reacher.exe'
 
         self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
         print_bracketing(do_upper=False)
@@ -43,18 +42,21 @@ class Environment:
         """
         Resets the environment.
         """
+
         self.env_info = self.env.reset(train_mode = self.train)[self.brain_name]
 
     def close(self):
         """
         Closes the environment when Agent is done interacting with it.
         """
+
         self.env.close()
 
     def step(self, actions):
         """
         Returns REWARDS, NEXT_STATES, DONES based on the actions provided.
         """
+
         self.env_info = self.env.step(actions)[self.brain_name]
         next_states = self.states
         rewards = self.env_info.rewards
@@ -66,5 +68,6 @@ class Environment:
         """
         Returns the STATES as a tensor.
         """
+
         states = self.env_info.vector_observations
         return torch.from_numpy(states).float()

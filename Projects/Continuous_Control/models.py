@@ -6,7 +6,6 @@ import numpy as np
 
 
 
-# LAYER_SIZES = [400,300]
 WEIGHT_LOW = -3e-2
 WEIGHT_HIGH = 3e-2
 
