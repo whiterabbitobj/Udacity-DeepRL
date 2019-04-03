@@ -1,7 +1,8 @@
 
-<center><br><br><b><font size=10> NAVIGATION </font></b><br><br>
-    <font size = 4><i>...implementation for Udacity Deep Reinforcement Learning</i></font>
-<hr>
+# **NAVIGATION** - Banana Collector
+
+### *Implementation for Udacity Deep Reinforcement Learning*
+***
 
 ##### Load a few extensions before doing anything else...
 
