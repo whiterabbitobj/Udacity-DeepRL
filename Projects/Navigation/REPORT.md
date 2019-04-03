@@ -1,6 +1,6 @@
 
 <center><br><br><b><font size=10> NAVIGATION </font></b><br><br>
-<font size = 4><i>...implementation for Udacity Deep Reinforcement Learning 
+    <font size = 4><i>...implementation for Udacity Deep Reinforcement Learning</i></font>
 <hr>
 
 ##### Load a few extensions before doing anything else...
