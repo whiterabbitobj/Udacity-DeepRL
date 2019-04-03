@@ -2,17 +2,24 @@
 <div align="justify">
 
 [image1]: https://user-images.githubusercontent.com/10624937/42135619-d90f2f28-7d12-11e8-8823-82b970a54d7e.gif "Trained Agent"
-# Project 1: Navigation
+# **Project 1: Navigation**
 
-## Introduction to Deep Reinforcement Learning
-### - DQN/Double-DQN Implementation
+## *Introduction to Deep Reinforcement Learning*
+## **DQN/Double-DQN Implementation**
 
 This project uses vanilla Deep Q-Learning (DQN), or (by default) a slightly more advanced Double Deep Q-Learning Agent (DDQN), to train a Reinforcement Learning Agent. Future implementations may include Dueling DQN, Prioritized Experience Replay, or a _Rainbow_ implementation using features from all of these networks.
 
 
-### Instructions
+### **Instructions**
 
 This agent can be trained or evaluated from the same python file **main.py.**
+
+#### Running the Agent
+The default values for the agent's params are set to great training values, and running this agent is as simple as:  
+**`python main.py`**  
+If you wish to see the trained agent in action, you can run:  
+**`python main.py -eval`**  
+Please see the REPORT file notebook for additional information!
 
 Use _`python main.py --help`_ for full details of available parameters, but these are the most important for training in the Banana environment:
 
@@ -25,20 +32,12 @@ Use _`python main.py --help`_ for full details of available parameters, but thes
 **`-C/--C`** - Number of timesteps between updating the network if training with HARD updates.  
 **`-t/--tau`** - Rate of soft transfer of network weights when training with SOFT updates.  
 
-#### Running the Agent
-The default values for the agent's params are set to great training values, and running this agent is as simple as:  
-**`python main.py`**  
-If you wish to see the trained agent in action, you can run:
-**`python main.py -eval`**
-Please see the REPORT file notebook for additional information!
 
-### The Environment
+### **The Environment**
 
 This project will train an agent to navigate (and collect bananas!) in a large, square world.  
 
-<center>
 ![Trained Agent][image1]
-</center>
 
 A reward of +1 is provided for collecting a yellow banana, and a reward of -1 is provided for collecting a blue banana.  Thus the goal of the agent is to collect as many yellow bananas as possible while avoiding blue bananas.  
 
@@ -50,7 +49,7 @@ The state space has 37 dimensions and contains the agent's velocity, along with 
 
 The task is episodic, and is considered solved when the Agent reaches an average score of +13 over 100 consecutive episodes.
 
-### Dependencies
+### **Dependencies**
 
 1. The environment for this project is included in the repository as both a Window environment and Linux environment. There is a "Visual" environment that can be used to train the agent from pixel data using a Convolutional Network. This functionality is limited in this code implementation but is present.
 
@@ -67,9 +66,9 @@ The task is episodic, and is considered solved when the Agent reaches an average
 
 5. In some environments, such as Linux, some of the packages may throw errors. It should be safe to safely remove these.
 
-6. There are no unusual packages utilized and a clean environment with Python 3.6+, Pytorch 1.0+, Matplotlib, and Numpy installed should suffice.
+6. There are no unusual packages utilized and a clean environment with Python 3.6+, Pytorch, Matplotlib, and Numpy installed should suffice.
 
-### Challenge: Learning from Pixels
+### _**Challenge: Learning from Pixels**_
 
 This agent can be trained using pixel-data with a convolutional network using the:
 **`--pixels`** flag. There is a special environment required for this training that is also included in the repository, or can be downloaded below:
