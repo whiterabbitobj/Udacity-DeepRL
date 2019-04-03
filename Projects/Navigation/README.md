@@ -7,7 +7,30 @@
 ## Introduction to Deep Reinforcement Learning
 ### - DQN/Double-DQN Implementation
 
-This project uses vanilla Deep Q-Learning (DQN), or (by default) a slightly more advanced Double Deep Q-Learning Agent (D2DQN), to train a Reinforcement Learning Agent. Future implementations may include Dueling DQN (DDQN), Prioritized Experience Replay, or a _Rainbow_ implementation using features from all of these networks.
+This project uses vanilla Deep Q-Learning (DQN), or (by default) a slightly more advanced Double Deep Q-Learning Agent (DDQN), to train a Reinforcement Learning Agent. Future implementations may include Dueling DQN, Prioritized Experience Replay, or a _Rainbow_ implementation using features from all of these networks.
+
+
+### Instructions
+
+This agent can be trained or evaluated from the same python file **main.py.**
+
+Use _`python main.py --help`_ for full details of available parameters, but these are the most important for training in the Banana environment:
+
+**`-lr/--learn_rate`** - adjust the learning rate of the Q network.  
+**`-bs/--batch_size`** - size of ReplayBuffer samples.  
+**`--eval`** - Used to watch a trained agent. If EVAL not flagged, TRAINING is the default mode for this code. EVAL will prompt the user to select a savefile, unless --latest is flagged, which will naively choose the most recently created savefile in the save_dir.  
+**`-e/--epsilon`** - Rate at which a random action should be chosen instead of the agent returning an action.  
+**`-ed/--epsilon_decay`** - Rate at which epsilon reduces to encourage greedy exploitation.  
+**`-pre/--pretrain`** - How many experiences utilizing random actions should be collected before the Agent begins to learn.  
+**`-C/--C`** - Number of timesteps between updating the network if training with HARD updates.  
+**`-t/--tau`** - Rate of soft transfer of network weights when training with SOFT updates.  
+
+#### Running the Agent
+The default values for the agent's params are set to great training values, and running this agent is as simple as:  
+**`python main.py`**  
+If you wish to see the trained agent in action, you can run:
+**`python main.py -eval`**
+Please see the REPORT file notebook for additional information!
 
 ### The Environment
 
@@ -45,21 +68,6 @@ The task is episodic, and is considered solved when the Agent reaches an average
 5. In some environments, such as Linux, some of the packages may throw errors. It should be safe to safely remove these.
 
 6. There are no unusual packages utilized and a clean environment with Python 3.6+, Pytorch 1.0+, Matplotlib, and Numpy installed should suffice.
-
-### Instructions
-
-This agent can be trained or evaluated from the same python file **main.py.**
-
-Use _`python main.py --help`_ for full details of available parameters, but these are the most important for training in the Banana environment:
-
-**`-lr/--learn_rate`** - adjust the learning rate of the Q network.  
-**`-bs/--batch_size`** - size of ReplayBuffer samples.  
-**`--eval`** - Used to watch a trained agent. If EVAL not flagged, TRAINING is the default mode for this code. EVAL will prompt the user to select a savefile, unless --latest is flagged, which will naively choose the most recently created savefile in the save_dir.  
-**`-e/--epsilon`** - Rate at which a random action should be chosen instead of the agent returning an action.  
-**`-ed/--epsilon_decay`** - Rate at which epsilon reduces to encourage greedy exploitation.  
-**`-pre/--pretrain`** - How many experiences utilizing random actions should be collected before the Agent begins to learn.  
-**`-C/--C`** - Number of timesteps between updating the network if training with HARD updates.  
-**`-t/--tau`** - Rate of soft transfer of network weights when training with SOFT updates.  
 
 ### Challenge: Learning from Pixels
 
