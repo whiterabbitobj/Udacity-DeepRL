@@ -175,7 +175,7 @@ class MAD4PG_Net:
         # update epsilon each episode, not each timestep, currently. This should
         # be further investigate about moving this into the epsilon property
         # itself instead of here
-        avg_across = min(len(scores)+1, 50)
+        avg_across = np.clip(len(scores), 1, 50)
         self.avg_score = np.array(scores[-avg_across:]).mean()
 
         self.memory.init_n_step()

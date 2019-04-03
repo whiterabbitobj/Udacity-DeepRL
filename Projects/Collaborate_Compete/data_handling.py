@@ -95,7 +95,7 @@ class Saver():
         Prompts the user about what save to load, or uses the last modified save.
         """
 
-        load_file_prompt = "Load file for Agent #{} (or: q/quit): ".format(idx)
+        load_file_prompt = "Load file for Agent #{} (or q/uit): ".format(idx+1)
         user_quit_message = "User quit process before loading a file."
         message = ["{}. {}".format(len(files)-i, file) for i, file in enumerate(files)]
         message = '\n'.join(message).replace('\\', '/')
@@ -780,7 +780,7 @@ def gather_args():
             currently use the same network sizes).",
             nargs="+",
             type=int,
-            default=[400,300])
+            default=[350,250])
     net_group.add_argument("-alr", "--actor_learn_rate",
             help="Actor Learning Rate.",
             type=float,
@@ -835,7 +835,7 @@ def gather_args():
     net_group.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
-            default=51)
+            default=101)
     #                                                                          #
     ############################################################################
     #                             REPLAY BUFFER                                #
@@ -946,7 +946,7 @@ def gather_args():
 
     # Limit the length of evaluation runs unless user forces cmdline args
     if args.eval and not args.force_eval:
-        args.num_episodes = min(10, args.num_episodes)
+        args.num_episodes = min(3, args.num_episodes)
         args.max_steps = min(args.max_steps, 1000)
 
     # To avoid redundant code checks elsewhere, EVAL should be set to True if

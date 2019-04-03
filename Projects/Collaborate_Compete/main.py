@@ -122,16 +122,15 @@ def eval(multi_agent, args, env):
         # Gather experience until done or max_steps is reached
         while True:
             actions = multi_agent.act(obs, training=False)
-            #print(actions.tolist())
             next_obs, rewards, dones = env.step(actions)
             obs = next_obs
 
             logger.log(rewards)
             if np.any(dones):
                 break
-
-        multi_agent.new_episode()
-        logger.step()
+        # print(logger.scores)
+        logger.step(episode, multi_agent)
+        multi_agent.new_episode(logger.scores)
 
     env.close()
     return
