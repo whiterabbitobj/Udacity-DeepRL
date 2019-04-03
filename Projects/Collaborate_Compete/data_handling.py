@@ -634,7 +634,6 @@ class Logger:
             for key in vars(agent):
                 param_dict[key.lstrip('_')] = getattr(agent, key)
         param_dict.pop('nographics', None)
-        # param_dict.pop('log_every', None)
         param_dict.pop('save_every', None)
         param_dict.pop('print_every', None)
         param_dict.pop('verbose', None)

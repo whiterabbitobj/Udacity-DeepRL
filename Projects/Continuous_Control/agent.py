@@ -93,7 +93,7 @@ class D4PG_Agent:
         self.actor_optim = optim.Adam(self.actor.parameters(),
                                       lr=self.actor_learn_rate,
                                       weight_decay=l2_decay)
-                                      
+
         #                   Initialize CRITIC networks                         #
         self.critic = CriticNet(args.layer_sizes,
                                 self.state_size,
@@ -118,11 +118,9 @@ class D4PG_Agent:
         """
 
         states = states.to(self.device)
-        # self.actor.eval()
         with torch.no_grad():
             actions = self.actor(states).detach().cpu().numpy()
         if not eval:
-            # self.actor.train()
             noise = self._gauss_noise(actions.shape)
             actions += noise
         return np.clip(actions, -1, 1)
@@ -134,7 +132,6 @@ class D4PG_Agent:
 
         # Current SARS' stored in short term memory, then stacked for NStep
         experience = list(zip(states, actions, rewards, next_states))
-        # self._store_memories(memory)
         self.memory.store_experience(experience)
         self.t_step += 1
 
@@ -149,7 +146,7 @@ class D4PG_Agent:
         Critic Zw and Zw' (categorical distribution)
         """
 
-        # Sample from replay buffer, REWARDS are sum of (ROLLOUT - 1) timesteps
+        # Sample from replay buffer, REWARDS are sum of ROLLOUT timesteps
         # Already calculated before storing in the replay buffer.
         # NEXT_STATES are ROLLOUT steps ahead of STATES
         batch = self.memory.sample(self.batch_size)
@@ -224,13 +221,16 @@ class D4PG_Agent:
         print("Done!")
         self.t_step = 0
 
-    def new_episode(self):
+    def _get_targets(self, rewards, next_states):
         """
-        Handle any cleanup or steps to begin a new episode of training.
+        Calculate Yᵢ from target networks using πθ' and Zw'
         """
 
-        self.memory.init_n_step()
-        self.episode += 1
+        target_actions = self.actor_target(next_states)
+        target_probs = self.critic_target(next_states, target_actions)
+        # Project the categorical distribution onto the supports
+        projected_probs = self._categorical(rewards, target_probs)
+        return projected_probs
 
     def _categorical(self, rewards, probs):
         """
@@ -281,6 +281,18 @@ class D4PG_Agent:
             projected_probs[idx].index_add_(0, upper_bound[idx].long(), m_upper[idx].double())
         return projected_probs.float()
 
+    @property
+    def e(self):
+        """
+        This property ensures that the annealing process is run every time that
+        E is called.
+        Anneals the epsilon rate down to a specified minimum to ensure there is
+        always some noisiness to the policy actions. Returns as a property.
+        """
+
+        self._e = max(self.e_min, self._e * self.e_decay)
+        return self._e
+
     def _gauss_noise(self, shape):
         """
         Returns the epsilon scaled noise distribution for adding to Actor
@@ -290,16 +302,13 @@ class D4PG_Agent:
         n = np.random.normal(0, 1, shape)
         return self.e*n
 
-    def _get_targets(self, rewards, next_states):
+    def new_episode(self):
         """
-        Calculate Yᵢ from target networks using πθ' and Zw'
+        Handle any cleanup or steps to begin a new episode of training.
         """
 
-        target_actions = self.actor_target(next_states)
-        target_probs = self.critic_target(next_states, target_actions)
-        # Project the categorical distribution onto the supports
-        projected_probs = self._categorical(rewards, target_probs)
-        return projected_probs
+        self.memory.init_n_step()
+        self.episode += 1
 
     def _update_networks(self):
         """
@@ -331,15 +340,3 @@ class D4PG_Agent:
         """
 
         target.load_state_dict(active.state_dict())
-
-    @property
-    def e(self):
-        """
-        This property ensures that the annealing process is run every time that
-        E is called.
-        Anneals the epsilon rate down to a specified minimum to ensure there is
-        always some noisiness to the policy actions. Returns as a property.
-        """
-
-        self._e = max(self.e_min, self._e * self.e_decay)
-        return self._e

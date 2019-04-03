@@ -34,7 +34,7 @@ Use _`python main.py --help`_ for full details of available parameters, but thes
 **`-pre/--pretrain`** - How many experiences utilizing random actions should be collected before the Agent begins to learn.  
 **`-C/--C`** - Number of timesteps between updating the network if training with HARD updates.  
 **`-t/--tau`** - Rate of soft transfer of network weights when training with SOFT updates.  
-**`-vmin/--vmin -vmax/--vmax`** - Lower/Upper bounds of the value distribution calculated by the Critic network.
+**`-vmin/--vmin -vmax/--vmax`** - Lower/Upper bounds of the value distribution calculated by the Critic network.  
 **`-atoms/--num_atoms`** - How many discrete probabilities for the Critic network to calculate, to be combined with vmin/vmax to determine state-action values.  
 **`-rollout/--rollout`** - The length of n-step bootstrapping to calculate for stored memories.
 
@@ -44,7 +44,8 @@ Use _`python main.py --help`_ for full details of available parameters, but thes
 
 This project utilizes a special, Udacity created version of the [Reacher](https://github.com/Unity-Technologies/ml-agents/blob/master/docs/Learning-Environment-Examples.md#reacher) environment.
 
-![Trained Agent][image1]
+(Click below for video)  
+[!["Trained Agent"](http://img.youtube.com/vi/d-r1OjuTpaI/0.jpg)](https://youtu.be/d-r1OjuTpaI "Reacher")
 
 In this environment, a double-jointed arm can move to target locations. A reward of +0.1 is provided for each step that the agent's hand is in the goal location. The goal of the agent is to maintain its position at the target location for as many time steps as possible.
 
@@ -60,10 +61,7 @@ This is useful for any algorithm (such as [PPO](https://arxiv.org/pdf/1707.06347
 
 The environment is considered solved when the average score over the previous 100 episodes is at least +30 when averaging the returns across all agents in the environment.
 
-This D4PG agent reliably scores well above this minimum goal. When evaluated with noise no longer added to the Actor's action choices, the Agent can achieve perfect performance, which even looks human-level smooth. Take a look at this YouTube preview of the agent weights included with this repository!
-
-
-
+This D4PG agent reliably scores well above this minimum goal. When evaluated with noise no longer added to the Actor's action choices, the Agent can achieve near-perfect performance, which even looks human-level smooth. Take a look at the YouTube preview above!
 
 ### **Dependencies**
 

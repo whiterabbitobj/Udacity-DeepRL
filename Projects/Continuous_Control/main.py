@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-
 from agent import D4PG_Agent
 from environment import Environment
 from data_handling import Logger, Saver, gather_args
@@ -69,6 +68,8 @@ def train(agent, args, env, saver):
     logger.graph()
     return
 
+
+
 def eval(agent, args, env):
     """
     Evaluate the performance of an agent using a saved weights file.
@@ -84,7 +85,7 @@ def eval(agent, args, env):
         states = env.states
         # Gather experience until done or max_steps is reached
         for t in range(args.max_steps):
-            actions = agent.act(states)
+            actions = agent.act(states, eval=True)
             next_states, rewards, dones = env.step(actions)
             states = next_states
 

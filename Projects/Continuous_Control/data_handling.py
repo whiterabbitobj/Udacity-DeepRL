@@ -49,6 +49,7 @@ class Saver():
         Generates an automatic savename for training files, will version-up as
         needed.
         """
+        
         check_dir(save_dir)
         timestamp = time.strftime("%Y%m%d", time.localtime())
         base_name = "{}_{}_v".format(prefix, timestamp)
@@ -199,8 +200,6 @@ class Logger:
         QUIETMODE, then also report the most recent losses.
         """
 
-        # epstime, total = self._runtime()
-        # print("\nEpisode {}/{}... RUNTIME: {}, TOTAL: {}".format(epsnum, self.max_eps, epstime, total))
         self._update_score()
         self._reset_rewards()
 
@@ -227,7 +226,6 @@ class Logger:
         if not self.quietmode:
             print("{}Actor Loss: {:.4f}, Critic Loss: {:.4f}\
                   ".format(leader, agent.actor_loss, agent.critic_loss))
-            # print("{}E: {:.4f}".format(leader, multi_agent.e))
         # SCORE DATA
         prev_scores = self.scores[-self.print_every:]
         print("Avg RETURN over previous {} episodes: {:.4f}\n".format(
@@ -450,9 +448,27 @@ class Logger:
         it for later saving to the params log in the /logs/ directory.
         """
 
-        param_list = [self._format_param(arg, args) for arg in vars(args) if arg not in vars(agent)]
-        param_list += [self._format_param(arg, agent) for arg in vars(agent)]
-        if not self.quietmode: print_bracketing(param_list)
+        param_dict = {key:getattr(args, key) for key in vars(args)}
+        for key in vars(agent):
+            param_dict[key.lstrip('_')] = getattr(agent, key)
+
+        param_dict.pop('nographics', None)
+        param_dict.pop('save_every', None)
+        param_dict.pop('print_every', None)
+        param_dict.pop('verbose', None)
+        param_dict.pop('quiet', None)
+        param_dict.pop('latest', None)
+        param_dict.pop('save_every', None)
+        param_dict.pop('avg_score', None)
+        param_dict.pop('episode', None)
+        param_dict.pop('t_step', None)
+        if param_dict['update_type'] == 'soft':
+            param_dict.pop('C', None)
+        else:
+            param_dict.pop('tau', None)
+        param_list = ["{}: {}".format(key, value) for (key, value) in param_dict.items()]
+        print_bracketing(param_list)
+
         return param_list
 
     def _format_param(self, arg, args):
@@ -462,27 +478,6 @@ class Logger:
         """
 
         return "{}: {}".format(arg.upper().lstrip("_"), getattr(args, arg))
-    #
-    # def _runtime(self):
-    #     """
-    #     Return the time since the previous episode, as well as total time for
-    #     the training session.
-    #     """
-    #
-    #     current_time = time.time()
-    #     eps_time = self._format_time(current_time, self.prev_timestamp)
-    #     total_time = self._format_time(current_time, self.start_time)
-    #     self.prev_timestamp = current_time
-    #     return eps_time, total_time
-    #
-    # def _format_time(self, current, previous):
-    #     """
-    #     Formats time difference into Hours, Minutes, Seconds.
-    #     """
-    #
-    #     m, s = divmod(current - previous, 60)
-    #     h, m = divmod(m, 60)
-    #     return "{}h{}m{}s".format(int(h), int(m), int(s))
 
     def _runtime(self, eps_num):
         """
@@ -557,7 +552,7 @@ class Logger:
 
 
 
-def gather_args():
+def gather_args(manual_args=None):
     """
     Generate arguments passed from the command line.
     """
@@ -568,11 +563,11 @@ def gather_args():
     parser.add_argument("-alr", "--actor_learn_rate",
             help="Actor Learning Rate.",
             type=float,
-            default=1e-3)
+            default=0.0005)
     parser.add_argument("-clr", "--critic_learn_rate",
             help="Critic Learning Rate.",
             type=float,
-            default=1e-4)
+            default=0.001)
     parser.add_argument("-bs", "--batch_size",
             help="Size of each batch between learning updates",
             type=int,
@@ -597,7 +592,7 @@ def gather_args():
     parser.add_argument("-e", "--e",
             help="Noisey exploration rate.",
             type=float,
-            default=0.2)
+            default=0.3)
     parser.add_argument("-vmin", "--vmin",
             help="Min value of reward projection.",
             type=float,
@@ -605,7 +600,7 @@ def gather_args():
     parser.add_argument("-vmax", "--vmax",
             help="Max value of reward projection.",
             type=float,
-            default=0.2)
+            default=0.3)
     parser.add_argument("-atoms", "--num_atoms",
             help="Number of atoms to project categorically.",
             type=int,
@@ -634,7 +629,7 @@ def gather_args():
     parser.add_argument("-num", "--num_episodes",
             help="How many episodes to train?",
             type=int,
-            default=200)
+            default=225)
     parser.add_argument("-pre", "--pretrain",
             help="How many trajectories to randomly sample into the \
                   ReplayBuffer before training begins.",
@@ -661,7 +656,7 @@ def gather_args():
     parser.add_argument("-pe", "--print_every",
             help="How many episodes between status printouts.",
             type=int,
-            default=3)                        
+            default=3)
     parser.add_argument("-t", "--tau",
             help="Soft network update weighting.",
             type=float,
@@ -678,7 +673,7 @@ def gather_args():
             help="Directory to find saved agent weights.",
             type=str,
             default="saves")
-    args = parser.parse_args()
+    args = parser.parse_args(manual_args)
 
     ############################################################################
     #             PROCESS ARGS AFTER COMMAND LINE GATHERING                    #

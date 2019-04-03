@@ -56,6 +56,11 @@ class ReplayBuffer:
         """
         Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
         memory can be added to the ReplayBuffer.
+
+        This implementation has NO functionality to deal with terminal states,
+        as the Reacher environment does not have terminal states. If you would
+        like to see a more mature/robust implementation, please see the MAD4PG
+        implementation under Collaborate & Compete in the same repository.
         """
         self.n_step.append(experience)
 
@@ -68,7 +73,7 @@ class ReplayBuffer:
         # for the Udacity environment this means 20 memories each timestep.
         for actor in zip(*self.n_step):
             states, actions, rewards, next_states = zip(*actor)
-            n_steps = self.rollout# - 1
+            n_steps = self.rollout
 
             # Calculate n-step discounted reward
             rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
