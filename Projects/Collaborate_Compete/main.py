@@ -81,15 +81,10 @@ def train(multi_agent, args, env, saver):
             logger.log(rewards, multi_agent)
             if np.any(dones):
                 break
-            # Because it is possible for the agents to learn to perfectly
-            # respond to one another, the score can balloon and training takes
-            # forever as they just play perfectly until the environment hard
-            # resets. So we start a new episode if a score threshold is reached,
-            # the threshold being drawn from a normal distribution around 1.
-            # By using a random threshold, the agent should receive more robust
-            # training than a static threashold.
+            # Use a variable threshold to end an episode to avoid overly long
+            # training after a target score has been reached, beyond which there
+            # is little further to learn
             ep_threshold = np.clip(np.random.normal(1.5,.1), 1.3, 2)
-            # threshold = np.random.normal(1.5,.1)
             if logger.rewards.max() >= ep_threshold:
                 break
         ###################################################

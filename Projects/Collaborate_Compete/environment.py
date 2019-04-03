@@ -31,7 +31,8 @@ class Environment:
             print("MacOS not supported in this code!")
         else:
             unity_filename = "Tennis_Windows_x86_64/Tennis.exe"
-        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id, no_graphics=args.nographics)
+        self.env = UnityEnvironment(file_name=unity_filename, worker_id=id,
+                                    no_graphics=args.nographics)
         print_bracketing(do_upper=False)
 
         self.brain_name = self.env.brain_names[0]
@@ -75,4 +76,5 @@ class Environment:
         """
         Returns the STATES as a tensor.
         """
+        
         return torch.from_numpy(self.env_info.vector_observations).float()

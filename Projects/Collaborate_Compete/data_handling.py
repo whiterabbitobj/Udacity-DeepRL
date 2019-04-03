@@ -69,7 +69,6 @@ class Saver():
             files = self._get_files(args.save_dir)
             assert len(files) > 0, no_files_found
             return [self._get_filepath(files, i) for i in range(agent_count)]
-
             ### DEBUG: temporarily removing --latest flag until further dev on
             ### multi-agent save/loads
             # if args.latest:
@@ -117,6 +116,7 @@ class Saver():
         Generates an automatic savename for training files, will version-up as
         needed.
         """
+
         check_dir(save_dir)
         timestamp = time.strftime("%Y%m%d", time.localtime())
         base_name = "{}_{}_v".format(prefix, timestamp)
@@ -185,7 +185,6 @@ class Saver():
             multi_agent.update_networks(agent, force_hard=True)
         statement = ["Successfully loaded files:"]
         statement.extend(load_file)
-
         print_bracketing(statement)
 
 
@@ -273,7 +272,6 @@ class Logger:
                       ".format(avg_time, self.steplog.maxlen, multi_agent.e))
                 self._write_timestep_cost(avg_time)
 
-
         if multi_agent.t_step % self.log_every == 0:
             self._write_losses(multi_agent)
 
@@ -287,9 +285,10 @@ class Logger:
 
     def final(self, eps_num, multi_agent):
         """
-        Prints a final status message when training has finished, whether
-        max_eps has been reached or not.
+        Prints a final status message & graph resultswhen training has finished,
+        whether max_eps has been reached or not.
         """
+
         self._print_status(eps_num, multi_agent)
         self.graph()
 
@@ -319,13 +318,19 @@ class Logger:
         # TIME INFORMATION
         eps_time, total_time, remaining = self._runtime(eps_num)
         timestamp = time.strftime("%H:%M:%S", time.localtime())
-        print("\nEp: {}/{} - {} steps - @{}".format(eps_num, self.max_eps, multi_agent.t_step, timestamp))
-        print("Batch: {}, Total: {}, Est.Remain: {}".format(eps_time, total_time, remaining))
+        print("\nEp: {}/{} - {} steps - @{}".format(eps_num,
+                                                    self.max_eps,
+                                                    multi_agent.t_step,
+                                                    timestamp))
+        print("Batch: {}, Total: {}, Est.Remain: {}".format(eps_time,
+                                                            total_time,
+                                                            remaining))
         # LOSS INFORMATION
         if not self.quietmode:
             for idx, agent in enumerate(multi_agent.agents):
                 print("{0}Actor #{1} Loss: {2:.4f}, Critic #{1} Loss: {3:.4f}\
-                      ".format(leader, idx+1, agent.actor_loss, agent.critic_loss))
+                      ".format(leader, idx+1, agent.actor_loss,
+                      agent.critic_loss))
             print("{}E: {:.4f}".format(leader, multi_agent.e))
         # SCORE DATA
         prev_scores = self.scores[-self.print_every:]
@@ -429,15 +434,13 @@ class Logger:
             for row in range(gs_rows):
                 file = self.lossfiles[col-1][row].replace("\\", "/")
                 with open(file, 'r') as f:
-                    data = np.array([float(loss) for loss in f.read().splitlines()])
+                    data = np.array([float(loss) for loss in
+                                     f.read().splitlines()])
                 ax = fig.add_subplot(gs[row,col])
                 label = re.match(r'(.*)_(.*)loss', file).group(2).title()
-                # try:
                 self._create_loss_plot(ax, data, score_window, num_eps,
                                            num_ticks, xticks, label, col)
-                # except:
-                #     print("Something went wrong with plotting the losses for",
-                #           "{}, likely the file was empty.".format(file))
+
         if save_to_disk:
             save_file = os.path.join(self.save_dir, self.filename+"_graph.png")
             fig.savefig(save_file)
@@ -487,7 +490,12 @@ class Logger:
                           xticks, label, col):
         """
         Creates a standardized graph plot of LOSSES for a training session.
+        This implementation has decoupled timesteps from episodes, so there is
+        some code commented out that would otherwise graph over episodes, but
+        instead here plots timesteps. This needs more flexibility in the future
+        for other environment implementations.
         """
+
         datapoints = len(data)
         timesteps = datapoints * self.log_every
         x_axis = np.linspace(1, timesteps, datapoints)
@@ -615,6 +623,7 @@ class Logger:
         robust file naming by pulling network names from the agent instead of
         hardcoded by hand as in the current implmementation.
         """
+
         idx = idx + 1
         actorlossfile = "_agent{}_actorloss.txt".format(idx)
         criticlossfile = "_agent{}_criticloss.txt".format(idx)
@@ -622,9 +631,8 @@ class Logger:
 
     def _collect_params(self, args, multi_agent):
         """
-        Creates a list of all the Params used to run this training instance,
-        prints this list to the command line if QUIET is not flagged, and stores
-        it for later saving to the params log in the /logs/ directory.
+        Creates a list of all the Params used to run this training instance.
+        Only tracks the params that are relevant to re-running a trial.
         """
 
         param_dict = {key:getattr(args, key) for key in vars(args)}
@@ -735,7 +743,7 @@ def gather_args():
             formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     #                                                                          #
     ############################################################################
-    #                                                                          #
+    #                            GENERAL PARAMS                                #
     general_group = parser.add_argument_group("General", "General params.")
     general_group.add_argument("-eval", "--eval",
             help="Run in evalutation mode. Otherwise, will utilize \
@@ -758,13 +766,13 @@ def gather_args():
             action="store_true")
     general_group.add_argument("--observe",
             help="Run the environment with TRAIN=FALSE mode, even if training.\
-                  NOT RECOMMENDED except for observation debugging purposes. \
-                  This will run each timestep at a drastically, human-sight \
-                  speed.",
+                  NOT RECOMMENDED except for observational debugging purposes. \
+                  This will run each timestep at a drastically slower, \
+                  human-sight speed.",
             action="store_true")
     #                                                                          #
     ############################################################################
-    #                         NETWORK PARAMS                                   #
+    #                              NETWORK PARAMS                              #
     net_group = parser.add_argument_group("Network Params", "Params associated \
             with the agent networks.")
     net_group.add_argument("-layers", "--layer_sizes",
@@ -888,10 +896,21 @@ def gather_args():
     log_group.add_argument("--resume",
             help="Resume training from a checkpoint.",
             action="store_true")
-    log_group.add_argument("-latest", "--latest",
-            help="Load the latest save file(s) instead of prompting from a \
-                  list.",
-            action="store_true")
+    ### DEBUG: LATEST and FILENAME flags are currently disabled until time
+    ### permits further development for loading/saving. Currently, saved weights
+    ### can be loaded via the cmdline prompt for each agent, fairly intuitively
+    ### although requiring more user input than strictly desired. As
+    ### implemented, there is no way to just load the latest file, or provide
+    ### an explicit filename, because in a multi-agent environment, multiple
+    ### weights files are needed! Needs further dev.
+    # log_group.add_argument("-latest", "--latest",
+    #         help="Load the latest save file(s) instead of prompting from a \
+    #               list.",
+    #         action="store_true")
+    # log_group.add_argument("-file", "--filename",
+    #         help="Path agent weights file to load. ",
+    #         type=str,
+    #         default=None)
     log_group.add_argument("-savedir", "--save_dir",
             help="Directory to find saved agent weights.",
             type=str,
@@ -901,15 +920,6 @@ def gather_args():
             type=int,
             default=100)
 
-    ### DEBUG: LATEST and FILENAME flags are currently disabled until time
-    ### permits further development for loading/saving. Currently, saved weights
-    ### can be loaded via the cmdline prompt for each agent, fairly intuitively
-    ### although requiring more user input than strictly desired.
-
-    # parser.add_argument("-file", "--filename",
-    #         help="Path agent weights file to load. ",
-    #         type=str,
-    #         default=None)
 
     args = parser.parse_args()
 

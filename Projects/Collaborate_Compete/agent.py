@@ -13,9 +13,35 @@ class MAD4PG_Net:
     """
     This implementation uses a variant of OpenAI's MADDPG:
     https://arxiv.org/abs/1706.02275
-    but utilizes D4PG as a base algorithm:
-    https://arxiv.org/pdf/1804.08617.pdf
-    in what I will call MAD4PG.
+    but utilizes D4PG as a base algorithm in what I will call MAD4PG.
+
+    "Distributed Distributional Deterministic Policy Gradients"
+    (Barth-Maron, Hoffman, et al., 2018)
+    As described in the paper at: https://arxiv.org/pdf/1804.08617.pdf
+
+    Much thanks also to the original DDPG paper:
+    "Continuous Control with Deep Reinforcement Learning"
+    (Lillicrap, Hunt, et al., 2016)
+    https://arxiv.org/pdf/1509.02971.pdf
+
+    and the OpenAI continuation of that work:
+    "Multi-agent Actor-Critic for Mixed Cooperative-Competitive Environments"
+    (Lowe, Wu, et al., 2018)
+    https://arxiv.org/abs/1706.02275
+
+    And to:
+    "A Distributional Perspective on Reinforcement Learning"
+    (Bellemare, Dabney, et al., 2017)
+    https://arxiv.org/pdf/1707.06887.pdf
+
+    D4PG utilizes distributional value estimation, n-step returns,
+    prioritized experience replay (PER), distributed K-actor exploration,
+    and off-policy actor-critic learning to achieve very fast and stable
+    learning for continuous control tasks.
+
+    This implementation does not spawn multiple environments in a K-Actor
+    process, but doing so would likely greatly increase stability of learning
+    and remains an area for improvement in future projects.
     """
 
     def __init__(self, env, args):
@@ -26,6 +52,8 @@ class MAD4PG_Net:
         self.framework = "MAD4PG"
         self.t_step = 0
         self.episode = 1
+        self.avg_score = 0
+
         self.C = args.C
         self._e = args.e
         self.e_min = args.e_min
@@ -35,14 +63,13 @@ class MAD4PG_Net:
         self.tau = args.tau
         self.state_size = env.state_size
         self.action_size = env.action_size
-        self.avg_score = 0
+
         # Create all the agents to be trained in the environment
         self.agent_count = env.agent_count
         self.agents = [D4PG_Agent(self.state_size,
                        self.action_size,
                        args,
-                       self.agent_count
-                       )
+                       self.agent_count)
                        for _ in range(self.agent_count)]
         self.batch_size = args.batch_size
 
@@ -66,11 +93,12 @@ class MAD4PG_Net:
         if self.memlen >= pretrain_length:
             print("Memory already filled, length: {}".format(len(self.memory)))
             return
-
+        interval = max(10, int(pretrain_length/25))
         print("Initializing memory buffer.")
         obs = env.states
         while self.memlen < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
+            actions = np.random.uniform(-1, 1, (self.agent_count,
+                                                self.action_size))
             next_obs, rewards, dones = env.step(actions)
             self.store((obs, next_obs, actions, rewards, dones))
             obs = next_obs
@@ -78,10 +106,9 @@ class MAD4PG_Net:
                 env.reset()
                 obs = env.states
                 self.memory.init_n_step()
-
-            interval = max(10, int(pretrain_length/25))
             if self.memlen % interval == 1 or self.memlen >= pretrain_length:
-                print("...memory filled: {}/{}".format(self.memlen, pretrain_length))
+                print("...memory filled: {}/{}".format(self.memlen,
+                                                       pretrain_length))
         print("Done!")
 
     def act(self, obs, training=True):
@@ -101,28 +128,41 @@ class MAD4PG_Net:
         """
         Store an experience tuple in the ReplayBuffer
         """
+
         self.memory.store(experience)
 
     def learn(self):
         """
         Perform a learning step on all agents in the network.
         """
+
         self.t_step += 1
+
         # Sample from replay buffer, which already has nstep rollout calculated.
         batch = self.memory.sample(self.batch_size)
         obs, next_obs, actions, rewards, dones = batch
 
-        target_actions = [agent.actor_target(next_obs[i]) for i, agent in enumerate(self.agents)]
-        target_actions = torch.cat(target_actions, dim=-1)#.detach()
+        # Gather and concatenate actions because critic networks need ALL
+        # actions as input, the stored actions were concatenated before storing
+        # in the buffer
+        target_actions = [agent.actor_target(next_obs[i]) for i, agent in
+                          enumerate(self.agents)]
+        predicted_actions = [agent.actor(obs[i]) for i, agent in
+                             enumerate(self.agents)]
+        target_actions = torch.cat(target_actions, dim=-1)
+        predicted_actions = torch.cat(predicted_actions, dim=-1)
 
-        predicted_actions = [agent.actor(obs[i]) for i, agent in enumerate(self.agents)]
-        predicted_actions = torch.cat(predicted_actions, dim=-1)#.detach()
-
+        # Change state data from [agent_count, batch_size]
+        # to [batchsize, state_size * agent_count]
+        # because critic networks need to ALL observations as input
         obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
-        next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size, -1)
+        next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size,-1)
 
+        # Perform a learning step for each agent using concatenated data as well
+        # as unique-perspective data where algorithmically called for
         for i, agent in enumerate(self.agents):
-            agent.learn(obs, next_obs, actions, target_actions, predicted_actions, rewards[i], dones[i])
+            agent.learn(obs, next_obs, actions, target_actions,
+                        predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
 
     def new_episode(self, scores):
@@ -130,7 +170,11 @@ class MAD4PG_Net:
         Handle any cleanup or steps to begin a new episode of training.
         """
 
-
+        # Keep track of an average score for use with annealing epsilon,
+        # TODO: this currently lives in new_episode() because we only want to
+        # update epsilon each episode, not each timestep, currently. This should
+        # be further investigate about moving this into the epsilon property
+        # itself instead of here
         avg_across = min(len(scores)+1, 50)
         self.avg_score = np.array(scores[-avg_across:]).mean()
 
@@ -182,8 +226,11 @@ class MAD4PG_Net:
         """
         This property ensures that the annealing process is run every time that
         E is called.
+
         Anneals the epsilon rate down to a specified minimum to ensure there is
         always some noisiness to the policy actions. Returns as a property.
+
+        Uses a modified TANH curve to roll off the values near min/max.
         """
 
         ylow = self.e_min
@@ -221,12 +268,8 @@ class D4PG_Agent:
 
     This version of the Agent is written to interact with Udacity's
     Collaborate/Compete environment featuring two table-tennis playing agents.
-
-    In the original D4PG paper, it is suggested in the data that PER does
-    not have significant (or perhaps any at all) effect on the speed or
-    stability of learning. Thus, it too has been left out of this
-    implementation but may be added as a future TODO item.
     """
+
     def __init__(self, state_size, action_size, args,
                  agent_count = 1,
                  l2_decay = 0.0001):
@@ -245,7 +288,9 @@ class D4PG_Agent:
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
         self.vmax = args.vmax
-        self.atoms = torch.linspace(self.vmin, self.vmax, self.num_atoms).to(self.device)
+        self.atoms = torch.linspace(self.vmin,
+                                    self.vmax,
+                                    self.num_atoms).to(self.device)
         self.atoms = self.atoms.unsqueeze(0)
 
         #                    Initialize ACTOR networks                         #
@@ -258,6 +303,7 @@ class D4PG_Agent:
         self.actor_optim = optim.Adam(self.actor.parameters(),
                                       lr=self.actor_learn_rate,
                                       weight_decay=l2_decay)
+
         #                   Initialize CRITIC networks                         #
         c_input_size = state_size * agent_count
         c_action_size = action_size * agent_count
@@ -281,12 +327,11 @@ class D4PG_Agent:
 
         obs = obs.to(self.device)
         with torch.no_grad():
-            # actions = self.actor(obs).detach().cpu().numpy()
             actions = self.actor(obs).cpu().numpy()
-
         return actions
 
-    def learn(self, obs, next_obs, actions, target_actions, predicted_actions, rewards, dones):
+    def learn(self, obs, next_obs, actions, target_actions, predicted_actions,
+              rewards, dones):
         """
         Performs a distributional Actor/Critic calculation and update.
         Actor πθ and πθ'

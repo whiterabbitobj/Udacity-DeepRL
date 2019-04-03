@@ -18,7 +18,8 @@ class ReplayBuffer:
 
     where n=ROLLOUT.
     """
-    def __init__(self, device, buffer_size=100000, gamma=0.99, rollout=5, agent_count=1):
+    def __init__(self, device, buffer_size=100000, gamma=0.99, rollout=5,
+                 agent_count=1):
         self.buffer = deque(maxlen=buffer_size)
         self.device = device
         self.gamma = gamma
@@ -48,7 +49,7 @@ class ReplayBuffer:
         """
         Return a sample of size BATCH_SIZE as a tuple.
         """
-        
+
         batch = random.sample(self.buffer, k=batch_size)
         obs, next_obs, actions, rewards, dones = zip(*batch)
 
