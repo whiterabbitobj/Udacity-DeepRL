@@ -40,8 +40,11 @@ def check_dir(dir):
 ################################################################################
 
 
-from data_handling import Saver, Logger
-from agent import D4PG_Agent
+from data_handling import Logger
+from agent import MAD4PG_Net
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
 
 def print_args(args):
     print('\n'.join(["{}: {}".format(arg, getattr(args, arg)) for arg in vars(args)]))
@@ -50,21 +53,50 @@ def print_env_info(state, action, reward):
     print("The agent chooses ACTIONS that look like:\n{}\n".format(action))
     print("The environment returns STATES that look like:\n{}\n".format(state))
     print("The environment returns REWARDS that look like:\n{}".format(reward))
-
+#
 def notebook_eval_agent(args, env, filename, num_eps=2):
-    eval_agent = D4PG_Agent(env, args)
-    eval_saver = Saver(eval_agent.framework, eval_agent, args.save_dir, filename)
+    eval_agent = MAD4PG_Net(env, args)
+    for idx, agent in enumerate(eval_agent.agents):
+        weights = torch.load(filename[idx], map_location=lambda storage, loc: storage)
+        agent.actor.load_state_dict(weights['actor_dict'])
+        agent.critic.load_state_dict(weights['critic_dict'])
+        eval_agent.update_networks(agent, force_hard=True)
     args.eval = True
     logger = Logger(eval_agent, args)
     for episode in range(num_eps):
         env.reset()
         state = env.states
-        for t in range(args.max_steps):
-            action = eval_agent.act(state, eval=True)
+        for t in range(200):
+            action = eval_agent.act(state, training=False)
             next_state, reward, done = env.step(action)
             state = next_state
             logger.log(reward, eval_agent)
             if np.any(done):
                 break
-        eval_agent.new_episode()
         logger.step(episode)
+        eval_agent.new_episode(logger.scores)
+    args.eval = False
+
+def test_e(x, box):
+    ylow, yhigh, xlow, xhigh = box
+    steep_mult = 8
+
+    steepness = steep_mult / (xhigh - xlow)
+    offset = (xhigh + xlow) / 2
+    midpoint = yhigh - ylow
+
+    x = np.clip(x, 0, xhigh)
+    x = steepness * (x - offset)
+    e = ylow + midpoint / (1 + np.exp(x))
+    return e
+
+def graph_e(box):
+    x1 = np.linspace(-2, 2, 150)
+    x2 = np.linspace(box[2]-0.5, box[3]+.5, 50)
+    plt.figure(1)
+    plt.subplot(211)
+    plt.plot(x1, test_e(x1, box))
+    plt.subplot(212)
+    curve = test_e(x2, box)
+    plt.yticks(np.linspace(curve.min(), curve.max(), 6))
+    plt.plot(x2, curve)

@@ -84,33 +84,6 @@ class MAD4PG_Net:
         for agent in self.agents:
             self.update_networks(agent, force_hard=True)
 
-    def initialize_memory(self, pretrain_length, env):
-        """
-        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of
-        experiences before training begins.
-        """
-
-        if self.memlen >= pretrain_length:
-            print("Memory already filled, length: {}".format(len(self.memory)))
-            return
-        interval = max(10, int(pretrain_length/25))
-        print("Initializing memory buffer.")
-        obs = env.states
-        while self.memlen < pretrain_length:
-            actions = np.random.uniform(-1, 1, (self.agent_count,
-                                                self.action_size))
-            next_obs, rewards, dones = env.step(actions)
-            self.store((obs, next_obs, actions, rewards, dones))
-            obs = next_obs
-            if np.any(dones):
-                env.reset()
-                obs = env.states
-                self.memory.init_n_step()
-            if self.memlen % interval == 1 or self.memlen >= pretrain_length:
-                print("...memory filled: {}/{}".format(self.memlen,
-                                                       pretrain_length))
-        print("Done!")
-
     def act(self, obs, training=True):
         """
         For each agent in the MAD4PG network, choose an action from the ACTOR
@@ -164,6 +137,63 @@ class MAD4PG_Net:
             agent.learn(obs, next_obs, actions, target_actions,
                         predicted_actions, rewards[i], dones[i])
             self.update_networks(agent)
+
+    def initialize_memory(self, pretrain_length, env):
+        """
+        Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of
+        experiences before training begins.
+        """
+
+        if self.memlen >= pretrain_length:
+            print("Memory already filled, length: {}".format(len(self.memory)))
+            return
+        interval = max(10, int(pretrain_length/25))
+        print("Initializing memory buffer.")
+        obs = env.states
+        while self.memlen < pretrain_length:
+            actions = np.random.uniform(-1, 1, (self.agent_count,
+                                                self.action_size))
+            next_obs, rewards, dones = env.step(actions)
+            self.store((obs, next_obs, actions, rewards, dones))
+            obs = next_obs
+            if np.any(dones):
+                env.reset()
+                obs = env.states
+                self.memory.init_n_step()
+            if self.memlen % interval == 1 or self.memlen >= pretrain_length:
+                print("...memory filled: {}/{}".format(self.memlen,
+                                                       pretrain_length))
+        print("Done!")
+
+
+    @property
+    def e(self):
+        """
+        This property ensures that the annealing process is run every time that
+        E is called.
+
+        Anneals the epsilon rate down to a specified minimum to ensure there is
+        always some noisiness to the policy actions. Returns as a property.
+
+        Uses a modified TANH curve to roll off the values near min/max.
+        """
+
+        ylow = self.e_min
+        yhigh = self._e
+
+        xlow = 0
+        xhigh = self.anneal_max
+
+        steep_mult = 8
+
+        steepness = steep_mult / (xhigh - xlow)
+        offset = (xhigh + xlow) / 2
+        midpoint = yhigh - ylow
+
+        x = np.clip(self.avg_score, 0, xhigh)
+        x = steepness * (x - offset)
+        e = ylow + midpoint / (1 + np.exp(x))
+        return e
 
     def new_episode(self, scores):
         """
@@ -220,35 +250,6 @@ class MAD4PG_Net:
 
         n = np.random.normal(0, 1, shape)
         return self.e*n
-
-    @property
-    def e(self):
-        """
-        This property ensures that the annealing process is run every time that
-        E is called.
-
-        Anneals the epsilon rate down to a specified minimum to ensure there is
-        always some noisiness to the policy actions. Returns as a property.
-
-        Uses a modified TANH curve to roll off the values near min/max.
-        """
-
-        ylow = self.e_min
-        yhigh = self._e
-
-        xlow = 0
-        xhigh = self.anneal_max
-
-        steep_mult = 8
-
-        steepness = steep_mult / (xhigh - xlow)
-        offset = (xhigh + xlow) / 2
-        midpoint = yhigh - ylow
-
-        x = np.clip(self.avg_score, 0, xhigh)
-        x = steepness * (x - offset)
-        e = ylow + midpoint / (1 + np.exp(x))
-        return e
 
     @property
     def memlen(self):

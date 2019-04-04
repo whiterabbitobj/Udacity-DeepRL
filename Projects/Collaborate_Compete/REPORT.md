@@ -20,33 +20,29 @@ from utils import *
 # Project Overview, Results, & To-Do
 
 ## Agent overview
-    
+
 ### **MAD4PG**
-<div style="background-color:rgba(0, 0, 0, 0.025); padding:5px 20px;">
-    
+
 This codebase implements a modified version of **[Multi-agent Actor-Critic for Mixed Cooperative-Competitive Environments (MADDPG)](https://arxiv.org/abs/1706.02275)**, a state-of-the-art multi-agent learning algorithm published by OpenAI.
 
-> MADDPG presents a rigorous theoretical background for how multiple DDPG agents can interact and learn in the same environment, presenting solutions to non-stationary environments and estimating unknown adversary policies, as well as an approach to more robust and stable training utilizing _ensemble policies_. 
+> MADDPG presents a rigorous theoretical background for how multiple DDPG agents can interact and learn in the same environment, presenting solutions to non-stationary environments and estimating unknown adversary policies, as well as an approach to more robust and stable training utilizing _ensemble policies_.
 
-It is combined with _[Distributed Distributional Deep Deterministic Policy Gradient (D4PG)](https://arxiv.org/pdf/1804.08617.pdf)_ 
+It is combined with _[Distributed Distributional Deep Deterministic Policy Gradient (D4PG)](https://arxiv.org/pdf/1804.08617.pdf)_
 
 >D4PG uses distributed training, distributional value estimation, n-step bootstrapping, and an Actor-Critic architecture to provide fast, stable training in a continuous action space for which traditional Q-value estimation would fail.
 
 To create a network type I call _**MAD4PG**_.
 
-</div>
 
 ### **D4PG**
 
-<div style="background-color:rgba(0, 0, 0, 0.025); padding:5px 20px;">
-
-The paper introducing D4PG introduces several key improvements over the algorithm described in the original DDPG paper:
+The paper introducing D4PG introduces several key improvements over the DDPG algorithm on which is it based:
 * K-Actor distributed training
 * Prioritized Replay buffer
 * N-Step Rollout/Bootstrapping
-* **Distributional Value Estimation**
+* Distributional Value Estimation
 
-In my opinion, the most important addition here is the _Distributional_ step. The other steps have been studied and/or implemented in other papers or textbooks, and feel more evolutionary to the DDPG algorithm than a truly new algorithm.
+In my opinion, the most important addition here is the **Distributional Value Estimation**. The other steps have been studied and/or implemented in other papers or textbooks, and feel more evolutionary to the DDPG algorithm than a truly new algorithm.
 
 >_**Distributional Value Estimation**_ allows the agent to not just estimate the value of a given action, but to estimate the probability of a value, thus allowing for uncertainty in the return. I certainly feel, and agree with the research that posits the idea, that allowing an agent to say "This is X% likely to result in this value, but also Y% in this other value" is much more like how a human, or intelligent creature, learns. At the very least it adds robustness to training by allowing for further complexity in comparing online and offline network estimations and thus improves loss calculations.
 >
@@ -62,22 +58,19 @@ D4PG is itself an evolution out of the paper [_"Continuous Control with Deep Rei
 
 >DDPG is an architecture which allows for an **Actor** network to estimate a deterministic action policy while determining the _value_ of that action using a **Critic** network that outputs a Q-value by using the Action as part of the input.
 
-</div>
 
 
 ### Because who doesn't like to see the results before the details...
 
-Below are four graphed results, including the losses for both agents. Due to limitations in.
+Below are four graphed results, including the losses for both agents. Due to limitations in notebooks/markdown, these graphs are a little small, you can click on them in markdown, or open them in the `images/` folder in the repository to see more detail.
 
+The agent training was able to achieve a score of +0.5 easily and relatively rapidly, however, an agent achieving this average score still performs unacceptably in evaluation mode. To combat this, I began requiring the agent to achieve at least +1.0, at which point the agents could easily play perfectly in evaluation mode.
 
-Notice that in the second graph, the environment was solved in approximately 125 episodes! 
+Notice that this environment tended to have a hard takeoff... that it took awhile for agents to learn how to hit a ball a single time, but once they did, they could usually do so reliably. The instability after that point is usually due to the noise added to the action output.
 
-None of these agents had early-termination procedures, so the 100-episode average is simply the final 100 episodes, not the point at which they technically solve the task.
+This agent did have an early termination implementation, as well as episode score-cap functionality. This helped to eliminiate unecessarily long training sessions, as it was a fairly slow learning process.
 
-It should be noted that while the agent can technically _solve_ the environment rapidly, there **is** benefit to running extra episodes to achieve greater stability. The weights included with this repository are associated with the first graph, which was trained for 500 episodes, or approximately 350+ additional episodes after _solving_ the environment. It performs more reliably in evaluation mode than some other saved weights that, while technically achieving the target score, sometimes display erratic behavior that didn't have a chance to be swatted out with additional training.
-
-<img src="images/MAD4PG_v1_graph.png" width="1500">
-
+![MAD4PG_v1_graph.png](images/MAD4PG_v1_graph.png)
 ![MAD4PG_v2_graph.png](images/MAD4PG_v2_graph.png)
 ![MAD4PG_v3_graph.png](images/MAD4PG_v3_graph.png)
 ![MAD4PG_v4_graph.png](images/MAD4PG_v4_graph.png)
@@ -85,42 +78,67 @@ It should be noted that while the agent can technically _solve_ the environment 
 ### Hyper Parameters
 
 
-The D4PG algorithm is robust to a very wide variety of hyperparameters, below are a few examples.
+Although the D4PG algorithm is robust to a very wide variety of hyperparameters, **MAD4PG as applied to the _Tennis_ environment proved to be fairly sensitive.**
 
-In all of the above examples, the learning rate varied considerably, and the `vmax` parameter was also robust to change. Many tests were run of differing `C` rates, Learning Rates, Pretrain amounts, and values for ATOMS/VMIN/VMAX, and while there was variation in speed and stability, the agent consistently solved the environment in less than 225 episodes. 
+Training tended to take a long time and would not progress until a hard-takeoff point where the agents learned to hit the ball at least once, which proved time consuming.
 
-* **`ACTOR_LEARN_RATE / CRITIC_LEARN_RATE`** - Tests were run, with good results, of values of 0.01-0.00005 for both values, generally ending with very robust results regardless. The sweet spot is around 0.0005 for the **actor**, and 0.001 for the **critic**. The Actor network should _always_ learn at a slower rate than the Critic, for stability. It would be a good goal for future work to test this out in a rigorous way, but all networks created for this class have thus far performed best when Actor is 50-75% of the Critic learning rate.
+Over time, it was learned that reducing the `LEARNING RATEs` was key to good performance. The timesteps between network updates had a large effect as well, needing a fairly specific range of `TAU` or `C`, or training would never improve. Additionally, tuning the `VMAX` parameter also proved key to getting good results.
 
-* **`C/TAU`** - I have consistently, across all projects, found that a HARD update type utilizing a parameter C controlling how many timesteps between updates, gives me superior performance over soft-update style gradual target network updating using parameter TAU. In the training for this agent, C is consistently set around 350. Tests were run with significantly higher values, thereby updating the network considerably less often, however, they performed poorly or not at all. It is my belief that because this environment collects 20 experiences per timestep, that hard updating the network more frequently is successful, due to the huge amount of experience rapidly collected about the current policy.
+Additionally, there is a massive variance in results between trials with identical parameters. Take a closer look at the first two graphs, which were run with identical parameters... the second trial took close to 70% longer to solve the environment to quit conditions!
 
-* **`EPSILON`** - Very interestingly, this agent was solved and perfected _without_ annealing Epsilon at all! This agent is robust enough that it can achieve very high scores even while having gaussian noise added to it's action output. Upon removing the noise for evaluation, the agent generally moves human-smoothly and perfects the environment.
+Interestingly, despite this environment seemingly being much more simple than the _Reacher_ arm environment, that environment proved significantly easier and faster to train. This is perhaps a testament to the difficulty of learning in a stochastic, multi-agent world.
 
-* **`PRETRAIN`** - The _Reacher_ environment achieved much better performance with at least several thousand pretraining steps performed before learning. Filling the buffer can be extremely fast, as there is no need to run either the Actor network, or any backpropogation. Random actions suffice to provide learnable experience.
+* **`ACTOR_LEARN_RATE / CRITIC_LEARN_RATE`** - Tests were run on values of 0.01-0.00005 for both values, but it was not until running trials with quite small rates that training reliably proceeded. The sweet spot is around 0.00025 for the **actor**, and 0.0005 for the **critic**. The Actor network should _always_ learn at a slower rate than the Critic, for stability. It would be a good goal for future work to test this out in a rigorous way, but all networks created for this class have thus far performed best when Actor is 50-75% of the Critic learning rate.
 
-* **`ROLLOUT`** - As stated above, n-step rollout was allowed to run in this environment, but was inconsequential to the results. This parameter could be set to 1 and achieve the same scores. Theoretically, having a rollout contribution should stabilize learning, but there was not computing bandwidth to run trials of this.
+
+* **`C/TAU`** - I have consistently, across all projects, found that a HARD update type utilizing a parameter C controlling how many timesteps between updates, gives me superior performance over soft-update style gradual target network updating using parameter TAU. In the training for this agent, C is consistently set around 2500. TAU was only successfuly in a range around 0.0001. The discrepancy between hard updates and soft updates is interesting and merits further study.
+
+
+* **`E`** - Tuning `E` was challenging for this environment, in that allowing it to continue at a high rate for very long made training take a very long time. These agents are extremely sensitive to noise in their action choices. That being said, without an adequate amount of noise, they would never explore adequately to learn their tasks. Thus, it was important to anneal `E` to a low value in tandem with the rate of return that the agents received. There is an entire section on this implementation below, in the code details.
+
+
+* **`PRETRAIN`** - Increasing `pretrain` to a high value ensured that there was adequate experience from which to learn from early on, and meant that much random experience was available to draw upon while `E` annealed with score. Filling the buffer can be extremely fast, as there is no need to run either the Actor network, or any backpropogation. Random actions suffice to provide learnable experience. It would be interesting to run trials with an extremely high (200,000 or more) number of random pretraining steps, and a much lower rate for `E` and see whether the agent learned more rapidly this way.
+
+
+* **`ROLLOUT`** - N-Step Bootstrapping/Rollout should be key to the performance of these agents, allowing them to anticipate movements ahead of time. A good future experiment would be to increase the amount of rollout to several 10s of timesteps and compare performance. This would be approaching a strict policy gradient style update, and I'd be curious to see how it worked out.
+
 
 * **`L2_DECAY`** - Adding a very small Adam Optimizer l2 decay seemed to be a benefit, this parameter was never tuned in a meaningful way.
 
+
 * **`ATOMS`** - Atoms/Num_Atoms controls the granularity with which the probability distribution is estimated from the Q-network. More Atoms equals a finer-grained discretization of the curve. Note that _**more atoms does not equal better performance**_. The D4PG paper suggested that 51 atoms was a sweet spot for their tasks, while I found 75-101 atoms to be more efficacious in this task, for whatever reason. More than 101 atoms negatively affected performance. There is likely further research to be done, or read up upon if someone has already performed it, on the relationship between action complexity, reward density, and the number of `atoms` which is effective.
 
-* **`VMIN / VMAX`** - _vmin_ and _vmax_ are the bounds on the values predicted by the Agent. The `atoms` are distributed between these two values, which are in turn multiplied by the probabilities from the Critic network to arrive at the value distribution. Because there are no negative rewards in this environment, the value for `vmin` must necessarily be set to 0, the lowest value of any state/action. The value for `vmax` is  more ephemeral... the maximum value for a timestep is 0.1, however, the value function estimates _total return_, and due to the categorical projection step, the current _real rewards_ are added to the value distribution estimation, and bounded by `vmax` as well. Thus, an argument could be made that `vmax` should be set to the theoretical maximum episode score (perhaps 40) for the environment. However, experimentally, the agent performed best when `vmax` was set between 0.3 and 0.5. **0.5** is the same value as the number of rollout steps implemented multiplied by the per-step reward maximum... it is possible there is a relationship between the n-step bootstrapping and the ideal value for the `vmax` parameter. This would need to be further researched in a more rigorous way in additional settings.
 
+* **`VMIN / VMAX`** - _vmin_ and _vmax_ are the bounds on the values predicted by the Agent. The `atoms` are distributed between these two values, which are in turn multiplied by the probabilities from the Critic network to arrive at the value distribution. Because there are no negative rewards in this environment, the value for `vmin` must necessarily be set to -0.1, the lowest value of any state/action, because the episode terminates if this reward is received.
+
+    >The value for `vmax` is  more ephemeral... the maximum value for a timestep is 0.1, however, the value function estimates _total return_, and due to the categorical projection step, the current _real rewards_ are added to the value distribution estimation, and bounded by `vmax` as well. Thus, an argument could be made that `vmax` should be set to the theoretical maximum episode score for the environment. Interestingly, and in contrast to the _Reacher_ environment, it was found later in trials that setting `vmax` to a suitably high number was in fact beneficial to training. Any value below 0.5 hampered training and often prevented convergence. A value of between 1 and 2 seemed to be very effective.
 
 ### Future Ideas
+_**Unique to MAD4PG**_
+>* I would like to throw this agent against a more complex task (like the Soccer environment) that requires more competition, and test its ability to devise strategy, and not just learn a deterministic environment.
+>* I ran dozens of trials on this environment and only near the end did I begin to get really consistent results that seemed to tease out more stable, quick learning results. If computing time/resources allow, it would be good to continue to run trials to determine how robust is the agent to additional parameter variation.
+>* I would like to implement different frameworks of multi-agent learning to see how they perform vis a vis MAD4PG.
+>* It would also be a great exercise to pit differing frameworks against each other, this would:
+    * Be interesting to see the relative strengths and weaknesses of differing frameworks
+    * Require opposing-agent policy estimation which would be a good exercise in and of itself
+>* It would be beneficial to implement robust _ensemble policies_ for more stable and faster training.
 
-* **Categorical Projection** is the step by which the target values are projected onto the supports defined by the local value function. The math and concepts here stretched the limits of my knowledge, and while I grasp the concepts, I would very much like to achieve a deeper understanding of the mathematical principals and implementation.
-* [**Prioritized Experience Replay (PER)**](https://arxiv.org/abs/1511.05952) was implemented in my DQN agent, but never fully tested. I believe that for complex tasks like this _Reacher_ environment, or perhaps moreso to the optional _Crawler_ environment, utilizing PER could provide measurable speedup in learning rate. 
-* As explored above in the hyperparameter section, the relationship between `VMIN/VMAX` and the environment rewards merits further study and understanding.
-* The relationship between action complexity and `atoms` also merits further understanding.
-* I implemented a D4PG agent as opposed to the base DDPG algorithm because it was newer, presented more challenges, and had less (to none) GitHub examples available, especially in PyTorch. It was well worth the effort required to read, understand, and implement the algorithm. However, it would be good to compare performance with DDPG itself! While D4PG seems to achieve superior results to the instructor provided benchmarks, and learns very quickly and stably in this environment, the extent to which it is or is not superior to DDPG is unclear without a direct comparison to trial.
-* **PPO/TRPO algorithms** would be good to implement as further comparisons and to add to my tool chest. While I understand Policy Based methods, there is no substitute for _doing_, and to round out my knowledge of the current state-of-the-art, having hands-on experience with these methods would be beneficial.
-* I believe D4PG has a wide variety of applications to other tasks, especially difficult tasks for which brute-force policy methods might fail. I look forward to running this agent in as many environments as time permits.
-* **Parameter Noise** is a process by which noise is added to the network weights instead of as a constant applied to the network output. OpenAI has pioneered this process with their paper [_Parameter Space Noise for Exploration_](https://arxiv.org/abs/1706.01905). While this agent quickly converges to an optimal policy in the current implementation, it would be worthwhile to explore parameter noise, as it may be more relevant to more complex tasks such as locomotion.
+_**General D4PG**_
+>* **Categorical Projection** is the step by which the target values are projected onto the supports defined by the local value function. The math and concepts here stretched the limits of my knowledge, and while I grasp the concepts, I would very much like to achieve a deeper understanding of the mathematical principals and implementation.
+>* [**Prioritized Experience Replay (PER)**](https://arxiv.org/abs/1511.05952) was implemented in my DQN agent, but never fully tested. I believe that for complex tasks like this _Reacher_ environment, or perhaps moreso to the optional _Crawler_ environment, utilizing PER could provide measurable speedup in learning rate.
+>* As explored above in the hyperparameter section, the relationship between `VMIN/VMAX` and the environment rewards merits further study and understanding.
+>* The relationship between action complexity and `atoms` also merits further understanding.
+>* I implemented a D4PG agent as opposed to the base DDPG algorithm because it was newer, presented more challenges, and had less (to none) GitHub examples available, especially in PyTorch. It was well worth the effort required to read, understand, and implement the algorithm. However, it would be good to compare performance with DDPG itself! While D4PG seems to achieve superior results to the instructor provided benchmarks, and learns very quickly and stably in this environment, the extent to which it is or is not superior to DDPG is unclear without a direct comparison to trial.
+>* **PPO/TRPO algorithms** would be good to implement as further comparisons and to add to my tool chest. While I understand Policy Based methods, there is no substitute for _doing_, and to round out my knowledge of the current state-of-the-art, having hands-on experience with these methods would be beneficial.
+>* I believe D4PG has a wide variety of applications to other tasks, especially difficult tasks for which brute-force policy methods might fail. I look forward to running this agent in as many environments as time permits.
+>* **Parameter Noise** is a process by which noise is added to the network weights instead of as a constant applied to the network output. OpenAI has pioneered this process with their paper [_Parameter Space Noise for Exploration_](https://arxiv.org/abs/1706.01905). While this agent quickly converges to an optimal policy in the current implementation, it would be worthwhile to explore parameter noise, as it may be more relevant to more complex tasks such as locomotion.
 
 ## Click below to watch the trained Agent!
 [!["Trained Agent"](http://img.youtube.com/vi/LtwvajchiIc/0.jpg)](https://youtu.be/LtwvajchiIc "Tennis")
 
 # Implementation Details
+
+_This code represents a much more mature, flexible implementation of all of the code I have written for the Udacity DeepRL class. I look forward to adapting it to other environments._
 
 ## Initialize Imports
 This Notebook uses code from separate python files where most of the implementation is handled
@@ -128,7 +146,7 @@ This Notebook uses code from separate python files where most of the implementat
 
 ```python
 import numpy as np
-from agent import D4PG_Agent
+from agent import MAD4PG_Net
 from environment import Environment
 from data_handling import Logger, Saver, gather_args
 ```
@@ -141,7 +159,7 @@ Commandline arguments run the entire show, we'll have to simulate a command line
 
 
 ```python
-cmd_args = "--num_episodes 200 --actor_learn_rate 0.0005 --critic_learn_rate 0.001 --C 350 --vmin 0 --vmax 0.3"
+cmd_args = "--num_episodes 1200 --actor_learn_rate 0.00025 --critic_learn_rate 0.0005 --C 2500 --vmin 0 --vmax 1.3"
 ```
 
 
@@ -156,37 +174,42 @@ Let's check out what arguments have been loaded...
 print_args(args)
 ```
 
-    actor_learn_rate: 0.0005
-    critic_learn_rate: 0.001
-    batch_size: 128
-    buffer_size: 300000
-    C: 350
-    layer_sizes: [400, 300]
-    cpu: False
-    e: 0.3
-    vmin: 0.0
-    vmax: 0.3
-    num_atoms: 100
     eval: False
     force_eval: False
-    gamma: 0.99
-    max_steps: 1000
     nographics: False
-    num_episodes: 200
-    pretrain: 5000
     quiet: False
-    resume: False
+    verbose: False
+    observe: False
+    layer_sizes: [350, 250]
+    actor_learn_rate: 0.00025
+    critic_learn_rate: 0.0005
+    gamma: 0.99
+    update_type: soft
+    C: 2500
+    tau: 0.0001
+    e: 0.3
+    e_min: 0.0
+    anneal_max: 0.7
+    e_decay: 1
+    vmin: 0.0
+    vmax: 1.3
+    num_atoms: 101
+    batch_size: 128
+    buffer_size: 300000
+    pretrain: 128
     rollout: 5
-    save_every: 10
+    cpu: False
+    num_episodes: 1200
+    max_steps: 1000
+    quit_threshold: 0.525
+    print_every: 50
     log_every: 50
-    print_every: 3
-    tau: 0.0005
-    latest: False
-    filename: None
+    resume: False
     save_dir: saves
+    save_every: 100
     device: cuda:0
-    load_file: False
-    
+    train: True
+
 
 ### Set up the **`Environment`**
 Now that args are loaded, we can load the environment.
@@ -199,7 +222,7 @@ env = Environment(args)
     LOADING ON SYSTEM: Windows
     ##################################################
     #                                                #
-    
+
 
     INFO:unityagents:
     'Academy' started successfully!
@@ -208,21 +231,20 @@ env = Environment(args)
             Number of External Brains : 1
             Lesson number : 0
             Reset Parameters :
-    		goal_speed -> 1.0
-    		goal_size -> 5.0
-    Unity brain name: ReacherBrain
+
+    Unity brain name: TennisBrain
             Number of Visual Observations (per agent): 0
             Vector Observation space type: continuous
-            Vector Observation space size (per agent): 33
-            Number of stacked Vector Observation: 1
+            Vector Observation space size (per agent): 8
+            Number of stacked Vector Observation: 3
             Vector Action space type: continuous
-            Vector Action space size (per agent): 4
-            Vector Action descriptions: , , , 
-    
+            Vector Action space size (per agent): 2
+            Vector Action descriptions: ,
+
 
     #                                                #
     ##################################################
-    
+
 
 Print some information about the environment.
 
@@ -233,10 +255,10 @@ print("Action size:", env.action_size)
 print("State size:", env.state_size)
 ```
 
-    Num Agents: 20
-    Action size: 4
-    State size: 33
-    
+    Num Agents: 2
+    Action size: 2
+    State size: 24
+
 
 #### Take random actions in the Environment
 * Check that the environment is working
@@ -266,41 +288,31 @@ print_env_info(state[0], actions[0], reward[0])
 ```
 
     The agent chooses ACTIONS that look like:
-    [ 0.03457177  0.19341014 -0.8588225   0.48567791]
-    
+    [0.98847915 0.50162165]
+
     The environment returns STATES that look like:
-    tensor([ 4.4230e-01, -3.9349e+00, -5.7129e-01,  9.9591e-01,  5.4950e-02,
-             3.9405e-03, -7.1558e-02, -1.1179e-01,  9.1464e-02, -6.2235e-01,
-            -2.5099e+00, -3.7132e-01,  3.9625e-01,  1.4842e+00, -8.9285e+00,
-             1.0846e+00, -4.7750e-03, -3.7889e-01, -9.1661e-01,  1.2743e-01,
-            -9.2281e-01,  1.2188e+00,  6.4121e-01,  1.3334e+00,  2.7787e+00,
-             2.4045e+00,  3.2184e+00, -1.0000e+00, -7.3241e+00,  0.0000e+00,
-             1.0000e+00,  0.0000e+00,  3.9281e-02])
-    
+    tensor([ -6.1158,  -1.8524, -29.8729,   0.0000,  -7.0884,   5.2544, -29.8729,
+              0.0000,  -5.7742,  -1.8522,   3.4157,   0.0000,  -7.0884,   4.8228,
+              3.4157,   0.0000,  -2.8088,  -1.1836,  29.6544,   6.4114,  -7.0884,
+              4.2931,  29.6544,   6.4114])
+
     The environment returns REWARDS that look like:
     0.0
-    
+
 
 ## Evaluate a trained Agent
 
-Let's see a trained agent in action! 
+Let's see a trained agent in action! Because this environment can drag on very boringly, this evaluation is limited to 200 timesteps.
 
 Preview in this notebook using:
 
 
 ```python
-notebook_eval_agent(args, env, "weights/D4PG_v1.agent", num_eps=3)
+notebook_eval_agent(args, env, ["weights/MAD4PG_v1_agent1.agent", "weights/MAD4PG_v1_agent2.agent"], num_eps=1)
 ```
 
-    ##################################################
-    #                                                #
-     Successfully loaded file: weights/D4PG_v1.agent  
-    #                                                #
-    ##################################################
-    Score: 38.03999914973974
-    Score: 37.82849915446714
-    Score: 37.47449916237965
-    
+    Score: 0.5000000074505806
+
 
 **Or on the commandline, run the following command:**  
 **`python main.py -eval -savedir weights`**  
@@ -317,122 +329,142 @@ Now that the initial setup is created, training is as simple as running the **`t
 For Notebook purposes, saving has been disabled. Closing the environment is also disabled because the environment errors if closed and reopened in the Notebook.
 
 ### Load the **`Agent`** and **`Saver`** objects
-* The D4PG_Agent object sets up the networks and parameters for the Agent to run.
+* The MAD4PG_Agent object initializes `num_agents` amount of agents (2 for _Tennis_), and contains much of the methods necessary to train.
+* The agents inside of MAD4PG are D4PG agents, which set up the networks and parameters for the Agent to learn.
 * The Saver object will select a savename based on the framework, current time, and version-up if necessary. No files or folders are created until there is a file to write.
 
 
 ```python
-# Using the params from args and the environment, set up an agent for training
-agent = D4PG_Agent(env, args)
+multi_agent = MAD4PG_Net(env, args)
 
-# The Saver object will do all the saving and loading for the Agent
-saver = Saver(agent.framework, agent, args.save_dir, args.load_file)
+saver = Saver(multi_agent, args)
 ```
 
     ##################################################
     #                                                #
-       Saving to base filename: D4PG_20190403_v002    
+      Saving to base filename: MAD4PG_20190403_v002   
     #                                                #
     ##################################################
-    
+
 
 
 ```python
-def train(agent, args, env, saver):
+def train(multi_agent, args, env, saver):
     """
     Train the agent.
     """
 
-    logger = Logger(agent, args, saver.save_dir)
-
+    logger = Logger(multi_agent, args, saver.save_dir)
     # Pre-fill the Replay Buffer
-    agent.initialize_memory(args.pretrain, env)
+    multi_agent.initialize_memory(args.pretrain, env)
 
-    #Begin training loop
     for episode in range(1, args.num_episodes+1):
         # Begin each episode with a clean environment
         env.reset()
         # Get initial state
-        states = env.states
-        # Gather experience until done or max_steps is reached
-        for t in range(args.max_steps):
-            actions = agent.act(states)
-            next_states, rewards, dones = env.step(actions)
-            agent.step(states, actions, rewards, next_states)
-            states = next_states
+        obs = env.states
+        while True:
+            actions = multi_agent.act(obs)
+            next_obs, rewards, dones = env.step(actions)
+            multi_agent.store((obs, next_obs, actions, rewards, dones))
+            multi_agent.learn()
 
-            logger.log(rewards, agent)
+            obs = next_obs
+            logger.log(rewards, multi_agent)
             if np.any(dones):
                 break
+            # Use a variable threshold to end an episode to avoid overly long
+            # training after a target score has been reached, beyond which there
+            # is little further to learn
+            ep_threshold = np.clip(np.random.normal(1.5,.1), 1.3, 2)
+            if logger.rewards.max() >= ep_threshold:
+                break
 
-        #saver.save_checkpoint(agent, args.save_every)
-        agent.new_episode()
-        logger.step(episode, agent)
+        #saver.save(multi_agent)
+        logger.step(episode, multi_agent)
+        multi_agent.new_episode(logger.scores)
+        if len(logger.scores) > 250:
+            if np.array(logger.scores[-250:]).mean() > args.quit_threshold:
+                break
 
     #env.close()
-    #saver.save_final(agent)
-    #logger.graph()
+    logger.final(episode, multi_agent)
+    #saver.save(multi_agent, final=True)
+
     return
 ```
 
 ### *Reviewing each step*
 
 #### Create **`Logger`** object
-**`logger = Logger(agent, args, saver.save_dir)`**
-
+**`logger = Logger(multi_agent, args, saver.save_dir)`**
 
 * Logger:
     * prints status updates
     * keeps track of rewards
     * writes log files to disk
     * creates a graph for review at the end of training
-    
+
 #### Initialize memory
-**`agent.initialize_memory(args.pretrain, env)`**
+**`multi_agent.initialize_memory(args.pretrain, env)`**
 
 * Learning cannot begin until the ReplayBuffer has at least as many memories as batch_size
 * In many cases, training is improved by collecting many random memories before learning from any given experience  
-    * _**`args.pretrain`**_ will fill the memory with however many random experience tuples as desired, usually in the thousands, although it was found during training that sometimes, setting this too high, reduces or eliminates convergence!
-    
+    * _**`args.pretrain`**_ will fill the memory with however many random experience tuples as desired, for _Tennis_ it seems that the higher the better!!
+
 #### Training loop
 
 ```python
-#Begin training loop
 for episode in range(1, args.num_episodes+1):
     # Begin each episode with a clean environment
     env.reset()
     # Get initial state
-    states = env.states
-    # Gather experience until done or max_steps is reached
-    for t in range(args.max_steps):
-        actions = agent.act(states)
-        next_states, rewards, dones = env.step(actions)
-        agent.step(states, actions, rewards, next_states)
-        states = next_states
+    obs = env.states
+    while True:
+        actions = multi_agent.act(obs)
+        next_obs, rewards, dones = env.step(actions)
+        multi_agent.store((obs, next_obs, actions, rewards, dones))
+        multi_agent.learn()
 
-        logger.log(rewards, agent)
+        obs = next_obs
+        logger.log(rewards, multi_agent)
         if np.any(dones):
             break
+        # Use a variable threshold to end an episode to avoid overly long
+        # training after a target score has been reached, beyond which there
+        # is little further to learn
+        ep_threshold = np.clip(np.random.normal(1.5,.1), 1.3, 2)
+        if logger.rewards.max() >= ep_threshold:
+            break
+
+    #saver.save(multi_agent)
+    logger.step(episode, multi_agent)
+    multi_agent.new_episode(logger.scores)
+    if len(logger.scores) > 250:
+        if np.array(logger.scores[-250:]).mean() > args.quit_threshold:
+            break            
 ```
 
-* Training will proceed for a specified number of episodes, in this code there is no implementation of early termination upon goal achievement.
+* Training will proceed for a specified number of episodes or until `quit_threshold` is reached. In this implementation, the threshold is averaged over considerably more episodes than the "solve" status of only 100 episodes.
 * Perform a standard Reinforcement Agent training loop:
     * Get the initial state
     * Select an action
     * Collect next state, reward, and done-status from the environment after taking a step with the selected action
     * Store the experience tuple of S, A, R, S'
     * Rinse, wash, repeat
-* Inside of _**`agent.step`**_, the current experience is stored as a memory, and learning is then performed. This will be reviewed later in the AGENT review section. Experiences are stacked for NStep-Bootstrapping, but all that magic happens in the Agent, and not muddying up the training loop.
+* Inside of _**`agent.store`**_, the current experience is stacked for NStep-Bootstrapping, and then stored once enough experiences are collected for a memory.
+* _**`agent.learn`**_ does the magic, and will be reviewed below.
 * Log the rewards for the current timestep.
 * If a terminal state is reached, start a new episode!
+* This implementation has a special episode termination condition, that will begin a new episode if the score reaches a certain threshold, which here includes a gaussian distribution for some uncertainty in the quit condition. _Tennis_ can take an excrutiatingly long time to train once the agents begin to get smart, as the number of timesteps between episodes explodes because they're actually hitting the ball. After a certain level of expertise, there is not much, if anything, to be learned from contininuing to play until the environment hard resets at a score of 2.6-2.7.
 
 #### Post Episode
 
-**`saver.save_checkpoint(agent, args.save_every)`**  
+**`saver.save(multi_agent)`**  
 At the end of each episode, the agent saves checkpoint weights every so often, as defined by the commandline arguments.
 
-**`agent.new_episode()`**  
-The agent then resets.
+**`multi_agent.new_episode(logger.scores)`**  
+The agent then resets, and uses the current scores to anneal `E`.
 
 **`logger.step(episode, agent)`**  
 Logger keeps track of the scores, and prints status updates each `print_every` episodes.
@@ -442,90 +474,112 @@ Logger keeps track of the scores, and prints status updates each `print_every` e
 **`env.close()`**
 Close the environment.
 
-**`saver.save_final(agent)`**
-Save a final weights file.
-
-**`logger.graph()`**
+**`logger.final(episode, multi_agent)`**
 Create a graph from the Log data created during training.
+
+
+**`saver.save(multi_agent, final=True)`**
+Save a final weights file.
 
 ### What a training loop looks like in practice
 
 
 ```python
 #To run a quick test, limit the length of training
-args.num_episodes = 2
-args.print_every = 1
+args.num_episodes = 100
+args.print_every = 20
 env.train = True
 args.eval = False
 ```
 
 
 ```python
-train(agent, args, env, saver)
+train(multi_agent, args, env, saver)
 ```
 
     ##################################################
     #                                                #
-              Starting training at: 02:16:48          
+              Starting training at: 19:50:57          
     #                                                #
     ##################################################
     ##################################################
     #                                                #
-                 actor_learn_rate: 0.0005             
-                 critic_learn_rate: 0.001             
+                       eval: False                    
+                    force_eval: False                 
+                      observe: False                  
+                 layer_sizes: [350, 250]              
+                actor_learn_rate: 0.00025             
+                critic_learn_rate: 0.0005             
+                       gamma: 0.99                    
+                    update_type: soft                 
+                       tau: 0.0001                    
+                          e: 0.3                      
+                        e_min: 0.0                    
+                     anneal_max: 0.7                  
+                        e_decay: 1                    
+                        vmin: 0.0                     
+                        vmax: 1.3                     
+                      num_atoms: 101                  
                      batch_size: 128                  
                    buffer_size: 300000                
-                          C: 350                      
-                 layer_sizes: [400, 300]              
-                        cpu: False                    
-                          e: 0.3                      
-                        vmin: 0.0                     
-                        vmax: 0.3                     
-                      num_atoms: 100                  
-                        eval: True                    
-                    force_eval: False                 
-                       gamma: 0.99                    
-                     max_steps: 1000                  
-                     num_episodes: 2                  
-                      pretrain: 5000                  
-                      resume: False                   
+                      pretrain: 128                   
                         rollout: 5                    
+                        cpu: False                    
+                    num_episodes: 100                 
+                     max_steps: 1000                  
+                  quit_threshold: 0.525               
                       log_every: 50                   
-                      filename: None                  
+                      resume: False                   
                      save_dir: saves                  
                       device: cuda:0                  
-                     load_file: False                 
+                       train: True                    
                      framework: D4PG                  
-                     agent_count: 20                  
-                      action_size: 4                  
-                      state_size: 33                  
-                        e_decay: 1                    
-                       e_min: 0.05                    
-                    update_type: hard                 
-    atoms: tensor([0.0000, 0.0030, 0.0061, 0.0091, 0.0121, 0.0152, 0.0182, 0.0212, 0.0242,
-            0.0273, 0.0303, 0.0333, 0.0364, 0.0394, 0.0424, 0.0455, 0.0485, 0.0515,
-            0.0545, 0.0576, 0.0606, 0.0636, 0.0667, 0.0697, 0.0727, 0.0758, 0.0788,
-            0.0818, 0.0848, 0.0879, 0.0909, 0.0939, 0.0970, 0.1000, 0.1030, 0.1061,
-            0.1091, 0.1121, 0.1152, 0.1182, 0.1212, 0.1242, 0.1273, 0.1303, 0.1333,
-            0.1364, 0.1394, 0.1424, 0.1455, 0.1485, 0.1515, 0.1545, 0.1576, 0.1606,
-            0.1636, 0.1667, 0.1697, 0.1727, 0.1758, 0.1788, 0.1818, 0.1848, 0.1879,
-            0.1909, 0.1939, 0.1970, 0.2000, 0.2030, 0.2061, 0.2091, 0.2121, 0.2152,
-            0.2182, 0.2212, 0.2242, 0.2273, 0.2303, 0.2333, 0.2364, 0.2394, 0.2424,
-            0.2455, 0.2485, 0.2515, 0.2545, 0.2576, 0.2606, 0.2636, 0.2667, 0.2697,
-            0.2727, 0.2758, 0.2788, 0.2818, 0.2848, 0.2879, 0.2909, 0.2939, 0.2970,
-            0.3000], device='cuda:0')
-    memory: <buffers.ReplayBuffer object at 0x000002A9CE043CC0>
+                      state_size: 24                  
+                      action_size: 2                  
+                      agent_count: 2                  
+    agents: [<agent.D4PG_Agent object at 0x0000022B3741C0F0>, <agent.D4PG_Agent object at 0x0000022B373FFA90>]
+    memory: <buffers.ReplayBuffer object at 0x0000022B373FFAC8>
+    atoms: tensor([[0.0000, 0.0130, 0.0260, 0.0390, 0.0520, 0.0650, 0.0780, 0.0910, 0.1040,
+             0.1170, 0.1300, 0.1430, 0.1560, 0.1690, 0.1820, 0.1950, 0.2080, 0.2210,
+             0.2340, 0.2470, 0.2600, 0.2730, 0.2860, 0.2990, 0.3120, 0.3250, 0.3380,
+             0.3510, 0.3640, 0.3770, 0.3900, 0.4030, 0.4160, 0.4290, 0.4420, 0.4550,
+             0.4680, 0.4810, 0.4940, 0.5070, 0.5200, 0.5330, 0.5460, 0.5590, 0.5720,
+             0.5850, 0.5980, 0.6110, 0.6240, 0.6370, 0.6500, 0.6630, 0.6760, 0.6890,
+             0.7020, 0.7150, 0.7280, 0.7410, 0.7540, 0.7670, 0.7800, 0.7930, 0.8060,
+             0.8190, 0.8320, 0.8450, 0.8580, 0.8710, 0.8840, 0.8970, 0.9100, 0.9230,
+             0.9360, 0.9490, 0.9620, 0.9750, 0.9880, 1.0010, 1.0140, 1.0270, 1.0400,
+             1.0530, 1.0660, 1.0790, 1.0920, 1.1050, 1.1180, 1.1310, 1.1440, 1.1570,
+             1.1700, 1.1830, 1.1960, 1.2090, 1.2220, 1.2350, 1.2480, 1.2610, 1.2740,
+             1.2870, 1.3000]], device='cuda:0')
     actor: ActorNet(
-      (fc1): Linear(in_features=33, out_features=400, bias=True)
-      (fc2): Linear(in_features=400, out_features=300, bias=True)
-      (output): Linear(in_features=300, out_features=4, bias=True)
+      (fc1): Linear(in_features=24, out_features=350, bias=True)
+      (fc2): Linear(in_features=350, out_features=250, bias=True)
+      (output): Linear(in_features=250, out_features=2, bias=True)
     )
     actor_target: ActorNet(
-      (fc1): Linear(in_features=33, out_features=400, bias=True)
-      (fc2): Linear(in_features=400, out_features=300, bias=True)
-      (output): Linear(in_features=300, out_features=4, bias=True)
+      (fc1): Linear(in_features=24, out_features=350, bias=True)
+      (fc2): Linear(in_features=350, out_features=250, bias=True)
+      (output): Linear(in_features=250, out_features=2, bias=True)
     )
     actor_optim: Adam (
+    Parameter Group 0
+        amsgrad: False
+        betas: (0.9, 0.999)
+        eps: 1e-08
+        lr: 0.00025
+        weight_decay: 0.0001
+    )
+    critic: CriticNet(
+      (fc1): Linear(in_features=48, out_features=350, bias=True)
+      (fc2): Linear(in_features=354, out_features=250, bias=True)
+      (output): Linear(in_features=250, out_features=101, bias=True)
+    )
+    critic_target: CriticNet(
+      (fc1): Linear(in_features=48, out_features=350, bias=True)
+      (fc2): Linear(in_features=354, out_features=250, bias=True)
+      (output): Linear(in_features=250, out_features=101, bias=True)
+    )
+    critic_optim: Adam (
     Parameter Group 0
         amsgrad: False
         betas: (0.9, 0.999)
@@ -533,76 +587,90 @@ train(agent, args, env, saver)
         lr: 0.0005
         weight_decay: 0.0001
     )
-    critic: CriticNet(
-      (fc1): Linear(in_features=33, out_features=400, bias=True)
-      (fc2): Linear(in_features=404, out_features=300, bias=True)
-      (output): Linear(in_features=300, out_features=100, bias=True)
-    )
-    critic_target: CriticNet(
-      (fc1): Linear(in_features=33, out_features=400, bias=True)
-      (fc2): Linear(in_features=404, out_features=300, bias=True)
-      (output): Linear(in_features=300, out_features=100, bias=True)
-    )
-    critic_optim: Adam (
-    Parameter Group 0
-        amsgrad: False
-        betas: (0.9, 0.999)
-        eps: 1e-08
-        lr: 0.001
-        weight_decay: 0.0001
-    )
     #                                                #
     ##################################################
     ##################################################
     #                                                #
-     Logfiles saved to: saves/D4PG_20190403_v002/logs 
-              ...D4PG_20190403_v002_LOG.txt           
-           ...D4PG_20190403_v002_actorloss.txt        
-           ...D4PG_20190403_v002_criticloss.txt       
-             ...D4PG_20190403_v002_scores.txt         
+    Logfiles saved to: saves/MAD4PG_20190403_v002/logs/
+    ...MAD4PG_20190403_v002_LOG.txt
+    ...MAD4PG_20190403_v002_agent1_actorloss.txt
+    ...MAD4PG_20190403_v002_agent1_criticloss.txt
+    ...MAD4PG_20190403_v002_agent2_actorloss.txt
+    ...MAD4PG_20190403_v002_agent2_criticloss.txt
     #                                                #
     ##################################################
     Initializing memory buffer.
-    Taking pretrain step 10... memory filled: 120/5000                    
-    Taking pretrain step 20... memory filled: 320/5000                    
-    Taking pretrain step 30... memory filled: 520/5000                    
-    Taking pretrain step 40... memory filled: 720/5000                    
-    Taking pretrain step 50... memory filled: 920/5000                    
-    Taking pretrain step 60... memory filled: 1120/5000                    
-    Taking pretrain step 70... memory filled: 1320/5000                    
-    Taking pretrain step 80... memory filled: 1520/5000                    
-    Taking pretrain step 90... memory filled: 1720/5000                    
-    Taking pretrain step 100... memory filled: 1920/5000                    
-    Taking pretrain step 110... memory filled: 2120/5000                    
-    Taking pretrain step 120... memory filled: 2320/5000                    
-    Taking pretrain step 130... memory filled: 2520/5000                    
-    Taking pretrain step 140... memory filled: 2720/5000                    
-    Taking pretrain step 150... memory filled: 2920/5000                    
-    Taking pretrain step 160... memory filled: 3120/5000                    
-    Taking pretrain step 170... memory filled: 3320/5000                    
-    Taking pretrain step 180... memory filled: 3520/5000                    
-    Taking pretrain step 190... memory filled: 3720/5000                    
-    Taking pretrain step 200... memory filled: 3920/5000                    
-    Taking pretrain step 210... memory filled: 4120/5000                    
-    Taking pretrain step 220... memory filled: 4320/5000                    
-    Taking pretrain step 230... memory filled: 4520/5000                    
-    Taking pretrain step 240... memory filled: 4720/5000                    
-    Taking pretrain step 250... memory filled: 4920/5000                    
-    Taking pretrain step 254... memory filled: 5000/5000                    
+    ...memory filled: 1/128
+    ...memory filled: 11/128
+    ...memory filled: 21/128
+    ...memory filled: 31/128
+    ...memory filled: 41/128
+    ...memory filled: 51/128
+    ...memory filled: 61/128
+    ...memory filled: 71/128
+    ...memory filled: 81/128
+    ...memory filled: 91/128
+    ...memory filled: 101/128
+    ...memory filled: 111/128
+    ...memory filled: 121/128
+    ...memory filled: 128/128
     Done!
-    
-    Ep: 1/2 - 1000 steps - @02:18:08
-    Batch: 1m20s, Total: 1m20s, Est.Remain: 1m20s
-    ...Actor Loss: -0.1497, Critic Loss: 4.2852                  
-    Avg RETURN over previous 1 episodes: 0.3525
-    
-    
-    Ep: 2/2 - 2000 steps - @02:19:16
-    Batch: 1m8s, Total: 2m28s, Est.Remain: 0s
-    ...Actor Loss: -0.1565, Critic Loss: 4.1183                  
-    Avg RETURN over previous 1 episodes: 0.2565
-    
-    
+
+    Ep: 20/100 - 303 steps - @19:51:37
+    Batch: 39s, Total: 39s, Est.Remain: 2m39s
+    ...Actor #1 Loss: -0.5564, Critic #1 Loss: 4.0740                      
+    ...Actor #2 Loss: -0.5517, Critic #2 Loss: 4.0821                      
+    ...E: 0.2943
+    Avg RETURN over previous 20 episodes: 0.0050
+
+
+    Ep: 40/100 - 587 steps - @19:52:14
+    Batch: 36s, Total: 1m16s, Est.Remain: 1m54s
+    ...Actor #1 Loss: -0.5611, Critic #1 Loss: 4.0904                      
+    ...Actor #2 Loss: -0.5553, Critic #2 Loss: 4.0687                      
+    ...E: 0.2944
+    Avg RETURN over previous 20 episodes: 0.0000
+
+
+    Ep: 60/100 - 871 steps - @19:52:51
+    Batch: 37s, Total: 1m53s, Est.Remain: 1m15s
+    ...Actor #1 Loss: -0.5477, Critic #1 Loss: 4.1103                      
+    ...Actor #2 Loss: -0.5542, Critic #2 Loss: 4.1069                      
+    ...E: 0.2946
+    Avg RETURN over previous 20 episodes: 0.0000
+
+
+    Ep: 80/100 - 1155 steps - @19:53:27
+    Batch: 36s, Total: 2m29s, Est.Remain: 37s
+    ...Actor #1 Loss: -0.5045, Critic #1 Loss: 3.7874                      
+    ...Actor #2 Loss: -0.5103, Critic #2 Loss: 3.7848                      
+    ...E: 0.2946
+    Avg RETURN over previous 20 episodes: 0.0000
+
+
+    Ep: 100/100 - 1439 steps - @19:54:03
+    Batch: 36s, Total: 3m5s, Est.Remain: 0s
+    ...Actor #1 Loss: -0.5717, Critic #1 Loss: 4.2873                      
+    ...Actor #2 Loss: -0.5765, Critic #2 Loss: 4.2856                      
+    ...E: 0.2946
+    Avg RETURN over previous 20 episodes: 0.0000
+
+
+    Ep: 100/100 - 1439 steps - @19:54:03
+    Batch: 0s, Total: 3m5s, Est.Remain: 0s
+    ...Actor #1 Loss: -0.5717, Critic #1 Loss: 4.2873                      
+    ...Actor #2 Loss: -0.5765, Critic #2 Loss: 4.2856                      
+    ...E: 0.2946
+    Avg RETURN over previous 20 episodes: 0.0000
+
+    ##############################################################################
+    Saved graph data to: saves/MAD4PG_20190403_v002/MAD4PG_20190403_v002_graph.png
+    ##############################################################################
+
+
+
+![png](images/output_38_1.png)
+
 
 
 ```python
@@ -623,7 +691,7 @@ def initialize_weights(net, low, high):
         param.data.uniform_(low, high)
 ```
 
-These networks perform best, as describe in the paper, with uniformly distributed small values for their initial weights. The network is quite sensitive to large initial weights and will learn at a much slower and less stable rate if not initialized.
+>These networks perform best, as describe in the paper, with uniformly distributed small values for their initial weights. The network is quite sensitive to large initial weights and will learn at a much slower and less stable rate if not initialized.
 
 
 ```python
@@ -659,7 +727,7 @@ class ActorNet(nn.Module):
         return action
 ```
 
-The Actor network is quite straightforward. It takes in a state, and outputs values between -1 to 1 using a TANH activation function. No fancy layer normalization or dropout is needed. 
+>The Actor network is quite straightforward. It takes in a state, and outputs values between -1 to 1 using a TANH activation function. No fancy layer normalization or dropout is needed.
 
 ```python
 class CriticNet(nn.Module):
@@ -707,203 +775,330 @@ class CriticNet(nn.Module):
 
 ```
 
-The Critic network takes in the `State` as an input, but as described in the paper, the `Actions` are then added into the network directly as weights, by concatenating with the first fully-connected layer. This allows the Critic to approximate a value function for a continuous action space!
+>The Critic network takes in the `State` as an input, but as described in the paper, the `Actions` are then added into the network directly as weights, by concatenating with the first fully-connected layer. This allows the Critic to approximate a value function for a continuous action space!
+>
+>For the MAD4PG implementation, as based on MADDPG paper, the State and Actions consist of the combined Observations and Actions of all the agents, respectively. Thus, if each agent receives an observation of size \[24], and there are two agents, the State input to the critic network is of size \[48].
+>
+>Because this is a _distributional_ network, the Critic outputs not a value, but a probability distribution over `num_atoms` number of discrete probabilities. In order to turn the network values into probabilities, we take the Softmax of the logits.
+>
+>Because D4PG requires Cross-Entropy loss to compute the Critic backpropogation, this network also outputs the Log Softmax values for use with the Cross-Entropy equation. However, to save some small amount of computation, it only outputs whichever version is flagged.
 
-Because this is a _distributional_ network, the Critic outputs not a value, but a probability distribution over `num_atoms` number of discrete probabilities. In order to turn the network values into probabilities, we take the Softmax of the logits.
+## The Network/Agent
 
-Because D4PG requires Cross-Entropy loss to compute the Critic backpropogation, this network also outputs the Log Softmax values for use with the Cross-Entropy equation. However, to save some small amount of computation, it only outputs which version is flagged.
+### The Agent modules are reviewed bit by bit.
 
-## The Agent
+### **Class Instantiation**
+There are two classes associated with this reinforcement learning framework, a MAD4PG_Net, and a D4PG_Agent.
+#### **MAD4PG Class**
 
-### The Agent module is reviewed bit by bit.
 
-#### Class
-Initialize a Class to contain all of the Agent information and set up hyperparamaters.
+```python
+class MAD4PG_Net:
+    """
+    This implementation uses a variant of OpenAI's MADDPG:
+    https://arxiv.org/abs/1706.02275
+    but utilizes D4PG as a base algorithm in what I will call MAD4PG.
+    """
+
+    def __init__(self, env, args):
+        """
+        Initialize a MAD4PG network.
+        """
+
+        self.framework = "MAD4PG"
+        self.t_step = 0
+        self.episode = 1
+        self.avg_score = 0
+
+        self.C = args.C
+        self._e = args.e
+        self.e_min = args.e_min
+        self.e_decay = args.e_decay
+        self.anneal_max = args.anneal_max
+        self.update_type = args.update_type
+        self.tau = args.tau
+        self.state_size = env.state_size
+        self.action_size = env.action_size
+```
+
+> #### Agents/Buffer creation
+>Initialize all of the agents as required for the environment. Copy the parameters from the active networks to target networks.
+>There is only a single ReplayBuffer for this multi-agent network.
+
+```python        
+        # Create all the agents to be trained in the environment
+        self.agent_count = env.agent_count
+        self.agents = [D4PG_Agent(self.state_size,
+                       self.action_size,
+                       args,
+                       self.agent_count)
+                       for _ in range(self.agent_count)]
+        self.batch_size = args.batch_size
+
+        # Set up memory buffers, currently only standard replay is implemented
+        self.memory = ReplayBuffer(args.device,
+                                   args.buffer_size,
+                                   args.gamma,
+                                   args.rollout,
+                                   self.agent_count)
+        self.memory.init_n_step()
+
+        for agent in self.agents:
+            self.update_networks(agent, force_hard=True)
+```
+
+#### **D4PG Class**
 
 ```python
 class D4PG_Agent:
     """
-    PyTorch Implementation of D4PG.
+    D4PG utilizes distributional value estimation, n-step returns,
+    prioritized experience replay (PER), distributed K-actor exploration,
+    and off-policy actor-critic learning to achieve very fast and stable
+    learning for continuous control tasks.
+
+    This version of the Agent is written to interact with Udacity's
+    Collaborate/Compete environment featuring two table-tennis playing agents.
     """
-    def __init__(self, env, args,
-                 e_decay = 1,
-                 e_min = 0.05,
-                 l2_decay = 0.0001,
-                 update_type = "hard"):
+
+    def __init__(self, state_size, action_size, args,
+                 agent_count = 1,
+                 l2_decay = 0.0001):
         """
         Initialize a D4PG Agent.
         """
 
-        self.device = args.device
         self.framework = "D4PG"
+        self.device = args.device
         self.eval = args.eval
-        self.agent_count = env.agent_count
+
         self.actor_learn_rate = args.actor_learn_rate
         self.critic_learn_rate = args.critic_learn_rate
-        self.batch_size = args.batch_size
-        self.buffer_size = args.buffer_size
-        self.action_size = env.action_size
-        self.state_size = env.state_size
-        self.C = args.C
-        self._e = args.e
-        self.e_decay = e_decay
-        self.e_min = e_min
         self.gamma = args.gamma
         self.rollout = args.rollout
-        self.tau = args.tau
-        self.update_type = update_type
-
         self.num_atoms = args.num_atoms
         self.vmin = args.vmin
         self.vmax = args.vmax
-        self.atoms = torch.linspace(self.vmin, self.vmax, self.num_atoms).to(self.device)
-
-        self.t_step = 0
-        self.episode = 0
-
+        self.atoms = torch.linspace(self.vmin,
+                                    self.vmax,
+                                    self.num_atoms).to(self.device)
+        self.atoms = self.atoms.unsqueeze(0)
 ```
 
-#### Networks
-Create the Experience Replay buffer of a chosen type, and initialize active and target networks. Copy the parameters from the active network to target network.
 
-
-```python        
-# Set up memory buffers, currently only standard replay is implemented #
-self.memory = ReplayBuffer(self.device, self.buffer_size, self.gamma, self.rollout)
-
-#                    Initialize ACTOR networks                         #
-self.actor = ActorNet(args.layer_sizes,
-                      self.state_size,
-                      self.action_size).to(self.device)
-self.actor_target = ActorNet(args.layer_sizes,
-                             self.state_size,
-                             self.action_size).to(self.device)
-self._hard_update(self.actor, self.actor_target)
-self.actor_optim = optim.Adam(self.actor.parameters(),
-                              lr=self.actor_learn_rate,
-                              weight_decay=l2_decay)
-
-#                   Initialize CRITIC networks                         #
-self.critic = CriticNet(args.layer_sizes,
-                        self.state_size,
-                        self.action_size,
-                        self.num_atoms).to(self.device)
-self.critic_target = CriticNet(args.layer_sizes,
-                               self.state_size,
-                               self.action_size,
-                               self.num_atoms).to(self.device)
-self._hard_update(self.actor, self.actor_target)
-self.critic_optim = optim.Adam(self.critic.parameters(),
-                               lr=self.critic_learn_rate,
-                               weight_decay=l2_decay)
-
-self.new_episode()
-```
-
-#### **`act()`**
-Because the Actor in D4PG/DDPG is _deterministic_, the action selection is quite straightforward. An action is chosen via the Actor network, and then gaussian noise is added. The gaussian noise calculated the annealed rate inside that function.
-
-If running in `eval()` mode, then no noise is added and the network's actions are used.
+> #### Network creation
+> Each agent maintains its own networks. There is no ReplayBuffer in the agent itself.
 
 ```python
-def act(self, states, eval=False):
+        #                    Initialize ACTOR networks                         #
+        self.actor = ActorNet(args.layer_sizes,
+                              state_size,
+                              action_size).to(self.device)
+        self.actor_target = ActorNet(args.layer_sizes,
+                                     state_size,
+                                     action_size).to(self.device)
+        self.actor_optim = optim.Adam(self.actor.parameters(),
+                                      lr=self.actor_learn_rate,
+                                      weight_decay=l2_decay)
+
+        #                   Initialize CRITIC networks                         #
+        c_input_size = state_size * agent_count
+        c_action_size = action_size * agent_count
+        self.critic = CriticNet(args.layer_sizes,
+                                c_input_size,
+                                c_action_size,
+                                self.num_atoms).to(self.device)
+        self.critic_target = CriticNet(args.layer_sizes,
+                                       c_input_size,
+                                       c_action_size,
+                                       self.num_atoms).to(self.device)
+        self.critic_optim = optim.Adam(self.critic.parameters(),
+                                       lr=self.critic_learn_rate,
+                                       weight_decay=l2_decay)
+```
+
+### **FILL MEMORY**
+
+#### **`MAD4PG_Net.initialize_memory()`**
+>Perform a basic loop through the environment for **`pretrain`** number of steps by collecting experiences with random actions.
+
+```python
+def initialize_memory(self, pretrain_length, env):
     """
-    Predict an action using a policy/ACTOR network π.
-    Scaled noise N (gaussian distribution) is added to all actions todo
-    encourage exploration.
+    Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of
+    experiences before training begins.
     """
 
-    states = states.to(self.device)
+    if self.memlen >= pretrain_length:
+        print("Memory already filled, length: {}".format(len(self.memory)))
+        return
+    interval = max(10, int(pretrain_length/25))
+    print("Initializing memory buffer.")
+    obs = env.states
+    while self.memlen < pretrain_length:
+        actions = np.random.uniform(-1, 1, (self.agent_count,
+                                            self.action_size))
+        next_obs, rewards, dones = env.step(actions)
+        self.store((obs, next_obs, actions, rewards, dones))
+        obs = next_obs
+        if np.any(dones):
+            env.reset()
+            obs = env.states
+            self.memory.init_n_step()
+        if self.memlen % interval == 1 or self.memlen >= pretrain_length:
+            print("...memory filled: {}/{}".format(self.memlen,
+                                                   pretrain_length))
+    print("Done!")
+```
+
+### **ACT**
+
+#### **`MAD4PG_Net.act()`**
+>An action is chosen via the Actor network, and then gaussian noise is added. The gaussian noise is scaled by the `E` parameter which is annealed on a schedule curve, reviewed later in the notebook.
+>
+>If running in `eval()` mode, then no noise is added and the network's actions are used.
+
+```python
+def act(self, obs, training=True):
+    """
+    For each agent in the MAD4PG network, choose an action from the ACTOR
+    """
+
+    assert len(obs) == len(self.agents), "Num OBSERVATIONS does not match \
+                                          num AGENTS."
     with torch.no_grad():
-        actions = self.actor(states).detach().cpu().numpy()
-    if not eval:
-        noise = self._gauss_noise(actions.shape)
-        actions += noise
+        actions = np.array([agent.act(o) for agent, o in zip(self.agents, obs)])
+    if training:
+        actions += self._gauss_noise(actions.shape)
     return np.clip(actions, -1, 1)
 ```
 
-#### **`step()`**
-After collecting an experience tuple from the environment, the Agent stores the experience in the Replay Buffer. The data storage and manipulation for this environment is slightly complex as it all comes in stacks of 20, which then need to be stacked `rollout` steps high, and rearranged for storage as single experiences. Thus, at each timestep, 20 unique experiences are stored in the buffer.
+#### **`D4PG_Agent.act()`**
 
-Then, once the pretraining has finished, the Agent also performs a single learning step.
+>Because the Actor in D4PG/DDPG is _deterministic_, the action selection is quite straightforward.
 
 ```python
-def step(self, states, actions, rewards, next_states, pretrain=False):
+def act(self, obs, eval=False):
     """
-    Add the current SARS' tuple into the short term memory, then learn
+    Choose an action using a policy/ACTOR network π.
     """
 
-    # Current SARS' stored in short term memory, then stacked for NStep
-    experience = list(zip(states, actions, rewards, next_states))
-    self.memory.store_experience(experience)
-    self.t_step += 1
-
-    # Learn after done pretraining
-    if not pretrain:
-        self.learn()
+    obs = obs.to(self.device)
+    with torch.no_grad():
+        actions = self.actor(obs).cpu().numpy()
+    return actions
 ```
 
-#### **`learn()`**
-This is where the magic happens, the commented code fairly explicitly outlines each step, but we can briefly overview here as well. Review the `learn()` function along with `_get_targets()` and `_categorical()` below this cell.
 
-* First, select a sample of experiences from the Replay Buffer. These experiences consist of STATE<sub>t</sub>, ACTION<sub>t</sub>, REWARD<sub>t->t+N</sub>, NEXT_STATE<sub>t+N+1</sub>. Where N=`rollout`.
 
-* Calculate the value distribution of the offline critic network using the next_states.
+### **STORE**
 
-* Generate the Log probabilities from the online critic network using the current states and actions.
-            
-* Calculate the Cross-Entropy loss using the above two steps and use this to backpropogate through the online critic network.
+#### **`MAD4PG_Net.store()`**
+>This implementation of the MAD4PG network simplifies some operation from the previous incarnation of D4PG. The store step simply sends an experience to the ReplayBuffer, where it is processed into an N-Step Memory.
 
-* Calculate the value distribution from the online critic network and backpropogate the inverse value through the actor network as gradient ascent.
+```python
+    def store(self, experience):
+        """
+        Store an experience tuple in the ReplayBuffer
+        """
 
-* The current loss values are kept as network properties for later logging every so often.
-            
+        self.memory.store(experience)
+```
+
+### **LEARN**
+
+The `learn` step must be broken into two portions for a multi-agent network. In MADDPG, each agent processes the observations and actions of all the other agents, so in the MAD4PG_Net object we need to concatenate the states for processing, before passing to each agent for learning.
+
+#### **`MAD4PG.learn()`**
+
+>First we sample a batch of memories to process. The historical actions have already been concatenated into a single tensor before storage. These experiences consist of STATE<sub>t</sub>, ACTION<sub>t</sub>, REWARD<sub>t->t+N</sub>, NEXT_STATE<sub>t+N+1</sub>. Where N=`rollout`.
+>
+>We collect _target_ and _predicted_ actions from the target and active networks, respectively, and then concatenate the results into a single tensor of size \[batchsize, action_size * agent_count].
+>
+>Once these have been calculated, we no longer need the separate observations because the Critic network needs the combined observations. So we adjust the _observations_ and _next_observations_ tensors into shape \[batchsize, state_size * agent_count]
+>
+>The results are fed through each agent's `learn()` method, and the networks are then updated from time to time.
+
 ``` python            
 def learn(self):
+    """
+    Perform a learning step on all agents in the network.
+    """
+
+    self.t_step += 1
+
+    # Sample from replay buffer, which already has nstep rollout calculated.
+    batch = self.memory.sample(self.batch_size)
+    obs, next_obs, actions, rewards, dones = batch
+
+    # Gather and concatenate actions because critic networks need ALL
+    # actions as input, the stored actions were concatenated before storing
+    # in the buffer
+    target_actions = [agent.actor_target(next_obs[i]) for i, agent in
+                      enumerate(self.agents)]
+    predicted_actions = [agent.actor(obs[i]) for i, agent in
+                         enumerate(self.agents)]
+    target_actions = torch.cat(target_actions, dim=-1)
+    predicted_actions = torch.cat(predicted_actions, dim=-1)
+
+    # Change state data from [agent_count, batch_size]
+    # to [batchsize, state_size * agent_count]
+    # because critic networks need to ALL observations as input
+    obs = obs.transpose(1,0).contiguous().view(self.batch_size, -1)
+    next_obs = next_obs.transpose(1,0).contiguous().view(self.batch_size,-1)
+
+    # Perform a learning step for each agent using concatenated data as well
+    # as unique-perspective data where algorithmically called for
+    for i, agent in enumerate(self.agents):
+        agent.learn(obs, next_obs, actions, target_actions,
+                    predicted_actions, rewards[i], dones[i])
+        self.update_networks(agent)
+```
+
+#### **`D4PG_Agent.learn()`**
+
+>Each agent performs a D4PG update step using the processed SARS' data provided from the parent network.
+>
+>* Generate the Log probabilities from the online critic network using the stored states and actions.
+>
+>* Calculate the value distribution of the offline critic network using the next_states and predicted actions of those states.
+>           
+>* Calculate the Cross-Entropy loss using the above two steps and use this to backpropogate through the online critic network.
+>
+>* Calculate the value distribution from the online critic network and backpropogate the inverse value through the actor network as gradient ascent.
+>
+>* The current loss values are kept as network properties for later logging every so often.
+
+
+
+```python
+def learn(self, obs, next_obs, actions, target_actions, predicted_actions,
+          rewards, dones):
     """
     Performs a distributional Actor/Critic calculation and update.
     Actor πθ and πθ'
     Critic Zw and Zw' (categorical distribution)
     """
 
-    # Sample from replay buffer, REWARDS are sum of ROLLOUT timesteps
-    # Already calculated before storing in the replay buffer.
-    # NEXT_STATES are ROLLOUT steps ahead of STATES
-    batch = self.memory.sample(self.batch_size)
-    states, actions, rewards, next_states = batch
-    atoms = self.atoms.unsqueeze(0)
-    # Calculate Yᵢ from target networks using πθ' and Zw'
-    # These tensors are not needed for backpropogation, so detach from the
-    # calculation graph (literally doubles runtime if this is not detached)
-    target_dist = self._get_targets(rewards, next_states).detach()
-
-    # Calculate log probability DISTRIBUTION using Zw w.r.t. stored actions
-    log_probs = self.critic(states, actions, log=True)
-
-    # Calculate the critic network LOSS (Cross Entropy), CE-loss is ideal
-    # for categorical value distributions as utilized in D4PG.
-    # estimates distance between target and projected values
+    # Calculate log probability DISTRIBUTION w.r.t. stored actions
+    log_probs = self.critic(obs, actions, log=True)
+    # Calculate TARGET distribution/project onto supports (Yi)
+    target_probs = self.critic_target(next_obs, target_actions).detach()
+    target_dist = self._categorical(rewards, target_probs, dones)#.detach()
+    # Calculate the critic network LOSS (Cross Entropy)
     critic_loss = -(target_dist * log_probs).sum(-1).mean()
 
 
-    # Predict action for actor network loss calculation using πθ
-    predicted_action = self.actor(states)
-
     # Predict value DISTRIBUTION using Zw w.r.t. action predicted by πθ
-    probs = self.critic(states, predicted_action)
-
-    # Multiply probabilities by atom values and sum across columns to get
-    # Q-Value
-    expected_reward = (probs * atoms).sum(-1)
-
+    probs = self.critic(obs, predicted_actions)
+    # Mult value probs by atom values and sum across columns to get Q-Value
+    expected_reward = (probs * self.atoms).sum(-1)
     # Calculate the actor network LOSS (Policy Gradient)
-    # Take the mean across the batch and multiply in the negative to
-    # perform gradient ascent
     actor_loss = -expected_reward.mean()
 
     # Perform gradient ascent
     self.actor_optim.zero_grad()
-    actor_loss.backward()
+    actor_loss.backward(retain_graph=True)
     self.actor_optim.step()
 
     # Perform gradient descent
@@ -911,25 +1106,10 @@ def learn(self):
     critic_loss.backward()
     self.critic_optim.step()
 
-    self._update_networks()
-
     self.actor_loss = actor_loss.item()
     self.critic_loss = critic_loss.item()
-```
 
-```python
-def _get_targets(self, rewards, next_states):
-    """
-    Calculate Yᵢ from target networks using πθ' and Zw'
-    """
-
-    target_actions = self.actor_target(next_states)
-    target_probs = self.critic_target(next_states, target_actions)
-    # Project the categorical distribution onto the supports
-    projected_probs = self._categorical(rewards, target_probs)
-    return projected_probs
-
-def _categorical(self, rewards, probs):
+def _categorical(self, rewards, probs, dones):
     """
     Returns the projected value distribution for the input state/action pair
 
@@ -947,12 +1127,13 @@ def _categorical(self, rewards, probs):
     gamma = self.gamma
     rollout = self.rollout
 
+    # rewards/dones shape from [batchsize,] to [batchsize,1]
     rewards = rewards.unsqueeze(-1)
+    dones = dones.unsqueeze(-1).type(torch.float)
+
     delta_z = (vmax - vmin) / (num_atoms - 1)
 
-    # Rewards were stored with 0->(N-1) summed, take Reward and add it to
-    # the discounted expected reward at N (ROLLOUT) timesteps
-    projected_atoms = rewards + gamma**rollout * atoms.unsqueeze(0)
+    projected_atoms = rewards + gamma**rollout * atoms * (1 - dones)
     projected_atoms.clamp_(vmin, vmax)
     b = (projected_atoms - vmin) / delta_z
 
@@ -979,43 +1160,11 @@ def _categorical(self, rewards, probs):
     return projected_probs.float()
 ```
 
-#### **`initialize_memory()`**
-Perform a basic loop through the environment for **`pretrain`** number of steps by collecting experiences with random actions. 
+### EPSILON
 
-```python
-def initialize_memory(self, pretrain_length, env):
-    """
-    Fills up the ReplayBuffer memory with PRETRAIN_LENGTH number of experiences
-    before training begins.
-    """
+#### **`MAD4PG_Net.e()`**
 
-    if len(self.memory) >= pretrain_length:
-        print("Memory already filled, length: {}".format(len(self.memory)))
-        return
-
-    print("Initializing memory buffer.")
-    states = env.states
-    while len(self.memory) < pretrain_length:
-        actions = np.random.uniform(-1, 1, (self.agent_count, self.action_size))
-        next_states, rewards, dones = env.step(actions)
-        self.step(states, actions, rewards, next_states, pretrain=True)
-        if self.t_step % 10 == 0 or len(self.memory) >= pretrain_length:
-            print("Taking pretrain step {}... memory filled: {}/{}\
-                ".format(self.t_step, len(self.memory), pretrain_length))
-
-        states = next_states
-    print("Done!")
-    self.t_step = 0
-```
-
-#### **`epsilon`**
-Epsilon in this implementation is a simple rate modifier multipling against the gaussian distribution generated from `_gauss_noise()`.
-
-Normally `epsilon` is annealed to some low value <<1 as training progresses. However, this environment thrived without any annealing at all, and instead, noise is simply not added for evaluation purposes, but for training the noise stays constant.
-
-**`epsilon`** is here implemented as a class Property such that every time it is called, the value changes. This is primarily for neatness.
-
-Gaussian Noise about 0 with a standard deviation of 1 is used here. The original research in DDPG suggested to use an Ornstein-Uhlenbeck process noise, however, in agreement with the D4PG paper, a normal distribution provides fast training exploration without issue and is one less item to debug.
+>This codebase has a more mature implementation for `E` than my previous projects. It uses a modified TANH curve to provide a falloff near the min/max values that control the curve. The rate of change is controlled by the `score` that the agent has been receiving, averaged over a number of episodes, **50** in this implementation. By averaging over the previous episode scores, the rate of change in `E` can be smoothed an ensure that exploration is not reduced too quickly. The agent will need to continue to get stable scores for the value to continue to reduce.
 
 ```python
 @property
@@ -1023,12 +1172,29 @@ def e(self):
     """
     This property ensures that the annealing process is run every time that
     E is called.
+
     Anneals the epsilon rate down to a specified minimum to ensure there is
     always some noisiness to the policy actions. Returns as a property.
+
+    Uses a modified TANH curve to roll off the values near min/max.
     """
 
-    self._e = max(self.e_min, self._e * self.e_decay)
-    return self._e  
+    ylow = self.e_min
+    yhigh = self._e
+
+    xlow = 0
+    xhigh = self.anneal_max
+
+    steep_mult = 8
+
+    steepness = steep_mult / (xhigh - xlow)
+    offset = (xhigh + xlow) / 2
+    midpoint = yhigh - ylow
+
+    x = np.clip(self.avg_score, 0, xhigh)
+    x = steepness * (x - offset)
+    e = ylow + midpoint / (1 + np.exp(x))
+    return e    
 
 def _gauss_noise(self, shape):
     """
@@ -1040,30 +1206,82 @@ def _gauss_noise(self, shape):
     return self.e*n
 ```
 
-#### Boilerplate
+##### Let's take a quick look at what this curve looks like in practice
+We want the value of `E` to be at it's maximum at a reward of 0, where no learning has taken place or the agent(s) need to improve fully.
+
+The values defined on the commandline bound the remainder of the curve:
+`e_min` is the minimum boundary towards which `e` will anneal to over time.
+`e` is the maximum boundary of the curve.
+`anneal_max` is the value of the score at which `e` is annealed to minimum.
+
+By defining the annealing function in this way, we ensure that as the agents improve their performance, they are discouraged from continuing to explore too much, thus reducing the risk of catastrophic forgetting or instability.
+
+Not that because this is a variant of a TANH curve, the curve will _approach_ the boundaries but not reach them. If it causes you problems that a parameter `e=0.3` returns a value of 0.2954... _you're doing something else wrong and this isn't the cause of your problems._
+
+One major caveat here is that it requires some knowledge of the environment and what a _good_ score constitutes. In a black-box environment, it would be difficult to anneal the parameter in this way. In such an environment, it might be more effective to maintain a constant rate of exploration, or implement some sort of stochastic process.
+
+Below are two settings and the resulting curves of the example parameters.
+
+
+```python
+xlow = 0
+xhigh = args.anneal_max = 0.75
+ylow = args.e_min = 0
+yhigh = args.e = 0.3
+graph_e([ylow, yhigh, xlow, xhigh])
+```
+
+
+![png](images/output_52_0.png)
+
+
+
+```python
+xlow = 0
+xhigh = args.anneal_max = 1.5
+ylow = args.e_min = .2
+yhigh = args.e = 0.5
+graph_e([ylow, yhigh, xlow, xhigh])
+```
+
+
+![png](images/output_53_0.png)
+
+
+### BOILERPLATE
 The below methods perform basic tasks that are explained adequately in their commenting.
 
+**MAD4PG_Net().** ...
+
 ```python                
-def new_episode(self):
+def new_episode(self, scores):
     """
     Handle any cleanup or steps to begin a new episode of training.
     """
 
+    # Keep track of an average score for use with annealing epsilon,
+    # TODO: this currently lives in new_episode() because we only want to
+    # update epsilon each episode, not each timestep, currently. This should
+    # be further investigate about moving this into the epsilon property
+    # itself instead of here
+    avg_across = np.clip(len(scores), 1, 50)
+    self.avg_score = np.array(scores[-avg_across:]).mean()
+
     self.memory.init_n_step()
     self.episode += 1
 
-def _update_networks(self):
+def update_networks(self, agent, force_hard=False):
     """
-    Updates the network using either DDPG-style soft updates (w/ param \
-    TAU), or using a DQN/D4PG style hard update every C timesteps.
+    Updates the network using either DDPG-style soft updates (w/ param TAU),
+    or using a DQN/D4PG style hard update every C timesteps.
     """
 
-    if self.update_type == "soft":
-        self._soft_update(self.actor, self.actor_target)
-        self._soft_update(self.critic, self.critic_target)
-    elif self.t_step % self.C == 0:
-        self._hard_update(self.actor, self.actor_target)
-        self._hard_update(self.critic, self.critic_target)
+    if self.update_type == "soft" and not force_hard:
+        self._soft_update(agent.actor, agent.actor_target)
+        self._soft_update(agent.critic, agent.critic_target)
+    elif self.t_step % self.C == 0 or force_hard:
+        self._hard_update(agent.actor, agent.actor_target)
+        self._hard_update(agent.critic, agent.critic_target)
 
 def _soft_update(self, active, target):
     """
@@ -1082,91 +1300,103 @@ def _hard_update(self, active, target):
     """
 
     target.load_state_dict(active.state_dict())
+
+@property
+def memlen(self):
+    """
+    Returns length of memory buffer as a property.
+    """
+
+    return len(self.memory)
 ```
 
 ## Replay Buffer
 
 ### A quick look at N-Step Rollout
 
-Bootstrapping by utilizing multiple steps of experience in each learning step is hugely beneficial, but can be troublesome to implement, especially in this environment where 20 actors had to be juggled around. Below is the inelegant way I handled it, which was improved muchly in Project \#3 _Collaborate & Compete_.
+Bootstrapping by utilizing multiple steps of experience in each learning step is hugely beneficial. Much was learned from the previous Project \#2 _Reacher_. This Buffer code is cleaner, and faster, than previously.
 
-This buffer stacks each experience in a Deque of `maxlen=rollout` length. Where `rollout` equals the N of N-Step Bootstrapping.
-
-Once `rollout` experiences are stored in the Deque, then a memory is stored in the full buffer, utilizing the first state, last next_state, and cumulative rewards. This implementation does not handle _terminal_ states. Project \#3 does handle terminals.
+>This buffer stacks each experience in a Deque of `maxlen=rollout` length. Where `rollout` equals the N of N-Step Bootstrapping.
+>
+>Once `rollout` experiences are stored in the Deque, then a memory is stored in the full buffer, utilizing the first state, last next_state, and cumulative rewards. This implementation properly handles _terminal states_.
 
 ```python
 class ReplayBuffer:
     """
-    Standard replay buffer equipped to deal with NStep Rollout
+    Standard replay buffer to hold memories for later learning. Utilizes
+    N-Step Rollout/Boostrapping.
     """
-
-    def __init__(self, device, buffer_size=100000, gamma=0.99, rollout=5):
+    def __init__(self, device, buffer_size=100000, gamma=0.99, rollout=5,
+                 agent_count=1):
         self.buffer = deque(maxlen=buffer_size)
         self.device = device
         self.gamma = gamma
         self.rollout = rollout
+        self.agent_count = agent_count
 
-    def store_trajectory(self, state, action, reward, next_state):
+    def store(self, experience):
         """
-        Stores a trajectory, which may or may not be the same as an experience,
-        but allows for n_step rollout.
+        Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
+        memory can be added to the ReplayBuffer.
         """
 
-        trajectory = (state, action, reward, next_state)
-        self.buffer.append(trajectory)
+        if self.rollout > 1:
+            self.n_step.append(experience)
+            # Abort if ROLLOUT steps haven't been taken in a new episode
+            if len(self.n_step) < self.rollout:
+                return
+            experience = self._n_stack()
+
+        obs, next_obs, actions, rewards, dones = experience
+        actions = torch.from_numpy(np.concatenate(actions)).float()
+        rewards = torch.from_numpy(rewards).float()
+        dones = torch.tensor(dones).float()
+        self.buffer.append((obs, next_obs, actions, rewards, dones))
 
     def sample(self, batch_size):
         """
         Return a sample of size BATCH_SIZE as a tuple.
         """
+
         batch = random.sample(self.buffer, k=batch_size)
-        states, actions, rewards, next_states = zip(*batch)
-        states = torch.cat(states).to(self.device)
-        actions = torch.cat(actions).float().to(self.device)
-        rewards = torch.cat(rewards).to(self.device)
-        next_states = torch.cat(next_states).to(self.device)
-        return (states, actions, rewards, next_states)
+        obs, next_obs, actions, rewards, dones = zip(*batch)
+
+        # Transpose the num_agents and batch_size, for easy indexing later
+        # e.g. from 64 samples of 2 agents each, to 2 agents with 64 samples
+        obs = torch.stack(obs).transpose(1,0).to(self.device)
+        next_obs = torch.stack(next_obs).transpose(1,0).to(self.device)
+        actions = torch.stack(actions).to(self.device)
+        rewards = torch.stack(rewards).transpose(1,0).to(self.device)
+        dones = torch.stack(dones).transpose(1,0).to(self.device)
+        return (obs, next_obs, actions, rewards, dones)
 
     def init_n_step(self):
         """
-        Creates (or recreates to zero an existing) deque to handle nstep returns.
+        Creates (or rezeroes an existing) deque to handle nstep returns.
         """
+
         self.n_step = deque(maxlen=self.rollout)
 
-    def store_experience(self, experience):
+    def _n_stack(self):
         """
-        Once the n_step memory holds ROLLOUT number of sars' tuples, then a full
-        memory can be added to the ReplayBuffer.
-
-        This implementation has NO functionality to deal with terminal states,
-        as the Reacher environment does not have terminal states. If you would
-        like to see a more mature/robust implementation, please see the MAD4PG
-        implementation under Collaborate & Compete in the same repository.
+        Takes a stack of experience tuples of depth ROLLOUT, and calculates
+        the discounted real rewards, then returns the next_obs at ROLLOUT
+        timesteps to be used with a nstep trajectory structure Q value.
         """
-        self.n_step.append(experience)
 
-        # Abort if ROLLOUT steps haven't been taken in a new episode
-        if len(self.n_step) < self.rollout:
-            return
+        obs, next_obs, actions, rewards, dones = zip(*self.n_step)
 
-        # Unpacks and stores the SARS' tuple for each actor in the environment
-        # thus, each timestep actually adds K_ACTORS memories to the buffer,
-        # for the Udacity environment this means 20 memories each timestep.
-        for actor in zip(*self.n_step):
-            states, actions, rewards, next_states = zip(*actor)
-            n_steps = self.rollout
+        summed_rewards = rewards[0]
+        for i in range(1, self.rollout):
+            summed_rewards += self.gamma**i * rewards[i]
+            if np.any(dones[i]):
+                break
 
-            # Calculate n-step discounted reward
-            rewards = np.fromiter((self.gamma**i * rewards[i] for i in range(n_steps)), float, count=n_steps)
-            rewards = rewards.sum()
-
-            # store the current state, current action, cumulative discounted
-            # reward from t -> t+n-1, and the next_state at t+n (S't+n)
-            states = states[0].unsqueeze(0)
-            actions = torch.from_numpy(actions[0]).unsqueeze(0).double()
-            rewards = torch.tensor([rewards])
-            next_states = next_states[-1].unsqueeze(0)
-            self.store_trajectory(states, actions, rewards, next_states)
+        obs = obs[0]
+        nstep_obs = next_obs[i]
+        actions = actions[0]
+        dones = dones[i]
+        return (obs, nstep_obs, actions, summed_rewards, dones)
 
     def __len__(self):
         return len(self.buffer)
@@ -1174,12 +1404,20 @@ class ReplayBuffer:
 
 # Wrapping it up
 
-This was an extremely challenging (and therefore rewarding) project to tackle, as I set myself the task of implementing one of the most state-of-the-art algorithms publicly available. I had to learn a lot to do this, and could not rely on many other people's work or examples to achieve the end results. I am proud of being able to implement this algorithm and happy that it achieves such excellent results. I very much look forward to adapting it to new tasks.
+There were two primary challenges in completing this task:
+* MADDPG implementation requires each agent to have access to the full state via the combined obersations of all agents, and all actions
+    * Initially I did not fully understand this and ran many trials without any convergence whatsoever (in fact, never even achieving an average score of +0.1)
+    * I do not fully understand the theoretical groundwork for why the agent cannot learn from its own observations alone, and need to study this further, as well as policy approximation for instances where the agent does _not_ have access to all observations.
+* This task was quite unstable and sensitive to parameter tuning. It also took a very long time to run, generally needing at least 1 hour of training before even beginning to see if the agent was learning, and 2-3+ hours to see if it was converging to a goal-score.
 
-This codebase was written for this project, and then backwards adapted to my DQN project, which was originally much more of a wreck. I learned a lot about organization and managing a flexible codebase by engineering this. I have since evolved this even more flexibly and powerfully for the next project.
+I learned a lot about troubleshooting and methodically testing parameters for effectiveness by working my way through this. This project also left me with a great deal of further study to delve into next, which is a plus.
+
+While I feel I have achieved a strong grasp of the principals behind the projects and topics covered in this class, I am empowered with an understanding of how much more there is to learn, and a great desire to do so.
+
+The Udacity _Deep Reinforcement Learning Nanodegree_ program has been one of the better learning experiences of my life. I can look back over just a few short months and it's difficult to comprehend how much I have learned. I have a very deep interest in pursuing further work and a career in this field and I am thankful to have had this great introduction to the amazing world of Reinforcement Learning.
 
 To run this project as it was intended, please review the README.md in the github repository located at:
-https://github.com/whiterabbitobj/Udacity-DeepRL/tree/master/Projects/Continuous_Control
+https://github.com/whiterabbitobj/Udacity-DeepRL/tree/master/Projects/Collaborate_Compete
 
 The agent params have already been optimized in their defaults and this project can be run as simply as:  
 **`python main.py`**   

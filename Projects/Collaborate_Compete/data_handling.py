@@ -733,7 +733,7 @@ class Logger:
 
 
 
-def gather_args():
+def gather_args(manual_args=None):
     """
     Generate arguments passed from the command line.
     """
@@ -921,7 +921,7 @@ def gather_args():
             default=100)
 
 
-    args = parser.parse_args()
+    args = parser.parse_args(manual_args)
 
     ############################################################################
     #               PROCESS ARGS AFTER COMMAND LINE GATHERING                  #

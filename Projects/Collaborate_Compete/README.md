@@ -10,7 +10,7 @@
 ###### _combined with_
 ### **[Distributed Distributional Deep Deterministic Policy Gradient (D4PG)](https://arxiv.org/pdf/1804.08617.pdf)**
 ###### _to create_
-## <u>_**MAD4PG**_</u>
+## _**MAD4PG**_
 ---
 
 This project uses a state-of-the-art multi-agent interaction algorithm, MADDPG, pioneered by OpenAI, to solve an environment in which two agents compete to play Tennis. Scoring is based on back and forth volleying and not on beating the opponent, so this environment is really more focused on _collaboration_ than competition.
@@ -105,7 +105,7 @@ This D4PG agent reliably scores well above this minimum goal. When evaluated wit
 6. There are no unusual packages utilized and a clean environment with Python 3.6+, Pytorch, Matplotlib, and Numpy installed should suffice.
 
 
-### _(Optional) Challenge: Crawler Environment_
+### _(Optional) Challenge: Soccer environment_
 
 Udacity has provided a more difficult **Soccer** environment.
 

@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import numpy as np
-
 from agent import MAD4PG_Net
 from environment import Environment
 from data_handling import Logger, Saver, gather_args
