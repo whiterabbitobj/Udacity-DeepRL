@@ -130,7 +130,6 @@ dependencies:
   - mistune=0.8.4=py37he774522_0
   - mkl=2019.1=144
   - mkl-service=1.1.2=py37hb782905_5
-  - mkl_fft=1.0.6=py37h6288b17_0
   - mkl_random=1.0.2=py37h343c172_0
   - more-itertools=4.3.0=py37_0
   - mpmath=1.1.0=py37_0

@@ -11,10 +11,6 @@ from models import ActorNet, CriticNet
 
 class MAD4PG_Net:
     """
-    This implementation uses a variant of OpenAI's MADDPG:
-    https://arxiv.org/abs/1706.02275
-    but utilizes D4PG as a base algorithm in what I will call MAD4PG.
-
     "Distributed Distributional Deterministic Policy Gradients"
     (Barth-Maron, Hoffman, et al., 2018)
     As described in the paper at: https://arxiv.org/pdf/1804.08617.pdf
