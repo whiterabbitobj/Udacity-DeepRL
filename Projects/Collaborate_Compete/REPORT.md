@@ -1214,9 +1214,9 @@ The values defined on the commandline bound the remainder of the curve:
 `e` is the maximum boundary of the curve.
 `anneal_max` is the value of the score at which `e` is annealed to minimum.
 
-By defining the annealing function in this way, we ensure that as the agents improve their performance, they are discouraged from continuing to explore too much, thus reducing the risk of catastrophic forgetting or instability.
+By defining the annealing function in this way, we ensure that as the agents improve their performance, they are discouraged from continuing to explore too much, thus _reducing the risk of catastrophic forgetting or instability._
 
-Not that because this is a variant of a TANH curve, the curve will _approach_ the boundaries but not reach them. If it causes you problems that a parameter `e=0.3` returns a value of 0.2954... _you're doing something else wrong and this isn't the cause of your problems._
+Note that because this is a variant of a TANH curve, the curve will _approach_ the boundaries but not reach them. e.g. args.e = 0.3 but the e() function would return 0.2954. This should not be sufficient to cause issues under any conceivable circumstances.
 
 One major caveat here is that it requires some knowledge of the environment and what a _good_ score constitutes. In a black-box environment, it would be difficult to anneal the parameter in this way. In such an environment, it might be more effective to maintain a constant rate of exploration, or implement some sort of stochastic process.
 
